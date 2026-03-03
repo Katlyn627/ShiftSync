@@ -71,6 +71,18 @@ function initSchema(db: Database.Database): void {
       manager_notes TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL,             -- 'demo' | 'google' | 'microsoft'
+      provider_user_id TEXT NOT NULL,
+      email TEXT,
+      display_name TEXT,
+      employee_id INTEGER REFERENCES employees(id),
+      role TEXT NOT NULL DEFAULT 'employee', -- 'manager' | 'employee'
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(provider, provider_user_id)
+    );
   `);
 }
 

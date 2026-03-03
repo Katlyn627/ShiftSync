@@ -3,16 +3,17 @@ import { getDb } from '../db';
 import { generateSchedule } from '../scheduler';
 import { getLaborCostSummary } from '../laborCost';
 import { calculateBurnoutRisks } from '../burnout';
+import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', (_req, res) => {
+router.get('/', requireAuth, (_req, res) => {
   const db = getDb();
   const schedules = db.prepare('SELECT * FROM schedules ORDER BY week_start DESC').all();
   res.json(schedules);
 });
 
-router.post('/generate', (req, res) => {
+router.post('/generate', requireAuth, requireManager, (req, res) => {
   const { week_start, labor_budget } = req.body;
   if (!week_start) return res.status(400).json({ error: 'week_start is required' });
   try {
@@ -25,14 +26,14 @@ router.post('/generate', (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', requireAuth, (req, res) => {
   const db = getDb();
   const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id);
   if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
   res.json(schedule);
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', requireAuth, requireManager, (req, res) => {
   const { status } = req.body;
   const db = getDb();
   const existing = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id) as any;
@@ -42,7 +43,7 @@ router.put('/:id', (req, res) => {
   res.json(updated);
 });
 
-router.get('/:id/shifts', (req, res) => {
+router.get('/:id/shifts', requireAuth, (req, res) => {
   const db = getDb();
   const shifts = db.prepare(`
     SELECT s.*, e.name as employee_name, e.role as employee_role, e.hourly_rate
@@ -54,7 +55,7 @@ router.get('/:id/shifts', (req, res) => {
   res.json(shifts);
 });
 
-router.get('/:id/labor-cost', (req, res) => {
+router.get('/:id/labor-cost', requireAuth, (req, res) => {
   try {
     const summary = getLaborCostSummary(parseInt(req.params.id));
     res.json(summary);
@@ -63,7 +64,7 @@ router.get('/:id/labor-cost', (req, res) => {
   }
 });
 
-router.get('/:id/burnout-risks', (req, res) => {
+router.get('/:id/burnout-risks', requireAuth, (req, res) => {
   try {
     const risks = calculateBurnoutRisks(parseInt(req.params.id));
     res.json(risks);

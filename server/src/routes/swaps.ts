@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { getDb } from '../db';
+import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', (_req, res) => {
+router.get('/', requireAuth, (_req, res) => {
   const db = getDb();
   const swaps = db.prepare(`
     SELECT sw.*, 
@@ -19,7 +20,7 @@ router.get('/', (_req, res) => {
   res.json(swaps);
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireAuth, (req, res) => {
   const { shift_id, requester_id, target_id, reason } = req.body;
   if (!shift_id || !requester_id) {
     return res.status(400).json({ error: 'shift_id and requester_id are required' });
@@ -77,7 +78,7 @@ router.post('/', (req, res) => {
   res.status(201).json(swap);
 });
 
-router.put('/:id/approve', (req, res) => {
+router.put('/:id/approve', requireAuth, requireManager, (req, res) => {
   const { manager_notes } = req.body;
   const db = getDb();
   const swap = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(req.params.id) as any;
@@ -95,7 +96,7 @@ router.put('/:id/approve', (req, res) => {
   res.json(updated);
 });
 
-router.put('/:id/reject', (req, res) => {
+router.put('/:id/reject', requireAuth, requireManager, (req, res) => {
   const { manager_notes } = req.body;
   const db = getDb();
   const swap = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(req.params.id) as any;

@@ -1,15 +1,16 @@
 import { Router } from 'express';
 import { getDb } from '../db';
+import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', (_req, res) => {
+router.get('/', requireAuth, (_req, res) => {
   const db = getDb();
   const forecasts = db.prepare('SELECT * FROM forecasts ORDER BY date').all();
   res.json(forecasts);
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireAuth, requireManager, (req, res) => {
   const { date, expected_revenue, expected_covers } = req.body;
   if (!date || expected_revenue === undefined) {
     return res.status(400).json({ error: 'date and expected_revenue are required' });
