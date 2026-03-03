@@ -3,4 +3,6 @@ dist/
 *.db
 *.db-shm
 *.db-wal
-dist/
+# TypeScript compiled JS output alongside source
+client/src/**/*.js
+client/src/**/*.js.map
