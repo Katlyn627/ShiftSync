@@ -4,7 +4,11 @@ export function seedDemoData(): void {
   const db = getDb();
 
   const existingCount = (db.prepare('SELECT COUNT(*) as c FROM employees').get() as any).c;
-  if (existingCount > 0) return; // Already seeded
+  if (existingCount > 0) {
+    // Ensure demo users exist even if employees were already seeded
+    seedDemoUsers(db);
+    return;
+  }
 
   // Seed employees
   const employees = [
@@ -65,5 +69,28 @@ export function seedDemoData(): void {
       const covers = Math.floor(revenue / 35);
       insertForecast.run(dateStr, revenue, covers);
     }
+  }
+
+  seedDemoUsers(db);
+}
+
+function seedDemoUsers(db: any): void {
+  const existingDemoCount = (db.prepare("SELECT COUNT(*) as c FROM users WHERE provider='demo'").get() as any).c;
+  if (existingDemoCount > 0) return;
+
+  // Manager demo user → Alice Johnson (first employee, role=Manager)
+  const alice = db.prepare("SELECT * FROM employees WHERE name='Alice Johnson'").get() as any;
+  // Employee demo user → Bob Smith (role=Server)
+  const bob = db.prepare("SELECT * FROM employees WHERE name='Bob Smith'").get() as any;
+
+  if (alice) {
+    db.prepare(
+      'INSERT OR IGNORE INTO users (provider, provider_user_id, email, display_name, employee_id, role) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run('demo', 'manager', 'manager@demo.shiftsync', 'Alice Johnson (Manager)', alice.id, 'manager');
+  }
+  if (bob) {
+    db.prepare(
+      'INSERT OR IGNORE INTO users (provider, provider_user_id, email, display_name, employee_id, role) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run('demo', 'employee', 'employee@demo.shiftsync', 'Bob Smith (Employee)', bob.id, 'employee');
   }
 }
