@@ -1,5 +1,6 @@
 import express from 'express';
 import request from 'supertest';
+import fs from 'fs';
 import { getDb, closeDb } from '../db';
 import { seedDemoData } from '../seed';
 import authRouter from '../routes/auth';
@@ -13,7 +14,6 @@ app.use(express.json());
 app.use('/api/auth', authRouter);
 
 beforeAll(() => {
-  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
   getDb();
   seedDemoData();
@@ -21,7 +21,6 @@ beforeAll(() => {
 
 afterAll(() => {
   closeDb();
-  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
 });
 
