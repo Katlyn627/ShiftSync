@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { getSwaps, approveSwap, rejectSwap, SwapWithDetails } from '../api';
-import { useAuth } from '../AuthContext';
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -9,7 +8,6 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function SwapsPage() {
-  const { isManager } = useAuth();
   const [swaps, setSwaps] = useState<SwapWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState<Record<number, string>>({});
@@ -45,8 +43,8 @@ export default function SwapsPage() {
                 swap={swap}
                 notes={notes[swap.id] ?? ''}
                 onNotesChange={v => setNotes(n => ({ ...n, [swap.id]: v }))}
-                onApprove={isManager ? () => handleApprove(swap.id) : undefined}
-                onReject={isManager ? () => handleReject(swap.id) : undefined}
+                onApprove={() => handleApprove(swap.id)}
+                onReject={() => handleReject(swap.id)}
               />
             ))}
           </div>
