@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.db
+*.db-shm
+*.db-wal
+# TypeScript compiled JS output alongside source
+client/src/**/*.js
+client/src/**/*.js.map
