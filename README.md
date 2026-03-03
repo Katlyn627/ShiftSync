@@ -20,8 +20,7 @@ A smart scheduling + shift swap platform for restaurants/hotels, with full authe
 
 ### Install dependencies
 ```bash
-cd server && npm install
-cd ../client && npm install
+npm run install:all
 ```
 
 ### Configure environment
@@ -36,11 +35,17 @@ cp client/.env.example client/.env
 
 ### Run development servers
 ```bash
+# Start both backend (port 3001) and frontend (port 3000) together
+npm run dev
+```
+
+Or start them individually in separate terminals:
+```bash
 # Terminal 1 – backend (port 3001)
-cd server && npm run dev
+npm run dev:server
 
 # Terminal 2 – frontend (port 3000)
-cd client && npm run dev
+npm run dev:client
 ```
 
 Open http://localhost:3000
