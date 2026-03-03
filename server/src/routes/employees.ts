@@ -1,15 +1,16 @@
 import { Router } from 'express';
 import { getDb } from '../db';
+import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', (_req, res) => {
+router.get('/', requireAuth, (_req, res) => {
   const db = getDb();
   const employees = db.prepare('SELECT * FROM employees ORDER BY name').all();
   res.json(employees);
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireAuth, requireManager, (req, res) => {
   const { name, role, hourly_rate, weekly_hours_max } = req.body;
   if (!name || !role) return res.status(400).json({ error: 'name and role are required' });
   const db = getDb();
@@ -20,7 +21,7 @@ router.post('/', (req, res) => {
   res.status(201).json(employee);
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', requireAuth, requireManager, (req, res) => {
   const { name, role, hourly_rate, weekly_hours_max } = req.body;
   const db = getDb();
   const existing = db.prepare('SELECT * FROM employees WHERE id = ?').get(req.params.id) as any;
@@ -38,7 +39,7 @@ router.put('/:id', (req, res) => {
   res.json(updated);
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireAuth, requireManager, (req, res) => {
   const db = getDb();
   const result = db.prepare('DELETE FROM employees WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Employee not found' });
@@ -46,13 +47,13 @@ router.delete('/:id', (req, res) => {
 });
 
 // Availability
-router.get('/:id/availability', (req, res) => {
+router.get('/:id/availability', requireAuth, (req, res) => {
   const db = getDb();
   const availability = db.prepare('SELECT * FROM availability WHERE employee_id = ? ORDER BY day_of_week').all(req.params.id);
   res.json(availability);
 });
 
-router.post('/:id/availability', (req, res) => {
+router.post('/:id/availability', requireAuth, requireManager, (req, res) => {
   const db = getDb();
   const { day_of_week, start_time, end_time } = req.body;
   if (day_of_week === undefined || !start_time || !end_time) {

@@ -1,8 +1,17 @@
 const BASE = '/api';
 
+function getToken(): string | null {
+  return localStorage.getItem('shiftsync_token');
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(options?.headers ?? {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers ?? {}),
+    },
     ...options,
   });
   if (!res.ok) {
@@ -11,6 +20,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
   return res.json();
 }
+
+// Auth
+export const demoLogin = (type: 'manager' | 'employee') =>
+  request<{ token: string; user: { userId: number; role: 'manager' | 'employee'; employeeId: number | null; displayName: string } }>(
+    '/auth/demo-login',
+    { method: 'POST', body: JSON.stringify({ type }) }
+  );
+export const getMe = () => request<{ user: { userId: number; role: 'manager' | 'employee'; employeeId: number | null; displayName: string } }>('/auth/me');
+export const getConfig = () => request<ConfigData>('/config');
 
 // Employees
 export const getEmployees = () => request<Employee[]>('/employees');
@@ -146,3 +164,21 @@ export interface LaborCostSummary {
   by_day: { date: string; cost: number }[];
   by_role: { role: string; cost: number }[];
 }
+
+export type ConfigData =
+  | {
+      role: 'manager';
+      employees: Employee[];
+      availability: Availability[];
+      schedules: Schedule[];
+      shifts: (Shift & { employee_name: string })[];
+      swaps: SwapWithDetails[];
+      forecasts: Forecast[];
+    }
+  | {
+      role: 'employee';
+      employee: Employee | null;
+      availability: Availability[];
+      shifts: Shift[];
+      swaps: SwapWithDetails[];
+    };

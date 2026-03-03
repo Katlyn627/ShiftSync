@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { getDb } from '../db';
+import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
 
-router.put('/:id', (req, res) => {
+router.put('/:id', requireAuth, requireManager, (req, res) => {
   const { start_time, end_time, status } = req.body;
   const db = getDb();
   const existing = db.prepare('SELECT * FROM shifts WHERE id = ?').get(req.params.id) as any;
@@ -18,7 +19,7 @@ router.put('/:id', (req, res) => {
   res.json(updated);
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireAuth, requireManager, (req, res) => {
   const db = getDb();
   const result = db.prepare('UPDATE shifts SET status=? WHERE id=?').run('cancelled', req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Shift not found' });
