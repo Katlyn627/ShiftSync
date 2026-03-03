@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee, Employee } from '../api';
-import { useAuth } from '../AuthContext';
 
 const ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
 
@@ -13,7 +12,6 @@ const ROLE_BADGE: Record<string, string> = {
 };
 
 export default function EmployeesPage() {
-  const { isManager } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -55,14 +53,12 @@ export default function EmployeesPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Employees</h1>
-        {isManager && (
         <button
           onClick={() => { setShowForm(true); setEditingId(null); setForm({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40 }); }}
           className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-blue-700"
         >
           + Add Employee
         </button>
-        )}
       </div>
 
       {showForm && (
@@ -118,12 +114,8 @@ export default function EmployeesPage() {
                 <td className="px-4 py-2 text-right">${emp.hourly_rate.toFixed(2)}</td>
                 <td className="px-4 py-2 text-right">{emp.weekly_hours_max}h</td>
                 <td className="px-4 py-2 text-right">
-                  {isManager && (
-                    <>
-                      <button onClick={() => handleEdit(emp)} className="text-blue-600 hover:underline mr-3 text-xs">Edit</button>
-                      <button onClick={() => handleDelete(emp.id)} className="text-red-500 hover:underline text-xs">Delete</button>
-                    </>
-                  )}
+                  <button onClick={() => handleEdit(emp)} className="text-blue-600 hover:underline mr-3 text-xs">Edit</button>
+                  <button onClick={() => handleDelete(emp.id)} className="text-red-500 hover:underline text-xs">Delete</button>
                 </td>
               </tr>
             ))}
