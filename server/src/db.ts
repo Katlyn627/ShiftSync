@@ -86,7 +86,8 @@ function initSchema(db: Database.Database): void {
   // Migrate existing databases: add google_id column if absent
   const cols = db.pragma('table_info(users)') as { name: string }[];
   if (!cols.some(c => c.name === 'google_id')) {
-    db.exec('ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE');
+    db.exec('ALTER TABLE users ADD COLUMN google_id TEXT');
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)');
   }
 }
 
