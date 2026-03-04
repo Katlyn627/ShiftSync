@@ -220,7 +220,7 @@ router.get(
   GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
     ? (req, res, next) => {
         passport.authenticate('google', { session: false }, (err: Error | null, userPayload: AuthPayload | false) => {
-          const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+          const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
           if (err || !userPayload) {
             return res.redirect(
               `${CLIENT_URL}/login?error=${encodeURIComponent('Google sign-in failed. You must be an existing employee.')}`
