@@ -80,6 +80,17 @@ export const upsertForecast = (data: Omit<Forecast, 'id'>) =>
 export const getStaffingSuggestions = (week_start: string) =>
   request<DailyStaffingSuggestion[]>(`/schedules/staffing-suggestions?week_start=${week_start}`);
 
+// Time-off requests
+export const getTimeOffRequests = () => request<TimeOffRequest[]>('/time-off');
+export const createTimeOffRequest = (data: { start_date: string; end_date: string; reason?: string }) =>
+  request<TimeOffRequest>('/time-off', { method: 'POST', body: JSON.stringify(data) });
+export const approveTimeOffRequest = (id: number, manager_notes?: string) =>
+  request<TimeOffRequest>(`/time-off/${id}/approve`, { method: 'PUT', body: JSON.stringify({ manager_notes }) });
+export const rejectTimeOffRequest = (id: number, manager_notes?: string) =>
+  request<TimeOffRequest>(`/time-off/${id}/reject`, { method: 'PUT', body: JSON.stringify({ manager_notes }) });
+export const cancelTimeOffRequest = (id: number) =>
+  request<{ success: boolean }>(`/time-off/${id}`, { method: 'DELETE' });
+
 // Types
 export interface Employee {
   id: number;
@@ -89,6 +100,7 @@ export interface Employee {
   weekly_hours_max: number;
   email?: string;
   phone?: string;
+  photo_url?: string | null;
   created_at: string;
 }
 
@@ -211,4 +223,16 @@ export interface EmployeeStats {
   shifts: Shift[];
   burnout: BurnoutRisk | null;
   turnover: TurnoverRisk | null;
+}
+
+export interface TimeOffRequest {
+  id: number;
+  employee_id: number;
+  employee_name: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  manager_notes: string | null;
+  created_at: string;
 }

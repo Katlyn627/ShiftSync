@@ -81,6 +81,17 @@ function initSchema(db: Database.Database): void {
       is_manager INTEGER NOT NULL DEFAULT 0, -- 0=employee, 1=manager
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS time_off_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      start_date TEXT NOT NULL,   -- YYYY-MM-DD
+      end_date TEXT NOT NULL,     -- YYYY-MM-DD
+      reason TEXT,
+      status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected
+      manager_notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migrate existing databases: add google_id column if absent
@@ -90,13 +101,16 @@ function initSchema(db: Database.Database): void {
     db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)');
   }
 
-  // Migrate employees table: add email and phone columns if absent
+  // Migrate employees table: add email, phone, and photo_url columns if absent
   const empCols = db.pragma('table_info(employees)') as { name: string }[];
   if (!empCols.some(c => c.name === 'email')) {
     db.exec("ALTER TABLE employees ADD COLUMN email TEXT DEFAULT ''");
   }
   if (!empCols.some(c => c.name === 'phone')) {
     db.exec("ALTER TABLE employees ADD COLUMN phone TEXT DEFAULT ''");
+  }
+  if (!empCols.some(c => c.name === 'photo_url')) {
+    db.exec("ALTER TABLE employees ADD COLUMN photo_url TEXT DEFAULT NULL");
   }
 }
 
