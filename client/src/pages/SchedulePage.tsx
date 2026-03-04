@@ -118,7 +118,7 @@ export default function SchedulePage() {
   useEffect(() => {
     if (!selectedId || employees.length === 0) return;
     getScheduleShifts(selectedId).then(setShifts).catch(() => {});
-  }, [employees.length]);
+  }, [employees.length, selectedId]);
 
   const handleGenerate = async () => {
     setGenerating(true);

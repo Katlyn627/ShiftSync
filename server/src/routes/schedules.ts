@@ -43,9 +43,12 @@ router.delete('/:id', requireManager, (req, res) => {
   const db = getDb();
   const existing = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id) as any;
   if (!existing) return res.status(404).json({ error: 'Schedule not found' });
-  // Delete associated shifts first (no cascade in SQLite by default)
-  db.prepare('DELETE FROM shifts WHERE schedule_id = ?').run(req.params.id);
-  db.prepare('DELETE FROM schedules WHERE id = ?').run(req.params.id);
+  // Delete shifts and schedule atomically
+  const deleteAll = db.transaction(() => {
+    db.prepare('DELETE FROM shifts WHERE schedule_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM schedules WHERE id = ?').run(req.params.id);
+  });
+  deleteAll();
   res.json({ success: true });
 });
 

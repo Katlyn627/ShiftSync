@@ -26,6 +26,11 @@ function riskVariant(level: string): BadgeVariant {
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+const RISK_RANK: Record<string, number> = { high: 2, medium: 1, low: 0 };
+function rankRiskLevel(lvl: string | undefined): number {
+  return lvl !== undefined ? (RISK_RANK[lvl] ?? -1) : -1;
+}
+
 function toMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
@@ -35,6 +40,16 @@ function shiftHours(start: string, end: string): number {
   let e = toMinutes(end);
   if (e < s) e += 24 * 60;
   return (e - s) / 60;
+}
+/** Parse a YYYY-MM-DD date string safely (noon UTC to avoid timezone shifts) */
+function formatShiftDate(dateStr: string): string {
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [y, m, d] = parts.map(Number);
+    const dt = new Date(y, m - 1, d);
+    return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  return dateStr;
 }
 
 /* KPI Card */
@@ -207,7 +222,7 @@ function EmployeeDetailModal({
                   <div className="space-y-1.5 max-h-48 overflow-y-auto">
                     {shiftRows.map(s => (
                       <div key={s.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2 text-xs border border-border">
-                        <span className="font-medium text-foreground">{new Date(s.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                        <span className="font-medium text-foreground">{formatShiftDate(s.date)}</span>
                         <span className="text-muted-foreground">{s.start_time}–{s.end_time}</span>
                         <span className="font-semibold">{shiftHours(s.start_time, s.end_time).toFixed(1)}h</span>
                       </div>
@@ -313,11 +328,12 @@ export default function Dashboard() {
     pct: Math.min(100, Math.round(((employeeHoursMap[e.id] ?? 0) / e.weekly_hours_max) * 100)),
   })).filter(e => e.hours > 0);
 
+  const laborBudgetPerDay = laborCost ? Math.round(laborCost.labor_budget / 7) : 0;
   const laborVsTarget = (laborCost?.by_day ?? []).map(d => ({
     date: d.date.slice(5),
     cost: d.cost,
-    budget: Math.round(laborCost!.labor_budget / 7),
-    pct: Math.round((d.cost / (laborCost!.labor_budget / 7)) * 100),
+    budget: laborBudgetPerDay,
+    pct: laborBudgetPerDay > 0 ? Math.round((d.cost / laborBudgetPerDay) * 100) : 0,
   }));
 
   const shiftCountByEmployee = employees.map(e => ({
@@ -769,7 +785,7 @@ export default function Dashboard() {
               const utilPct = Math.min(100, Math.round((hours / emp.weekly_hours_max) * 100));
               const burnoutInfo = burnout.find(b => b.employee_id === emp.id);
               const turnoverInfo = turnover.find(t => t.employee_id === emp.id);
-              const rankOf = (lvl: string | undefined) => lvl ? ({ high: 2, medium: 1, low: 0 } as Record<string, number>)[lvl] ?? -1 : -1;
+              const rankOf = rankRiskLevel;
               const worstLevel = rankOf(burnoutInfo?.risk_level) >= rankOf(turnoverInfo?.risk_level)
                 ? burnoutInfo?.risk_level
                 : turnoverInfo?.risk_level;
