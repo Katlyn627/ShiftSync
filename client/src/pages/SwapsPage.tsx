@@ -71,7 +71,7 @@ export default function SwapsPage() {
       {visibleSwaps.length === 0 && (
         <div className="text-center py-20 text-gray-400">
           <p className="text-lg">No shift swap requests yet.</p>
-          <p className="text-sm mt-1">Swap requests will appear here for manager approval.</p>
+          <p className="text-sm mt-1">To request a swap, go to the <strong>Schedule</strong> page, find your shift, and click <strong>"Request Swap"</strong>.</p>
         </div>
       )}
     </div>
