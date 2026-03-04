@@ -1,5 +1,5 @@
 import { getDb } from './db';
-import { BurnoutRisk, TurnoverRisk } from './types';
+import { BurnoutRisk } from './types';
 
 const CLOPEN_THRESHOLD_HOURS = 10; // if gap between end and next start < 10h => clopen
 const LATE_NIGHT_CUTOFF = 22 * 60; // shifts ending at or after 22:00 are late-night
@@ -141,99 +141,6 @@ export function calculateBurnoutRisks(scheduleId: number): BurnoutRisk[] {
       doubles: doublesCount,
       late_night_shifts: lateNightCount,
       rest_days_recommended: restDaysRecommended,
-    });
-  }
-
-  return results.sort((a, b) => b.risk_score - a.risk_score);
-}
-export function calculateTurnoverRisks(scheduleId: number): TurnoverRisk[] {
-  const db = getDb();
-
-  const employees = db.prepare('SELECT * FROM employees').all() as any[];
-  const shifts = db.prepare(
-    'SELECT s.*, e.name as employee_name FROM shifts s JOIN employees e ON s.employee_id = e.id WHERE s.schedule_id = ? AND s.status != ? ORDER BY s.employee_id, s.date, s.start_time'
-  ).all(scheduleId, 'cancelled') as any[];
-
-  const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(scheduleId) as any;
-  const laborBudget = schedule?.labor_budget ?? 5000;
-
-  const results: TurnoverRisk[] = [];
-
-  for (const emp of employees) {
-    const empShifts = shifts.filter((s: any) => s.employee_id === emp.id);
-    if (empShifts.length === 0) continue;
-
-    const weeklyHours = empShifts.reduce((sum: number, s: any) => sum + shiftHours(s.start_time, s.end_time), 0);
-    const hoursUtilization = weeklyHours / Math.max(1, emp.weekly_hours_max);
-    const laborCost = weeklyHours * emp.hourly_rate;
-    const laborPct = (laborCost / laborBudget) * 100;
-
-    const factors: string[] = [];
-    let riskScore = 0;
-
-    // Overworked
-    if (hoursUtilization > 1.0) {
-      factors.push('Overworked – hours exceed maximum');
-      riskScore += 30;
-    }
-
-    // Under-scheduled (economic instability risk)
-    if (hoursUtilization < 0.4) {
-      factors.push('Under-scheduled – low hours this week');
-      riskScore += 20;
-    }
-
-    // Count clopens
-    let clopenCount = 0;
-    for (let i = 0; i < empShifts.length - 1; i++) {
-      const curr = empShifts[i];
-      const next = empShifts[i + 1];
-      const dayDiff = (new Date(next.date).getTime() - new Date(curr.date).getTime()) / (1000 * 60 * 60 * 24);
-      if (dayDiff === 1) {
-        const turnaround = (parseMinutes(next.start_time) + 24 * 60 - parseMinutes(curr.end_time)) / 60;
-        if (turnaround < CLOPEN_THRESHOLD_HOURS) clopenCount++;
-      }
-    }
-    if (clopenCount > 0) {
-      factors.push(`${clopenCount} clopen shift${clopenCount > 1 ? 's' : ''}`);
-      riskScore += clopenCount * 15;
-    }
-
-    // High consecutive days
-    const workDays = [...new Set(empShifts.map((s: any) => s.date))].sort() as string[];
-    let maxConsecutive = 1;
-    let currentConsecutive = 1;
-    for (let i = 1; i < workDays.length; i++) {
-      const diffDays = (new Date(workDays[i]).getTime() - new Date(workDays[i - 1]).getTime()) / (1000 * 60 * 60 * 24);
-      if (diffDays === 1) {
-        currentConsecutive++;
-        maxConsecutive = Math.max(maxConsecutive, currentConsecutive);
-      } else {
-        currentConsecutive = 1;
-      }
-    }
-    if (maxConsecutive >= 5) {
-      factors.push(`${maxConsecutive} consecutive days worked`);
-      riskScore += 25;
-    }
-
-    // Labor cost > 30% of budget for single employee indicates heavy reliance
-    if (laborPct > 30) {
-      factors.push('High individual labor share of budget');
-      riskScore += 10;
-    }
-
-    const riskLevel: 'low' | 'medium' | 'high' =
-      riskScore >= 45 ? 'high' : riskScore >= 20 ? 'medium' : 'low';
-
-    results.push({
-      employee_id: emp.id,
-      employee_name: emp.name,
-      risk_level: riskLevel,
-      risk_score: Math.min(100, riskScore),
-      factors,
-      weekly_hours: Math.round(weeklyHours * 10) / 10,
-      hours_utilization_pct: Math.round(hoursUtilization * 1000) / 10,
     });
   }
 
