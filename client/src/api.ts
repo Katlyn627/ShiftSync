@@ -21,6 +21,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// Auth
+export const registerEmployee = (data: { employeeName: string; username: string; password: string }) =>
+  request<{ token: string; user: any }>('/auth/register', { method: 'POST', body: JSON.stringify(data) });
+
 // Employees
 export const getEmployees = () => request<Employee[]>('/employees');
 export const createEmployee = (data: Omit<Employee, 'id' | 'created_at'>) =>

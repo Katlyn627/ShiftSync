@@ -12,11 +12,11 @@ export interface AuthPayload {
   employeeRole: string | null;
 }
 
+// Extend passport's User type to include our fields
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
-    interface Request {
-      user?: AuthPayload;
-    }
+    interface User extends AuthPayload {}
   }
 }
 

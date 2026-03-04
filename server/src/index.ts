@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
+import session from 'express-session';
+import passport from 'passport';
 import { getDb } from './db';
 import { seedDemoData } from './seed';
 import authRouter from './routes/auth';
@@ -16,6 +18,21 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// Session required for the OAuth state parameter (stateless JWT is issued at callback)
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'shiftsync-session-secret-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      sameSite: 'lax', // mitigates CSRF for the OAuth state cookie
+    },
+  })
+);
+app.use(passport.initialize());
 
 // Rate limiting: 300 requests per minute per IP
 const apiLimiter = rateLimit({
