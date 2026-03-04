@@ -39,12 +39,14 @@ The most important ones to set before first run:
 
 1. Go to [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials) and create an **OAuth 2.0 Client ID** (application type: *Web application*).
 2. Add `http://localhost:3001/api/auth/google/callback` to **Authorised redirect URIs**.
+   > **Important:** The callback is handled directly by the Express server on port **3001**, not through the Vite dev-server proxy on port 3000. Make sure this exact URL is registered in Google Cloud Console — using the wrong port is the most common cause of `Error 400: redirect_uri_mismatch`.
 3. Copy the client ID and secret into `server/.env`:
 
 ```
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
 GOOGLE_CALLBACK_URL=http://localhost:3001/api/auth/google/callback
+CLIENT_URL=http://localhost:3000
 ```
 
 If `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` are left blank the `/api/auth/google` endpoint returns a `503` and Google sign-in is hidden from the UI — local username/password login still works.
