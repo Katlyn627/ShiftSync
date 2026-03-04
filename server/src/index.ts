@@ -1,7 +1,10 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+// __dirname is server/src (ts-node-dev) or server/dist (compiled), so ../
+// always resolves to server/ — the directory that contains the .env file.
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
 import rateLimit from 'express-rate-limit';
 import session from 'express-session';
 import passport from 'passport';

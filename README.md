@@ -16,13 +16,48 @@ A smart scheduling + shift swap platform for restaurants/hotels.
 
 ## Getting Started
 
-### Install dependencies
+### 1. Configure environment variables
+
+The server reads a **`server/.env`** file. A template with every supported variable is provided at `server/.env.example`.
+
+```bash
+cp server/.env.example server/.env
+```
+
+Then open `server/.env` and fill in the values (see the inline comments in the file).  
+The most important ones to set before first run:
+
+| Variable | Purpose |
+|---|---|
+| `PORT` | Port the Express server listens on (default `3001`) |
+| `JWT_SECRET` | Secret used to sign JWTs — **must** be set in production |
+| `SESSION_SECRET` | Secret for the OAuth session cookie — **must** be set in production |
+| `DB_PATH` | Path to the SQLite database file (default `./shiftsync.db` inside `server/`) |
+| `CLIENT_URL` | Origin of the React frontend — used for the post-OAuth redirect |
+
+#### Enabling Google OAuth
+
+1. Go to [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials) and create an **OAuth 2.0 Client ID** (application type: *Web application*).
+2. Add `http://localhost:3001/api/auth/google/callback` to **Authorised redirect URIs**.
+3. Copy the client ID and secret into `server/.env`:
+
+```
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_CALLBACK_URL=http://localhost:3001/api/auth/google/callback
+```
+
+If `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` are left blank the `/api/auth/google` endpoint returns a `503` and Google sign-in is hidden from the UI — local username/password login still works.
+
+> **Note:** `server/.env` is listed in `.gitignore` and will never be committed. Never commit real secrets.
+
+### 2. Install dependencies
 ```bash
 cd server && npm install
 cd ../client && npm install
 ```
 
-### Run development servers
+### 3. Run development servers
 ```bash
 # Terminal 1 – backend (port 3001)
 cd server && npm run dev
