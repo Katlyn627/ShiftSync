@@ -4,6 +4,7 @@ import {
   getSchedules, getLaborCost, getBurnoutRisks, getStaffingSuggestions,
   Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion
 } from '../api';
+import { useAuth } from '../AuthContext';
 
 const RISK_COLORS: Record<string, string> = {
   high: '#ef4444',
@@ -14,6 +15,8 @@ const RISK_COLORS: Record<string, string> = {
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  const isManager = user?.isManager ?? false;
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [laborCost, setLaborCost] = useState<LaborCostSummary | null>(null);
@@ -31,18 +34,21 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!selectedId) return;
-    getLaborCost(selectedId).then(setLaborCost).catch(() => setLaborCost(null));
+    if (isManager) {
+      getLaborCost(selectedId).then(setLaborCost).catch(() => setLaborCost(null));
+    }
     getBurnoutRisks(selectedId).then(setBurnout).catch(() => setBurnout([]));
-  }, [selectedId]);
+  }, [selectedId, isManager]);
 
-  // Load staffing suggestions for the selected schedule's week
+  // Load staffing suggestions for the selected schedule's week (manager only)
   useEffect(() => {
+    if (!isManager) return;
     const schedule = schedules.find(s => s.id === selectedId);
     if (!schedule) return;
     getStaffingSuggestions(schedule.week_start)
       .then(setStaffingSuggestions)
       .catch(() => setStaffingSuggestions([]));
-  }, [selectedId, schedules]);
+  }, [selectedId, schedules, isManager]);
 
   if (loading) return <div className="flex justify-center py-20 text-gray-500">Loading...</div>;
 
@@ -87,18 +93,22 @@ export default function Dashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard
-          label="Projected Labor Cost"
-          value={laborCost ? `$${laborCost.projected_cost.toLocaleString()}` : '—'}
-          sub={laborCost ? `Budget: $${laborCost.labor_budget.toLocaleString()}` : ''}
-          color={overBudget ? 'red' : 'green'}
-        />
-        <KpiCard
-          label="Budget Usage"
-          value={laborCost ? `${budgetPct.toFixed(1)}%` : '—'}
-          sub={overBudget ? `$${Math.abs(laborCost!.variance).toFixed(0)} over` : laborCost ? `$${Math.abs(laborCost.variance).toFixed(0)} under` : ''}
-          color={budgetPct > 100 ? 'red' : budgetPct > 90 ? 'yellow' : 'green'}
-        />
+        {isManager && (
+          <KpiCard
+            label="Projected Labor Cost"
+            value={laborCost ? `$${laborCost.projected_cost.toLocaleString()}` : '—'}
+            sub={laborCost ? `Budget: $${laborCost.labor_budget.toLocaleString()}` : ''}
+            color={overBudget ? 'red' : 'green'}
+          />
+        )}
+        {isManager && (
+          <KpiCard
+            label="Budget Usage"
+            value={laborCost ? `${budgetPct.toFixed(1)}%` : '—'}
+            sub={overBudget ? `$${Math.abs(laborCost!.variance).toFixed(0)} over` : laborCost ? `$${Math.abs(laborCost.variance).toFixed(0)} under` : ''}
+            color={budgetPct > 100 ? 'red' : budgetPct > 90 ? 'yellow' : 'green'}
+          />
+        )}
         <KpiCard
           label="High Burnout Risk"
           value={highRisk.length.toString()}
@@ -113,8 +123,8 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Demand-Based Staffing Suggestions */}
-      {staffingChartData.length > 0 && (
+      {/* Demand-Based Staffing Suggestions (manager only) */}
+      {isManager && staffingChartData.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border p-5">
           <h2 className="text-lg font-semibold mb-1 text-gray-700">📊 Demand-Based Staffing Suggestions</h2>
           <p className="text-xs text-gray-400 mb-4">Recommended staff count per day based on forecast revenue</p>
@@ -146,8 +156,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Labor Cost Chart */}
-      {laborCost && laborCost.by_day.length > 0 && (
+      {/* Labor Cost Chart (manager only) */}
+      {isManager && laborCost && laborCost.by_day.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border p-5">
           <h2 className="text-lg font-semibold mb-4 text-gray-700">Daily Labor Cost</h2>
           <ResponsiveContainer width="100%" height={220}>
@@ -165,7 +175,7 @@ export default function Dashboard() {
 
       {/* Cost by Role + Burnout Risks side-by-side */}
       <div className="grid md:grid-cols-2 gap-4">
-        {laborCost && laborCost.by_role.length > 0 && (
+        {isManager && laborCost && laborCost.by_role.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm border p-5">
             <h2 className="text-lg font-semibold mb-4 text-gray-700">Cost by Role</h2>
             <div className="space-y-2">
