@@ -48,6 +48,11 @@ export const getLaborCost = (id: number) => request<LaborCostSummary>(`/schedule
 export const getBurnoutRisks = (id: number) => request<BurnoutRisk[]>(`/schedules/${id}/burnout-risks`);
 export const updateSchedule = (id: number, data: { status: string }) =>
   request<Schedule>(`/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteSchedule = (id: number) =>
+  request<{ success: boolean }>(`/schedules/${id}`, { method: 'DELETE' });
+export const getTurnoverRisks = (id: number) => request<TurnoverRisk[]>(`/schedules/${id}/turnover-risks`);
+export const getEmployeeStats = (employeeId: number, scheduleId: number) =>
+  request<EmployeeStats>(`/employees/${employeeId}/stats?schedule_id=${scheduleId}`);
 
 // Shifts
 export const updateShift = (id: number, data: Partial<Shift>) =>
@@ -177,4 +182,25 @@ export interface DailyStaffingSuggestion {
   expected_revenue: number;
   expected_covers: number;
   staffing: StaffingNeed[];
+}
+
+export interface TurnoverRisk {
+  employee_id: number;
+  employee_name: string;
+  risk_level: 'low' | 'medium' | 'high';
+  risk_score: number;
+  factors: string[];
+  weekly_hours: number;
+  hours_utilization_pct: number;
+}
+
+export interface EmployeeStats {
+  employee: Employee;
+  schedule_id: number;
+  weekly_hours: number;
+  labor_cost: number;
+  labor_pct_of_budget: number;
+  shifts: Shift[];
+  burnout: BurnoutRisk | null;
+  turnover: TurnoverRisk | null;
 }

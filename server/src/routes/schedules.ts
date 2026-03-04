@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { getDb } from '../db';
 import { generateSchedule, computeWeeklyStaffingNeeds } from '../scheduler';
 import { getLaborCostSummary } from '../laborCost';
-import { calculateBurnoutRisks } from '../burnout';
+import { calculateBurnoutRisks, calculateTurnoverRisks } from '../burnout';
 import { requireManager } from '../middleware/auth';
 
 const router = Router();
@@ -34,6 +34,25 @@ router.get('/staffing-suggestions', requireManager, (req, res) => {
   try {
     const suggestions = computeWeeklyStaffingNeeds(week_start);
     res.json(suggestions);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/:id', requireManager, (req, res) => {
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id) as any;
+  if (!existing) return res.status(404).json({ error: 'Schedule not found' });
+  // Delete associated shifts first (no cascade in SQLite by default)
+  db.prepare('DELETE FROM shifts WHERE schedule_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM schedules WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+router.get('/:id/turnover-risks', requireManager, (req, res) => {
+  try {
+    const risks = calculateTurnoverRisks(parseInt(req.params.id));
+    res.json(risks);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
