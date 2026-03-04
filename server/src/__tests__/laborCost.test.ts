@@ -1,9 +1,10 @@
 import fs from 'fs';
+import os from 'os';
 import { getLaborCostSummary } from '../laborCost';
 import { getDb, closeDb } from '../db';
 import path from 'path';
 
-process.env.DB_PATH = path.join('/tmp', 'test-labor.db');
+process.env.DB_PATH = path.join(os.tmpdir(), 'test-labor.db');
 
 beforeAll(() => {
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}

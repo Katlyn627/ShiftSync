@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db';
 import { seedDemoData } from '../seed';
@@ -8,7 +9,7 @@ import swapsRouter from '../routes/swaps';
 import express from 'express';
 import request from 'supertest';
 
-process.env.DB_PATH = path.join('/tmp', 'test-rbac.db');
+process.env.DB_PATH = path.join(os.tmpdir(), 'test-rbac.db');
 
 let app: express.Express;
 let managerToken: string;

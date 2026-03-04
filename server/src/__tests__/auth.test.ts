@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db';
 import { seedDemoData } from '../seed';
@@ -6,7 +7,7 @@ import authRouter from '../routes/auth';
 import express from 'express';
 import request from 'supertest';
 
-process.env.DB_PATH = path.join('/tmp', 'test-auth.db');
+process.env.DB_PATH = path.join(os.tmpdir(), 'test-auth.db');
 
 let app: express.Express;
 
