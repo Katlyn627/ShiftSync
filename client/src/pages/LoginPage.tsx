@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
+import { Button, Card, Badge, Input } from '../components/ui';
 
 const HERO_STATS = [
   { label: 'Open Shifts', value: '12' },
@@ -101,10 +102,10 @@ export default function LoginPage() {
       <section className="bg-white border-y border-slate-200">
         <div className="max-w-7xl mx-auto px-6 py-6 grid md:grid-cols-3 gap-5">
           {FEATURE_STRIP.map(feature => (
-            <div key={feature.title} className="rounded-lg border border-slate-200 p-4 bg-slate-50">
+            <Card key={feature.title} className="bg-slate-50">
               <h2 className="font-bold text-blue-900">{feature.title}</h2>
               <p className="text-sm text-slate-600 mt-1">{feature.description}</p>
-            </div>
+            </Card>
           ))}
         </div>
       </section>
@@ -131,50 +132,43 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-slate-200">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
-              <input
+              <Input
+                label="Username"
                 type="text"
                 required
                 autoComplete="username"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 placeholder="e.g. alice"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-              <input
+              <Input
+                label="Password"
                 type="password"
                 required
                 autoComplete="current-password"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="Enter password"
+                error={error || undefined}
               />
             </div>
 
-            {error && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-700 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 disabled:opacity-50 transition-colors"
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
+            <Button type="submit" variant="primary" size="md" isLoading={loading} className="w-full">
+              Sign In
+            </Button>
           </form>
 
           <div className="mt-6 p-4 bg-slate-50 rounded-lg text-xs text-slate-600">
             <p className="font-semibold text-slate-800 mb-2">Demo Accounts (password: password123)</p>
             <div className="grid grid-cols-2 gap-1">
-              <div><strong>alice</strong> — Manager</div>
-              <div><strong>bob</strong> — Server</div>
-              <div><strong>carol</strong> — Server</div>
-              <div><strong>eve</strong> — Kitchen</div>
-              <div><strong>henry</strong> — Bar</div>
-              <div><strong>jack</strong> — Host</div>
+              <div><strong>alice</strong> — <Badge variant="manager">Manager</Badge></div>
+              <div><strong>bob</strong> — <Badge variant="server">Server</Badge></div>
+              <div><strong>carol</strong> — <Badge variant="server">Server</Badge></div>
+              <div><strong>eve</strong> — <Badge variant="kitchen">Kitchen</Badge></div>
+              <div><strong>henry</strong> — <Badge variant="bar">Bar</Badge></div>
+              <div><strong>jack</strong> — <Badge variant="host">Host</Badge></div>
             </div>
           </div>
         </div>
@@ -185,17 +179,17 @@ export default function LoginPage() {
           <h2 className="text-3xl font-bold text-blue-900 text-center">Key Features</h2>
           <div className="mt-6 grid md:grid-cols-4 gap-4">
             {CORE_FEATURES.map(feature => (
-              <div key={feature.title} className="rounded-xl border border-slate-200 p-5 bg-slate-50">
+              <Card key={feature.title} className="bg-slate-50">
                 <h3 className="font-bold text-blue-900">{feature.title}</h3>
                 <p className="text-sm text-slate-600 mt-1">{feature.description}</p>
-              </div>
+              </Card>
             ))}
           </div>
         </div>
       </section>
 
       <section className="max-w-7xl mx-auto px-6 py-10 grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6">
+        <Card className="lg:col-span-2 p-6">
           <h2 className="text-3xl font-bold text-blue-900">System Architecture</h2>
           <div className="mt-5 grid sm:grid-cols-3 gap-3 text-sm">
             <div className="border border-slate-200 bg-slate-50 rounded-lg p-3">
@@ -211,15 +205,15 @@ export default function LoginPage() {
               <p className="text-slate-600">PostgreSQL</p>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
+        </Card>
+        <Card className="p-6">
           <h3 className="text-2xl font-bold text-blue-900">Tech Stack</h3>
           <ul className="mt-4 space-y-2 text-sm text-slate-700 list-disc list-inside">
             {STACK.map(item => (
               <li key={item}>{item}</li>
             ))}
           </ul>
-        </div>
+        </Card>
       </section>
     </div>
   );

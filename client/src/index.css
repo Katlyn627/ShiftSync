@@ -2,6 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * CSS Custom Properties derived from the Figma design tokens.
+ * These mirror `src/design-tokens.ts` so that plain CSS (or non-Tailwind
+ * contexts) can reference the same values.
+ *
+ * If your Figma kit uses "Variables", you can export them as CSS variables
+ * and paste them here to keep the file in sync automatically.
+ */
+:root {
+  /* Brand / Primary */
+  --color-brand-50:  #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+
+  /* Semantic */
+  --color-success: #22c55e;
+  --color-warning: #eab308;
+  --color-danger:  #ef4444;
+  --color-info:    #0ea5e9;
+
+  /* Neutral */
+  --color-neutral-50:  #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-500: #64748b;
+  --color-neutral-700: #334155;
+  --color-neutral-900: #0f172a;
+
+  /* Typography */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Border radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
 body {
   @apply bg-gray-50 text-gray-900;
+  font-family: var(--font-sans);
 }
