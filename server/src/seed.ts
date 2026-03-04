@@ -21,6 +21,11 @@ export function seedDemoData(): void {
     { name: 'Jack Anderson', role: 'Host', hourly_rate: 13.0, weekly_hours_max: 30 },
     { name: 'Karen Thomas', role: 'Server', hourly_rate: 14.5, weekly_hours_max: 40 },
     { name: 'Liam Jackson', role: 'Kitchen', hourly_rate: 17.5, weekly_hours_max: 40 },
+    { name: 'Mia Robinson', role: 'Manager', hourly_rate: 21.0, weekly_hours_max: 45 },
+    { name: 'Noah Harris', role: 'Manager', hourly_rate: 20.5, weekly_hours_max: 40 },
+    { name: 'Olivia Martin', role: 'Bar', hourly_rate: 16.5, weekly_hours_max: 40 },
+    { name: 'Peter Clark', role: 'Host', hourly_rate: 13.5, weekly_hours_max: 35 },
+    { name: 'Quinn Lewis', role: 'Host', hourly_rate: 13.0, weekly_hours_max: 30 },
   ];
 
   const insertEmp = db.prepare('INSERT INTO employees (name, role, hourly_rate, weekly_hours_max) VALUES (?, ?, ?, ?)');

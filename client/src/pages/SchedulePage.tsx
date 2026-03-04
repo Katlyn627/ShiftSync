@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   getSchedules, generateSchedule, getScheduleShifts, updateSchedule,
-  Schedule, ShiftWithEmployee
+  getEmployees, createSwap,
+  Schedule, ShiftWithEmployee, Employee
 } from '../api';
+import { useAuth } from '../AuthContext';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const ROLE_COLORS: Record<string, string> = {
@@ -14,6 +16,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function SchedulePage() {
+  const { user } = useAuth();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [shifts, setShifts] = useState<ShiftWithEmployee[]>([]);
@@ -28,6 +31,13 @@ export default function SchedulePage() {
   });
   const [budget, setBudget] = useState(5000);
 
+  // Swap modal state
+  const [swapShift, setSwapShift] = useState<ShiftWithEmployee | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [swapReason, setSwapReason] = useState('');
+  const [swapTargetId, setSwapTargetId] = useState('');
+  const [swapSubmitting, setSwapSubmitting] = useState(false);
+
   const load = async () => {
     try {
       const s = await getSchedules();
@@ -39,6 +49,7 @@ export default function SchedulePage() {
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { getEmployees().then(setEmployees).catch(err => console.error('Failed to load employees:', err)); }, []);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -65,6 +76,31 @@ export default function SchedulePage() {
     const newStatus = s.status === 'published' ? 'draft' : 'published';
     await updateSchedule(selectedId, { status: newStatus });
     await load();
+  };
+
+  const handleOpenSwap = (shift: ShiftWithEmployee) => {
+    setSwapShift(shift);
+    setSwapReason('');
+    setSwapTargetId('');
+  };
+
+  const handleSubmitSwap = async () => {
+    if (!swapShift || !user?.employeeId) return;
+    setSwapSubmitting(true);
+    try {
+      await createSwap({
+        shift_id: swapShift.id,
+        requester_id: user.employeeId,
+        target_id: swapTargetId ? Number(swapTargetId) : undefined,
+        reason: swapReason || undefined,
+      });
+      setSwapShift(null);
+      alert('Swap request submitted! A manager will review it shortly.');
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setSwapSubmitting(false);
+    }
   };
 
   const selectedSchedule = schedules.find(s => s.id === selectedId);
@@ -143,15 +179,27 @@ export default function SchedulePage() {
                     {dayShifts.length === 0 ? (
                       <p className="text-xs text-gray-300 text-center mt-4">No shifts</p>
                     ) : (
-                      dayShifts.map(shift => (
-                        <div
-                          key={shift.id}
-                          className={`rounded border px-1.5 py-1 text-xs ${ROLE_COLORS[shift.role] || 'bg-gray-100 text-gray-700'} ${shift.status === 'swapped' ? 'opacity-60 line-through' : ''}`}
-                        >
-                          <div className="font-semibold truncate">{shift.employee_name.split(' ')[0]}</div>
-                          <div className="opacity-70">{shift.start_time}–{shift.end_time}</div>
-                        </div>
-                      ))
+                      dayShifts.map(shift => {
+                          const canRequestSwap = shift.status !== 'swapped' &&
+                            (user?.isManager || shift.employee_id === user?.employeeId);
+                          return (
+                            <div
+                              key={shift.id}
+                              className={`rounded border px-1.5 py-1 text-xs ${ROLE_COLORS[shift.role] || 'bg-gray-100 text-gray-700'} ${shift.status === 'swapped' ? 'opacity-60 line-through' : ''}`}
+                            >
+                              <div className="font-semibold truncate">{shift.employee_name.split(' ')[0]}</div>
+                              <div className="opacity-70">{shift.start_time}–{shift.end_time}</div>
+                              {canRequestSwap && (
+                                <button
+                                  onClick={() => handleOpenSwap(shift)}
+                                  className="mt-0.5 text-[10px] underline opacity-70 hover:opacity-100"
+                                >
+                                  Request Swap
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })
                     )}
                   </div>
                 </div>
@@ -165,6 +213,61 @@ export default function SchedulePage() {
         <div className="text-center py-20 text-gray-400">
           <p className="text-lg">No schedules yet.</p>
           <p className="mt-1 text-sm">Click "Auto-Generate Schedule" to create your first optimized schedule.</p>
+        </div>
+      )}
+
+      {swapShift && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+            <h2 className="text-lg font-bold mb-1">Request Shift Swap</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Your <span className="font-medium">{swapShift.role}</span> shift on{' '}
+              <span className="font-medium">{swapShift.date}</span>{' '}
+              ({swapShift.start_time}–{swapShift.end_time})
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Reason (optional)</label>
+                <input
+                  type="text"
+                  className="w-full border rounded px-3 py-1.5 text-sm"
+                  placeholder="e.g. Doctor appointment"
+                  value={swapReason}
+                  onChange={e => setSwapReason(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Swap with (optional)</label>
+                <select
+                  className="w-full border rounded px-3 py-1.5 text-sm"
+                  value={swapTargetId}
+                  onChange={e => setSwapTargetId(e.target.value)}
+                >
+                  <option value="">— Any available employee —</option>
+                  {employees
+                    .filter(e => e.id !== swapShift.employee_id && (e.role === swapShift.role || e.role === 'Manager'))
+                    .map(e => (
+                      <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
+                    ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={handleSubmitSwap}
+                disabled={swapSubmitting}
+                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+                {swapSubmitting ? 'Submitting…' : '🔄 Submit Swap Request'}
+              </button>
+              <button
+                onClick={() => setSwapShift(null)}
+                className="border px-4 py-2 rounded text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
