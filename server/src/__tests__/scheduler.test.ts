@@ -1,9 +1,10 @@
 import fs from 'fs';
+import os from 'os';
 import { computeWeeklyStaffingNeeds } from '../scheduler';
 import { getDb, closeDb } from '../db';
 import path from 'path';
 
-process.env.DB_PATH = path.join('/tmp', 'test-scheduler.db');
+process.env.DB_PATH = path.join(os.tmpdir(), 'test-scheduler.db');
 
 beforeAll(() => {
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}

@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db';
 import { seedDemoData } from '../seed';
@@ -7,7 +8,7 @@ import employeesRouter from '../routes/employees';
 import express from 'express';
 import request from 'supertest';
 
-process.env.DB_PATH = path.join('/tmp', 'test-employee-auth.db');
+process.env.DB_PATH = path.join(os.tmpdir(), 'test-employee-auth.db');
 
 let app: express.Express;
 let managerToken: string;
