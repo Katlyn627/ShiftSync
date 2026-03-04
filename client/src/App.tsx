@@ -25,7 +25,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-neutral-400">
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
         Loading...
       </div>
     );
@@ -45,12 +45,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="bg-brand-700 text-white shadow-lg">
+      <header className="bg-primary text-primary-foreground shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-2xl">⏰</span>
             <span className="text-xl font-bold tracking-tight">ShiftSync</span>
-            <span className="text-brand-200 text-sm hidden sm:block">Smart Scheduling + Burnout Prevention</span>
+            <span className="text-primary-foreground/60 text-sm hidden sm:block">Smart Scheduling + Burnout Prevention</span>
           </div>
           <nav className="flex gap-1 items-center">
             {NAV_ITEMS.map(item => (
@@ -60,14 +60,14 @@ export default function App() {
                 end={item.to === '/'}
                 className={({ isActive }) =>
                   `px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                    isActive ? 'bg-white text-brand-700' : 'text-brand-100 hover:bg-brand-600'
+                    isActive ? 'bg-background text-primary' : 'text-primary-foreground/80 hover:bg-primary/80'
                   }`
                 }
               >
                 {item.label}
               </NavLink>
             ))}
-            <div className="ml-3 flex items-center gap-2 pl-3 border-l border-brand-500">
+            <div className="ml-3 flex items-center gap-2 pl-3 border-l border-primary-foreground/30">
               <div className="text-right hidden sm:block">
                 <div className="text-sm font-medium leading-tight">{user.employeeName || user.username}</div>
                 {user.employeeRole && (
@@ -78,7 +78,7 @@ export default function App() {
                 variant="ghost"
                 size="sm"
                 onClick={logout}
-                className="text-brand-200 hover:text-white hover:bg-brand-600"
+                className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary/80"
                 title="Sign out"
               >
                 Sign out
@@ -96,7 +96,7 @@ export default function App() {
           <Route path="/components" element={<ComponentsPage />} />
         </Routes>
       </main>
-      <footer className="text-center text-neutral-400 text-xs py-3 border-t border-neutral-200">
+      <footer className="text-center text-muted-foreground text-xs py-3 border-t border-border">
         ShiftSync © 2025 — Smart scheduling for hospitality
       </footer>
     </div>
