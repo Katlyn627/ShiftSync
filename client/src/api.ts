@@ -38,6 +38,8 @@ export const getAvailability = (empId: number) =>
   request<Availability[]>(`/employees/${empId}/availability`);
 export const setAvailability = (empId: number, data: Omit<Availability, 'id' | 'employee_id'>) =>
   request<Availability>(`/employees/${empId}/availability`, { method: 'POST', body: JSON.stringify(data) });
+export const deleteAvailability = (empId: number, dayOfWeek: number) =>
+  request<{ success: boolean }>(`/employees/${empId}/availability/${dayOfWeek}`, { method: 'DELETE' });
 
 // Schedules
 export const getSchedules = () => request<Schedule[]>('/schedules');
@@ -55,8 +57,12 @@ export const getEmployeeStats = (employeeId: number, scheduleId: number) =>
   request<EmployeeStats>(`/employees/${employeeId}/stats?schedule_id=${scheduleId}`);
 
 // Shifts
-export const updateShift = (id: number, data: Partial<Shift>) =>
-  request<Shift>(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const updateShift = (id: number, data: Partial<Shift> & { employee_id?: number }) =>
+  request<ShiftWithEmployee>(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const createShift = (data: { schedule_id: number; employee_id?: number; date: string; start_time: string; end_time: string; role: string }) =>
+  request<ShiftWithEmployee>('/shifts', { method: 'POST', body: JSON.stringify(data) });
+export const deleteShift = (id: number) =>
+  request<{ success: boolean }>(`/shifts/${id}`, { method: 'DELETE' });
 
 // Swaps
 export const getSwaps = () => request<SwapWithDetails[]>('/swaps');
@@ -81,6 +87,8 @@ export interface Employee {
   role: string;
   hourly_rate: number;
   weekly_hours_max: number;
+  email?: string;
+  phone?: string;
   created_at: string;
 }
 
