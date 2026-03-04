@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../db';
-import { generateSchedule } from '../scheduler';
+import { generateSchedule, computeWeeklyStaffingNeeds } from '../scheduler';
 import { getLaborCostSummary } from '../laborCost';
 import { calculateBurnoutRisks } from '../burnout';
 
@@ -20,6 +20,19 @@ router.post('/generate', (req, res) => {
     const db = getDb();
     const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(scheduleId);
     res.status(201).json(schedule);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/staffing-suggestions', (req, res) => {
+  const { week_start } = req.query;
+  if (!week_start || typeof week_start !== 'string') {
+    return res.status(400).json({ error: 'week_start query parameter is required' });
+  }
+  try {
+    const suggestions = computeWeeklyStaffingNeeds(week_start);
+    res.json(suggestions);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

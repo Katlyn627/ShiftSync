@@ -63,6 +63,23 @@ export interface BurnoutRisk {
   consecutive_days: number;
   clopens: number;
   doubles: number;
+  late_night_shifts: number;
+  rest_days_recommended: number;
+}
+
+export interface StaffingNeed {
+  role: string;
+  start: string;
+  end: string;
+  count: number;
+}
+
+export interface DailyStaffingSuggestion {
+  date: string;
+  day_of_week: number;
+  expected_revenue: number;
+  expected_covers: number;
+  staffing: StaffingNeed[];
 }
 
 export interface LaborCostSummary {

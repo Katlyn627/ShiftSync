@@ -2,6 +2,7 @@ import { getDb } from './db';
 import { BurnoutRisk } from './types';
 
 const CLOPEN_THRESHOLD_HOURS = 10; // if gap between end and next start < 10h => clopen
+const LATE_NIGHT_CUTOFF = 22 * 60; // shifts ending at or after 22:00 are late-night
 
 function parseMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -13,6 +14,13 @@ function shiftHours(start: string, end: string): number {
   let endMin = parseMinutes(end);
   if (endMin < startMin) endMin += 24 * 60; // overnight
   return (endMin - startMin) / 60;
+}
+
+function isLateNight(startTime: string, endTime: string): boolean {
+  const endMin = parseMinutes(endTime);
+  const startMin = parseMinutes(startTime);
+  // overnight shifts (end < start) always run into late night; also direct late-night end
+  return endMin < startMin || endMin >= LATE_NIGHT_CUTOFF;
 }
 
 export function calculateBurnoutRisks(scheduleId: number): BurnoutRisk[] {
@@ -105,8 +113,21 @@ export function calculateBurnoutRisks(scheduleId: number): BurnoutRisk[] {
       riskScore += clopenCount * 20;
     }
 
+    // Check late-night shifts (ending at or after 22:00 or overnight)
+    const lateNightCount = empShifts.filter((s: any) => isLateNight(s.start_time, s.end_time)).length;
+    if (lateNightCount >= 4) {
+      factors.push(`${lateNightCount} late-night shifts`);
+      riskScore += 20;
+    } else if (lateNightCount >= 2) {
+      factors.push(`${lateNightCount} late-night shifts`);
+      riskScore += 10;
+    }
+
     const riskLevel: 'low' | 'medium' | 'high' =
       riskScore >= 50 ? 'high' : riskScore >= 20 ? 'medium' : 'low';
+
+    // Recommend rest days based on risk level and consecutive working days
+    const restDaysRecommended = riskLevel === 'high' ? 2 : riskLevel === 'medium' ? 1 : 0;
 
     results.push({
       employee_id: emp.id,
@@ -118,6 +139,8 @@ export function calculateBurnoutRisks(scheduleId: number): BurnoutRisk[] {
       consecutive_days: maxConsecutive,
       clopens: clopenCount,
       doubles: doublesCount,
+      late_night_shifts: lateNightCount,
+      rest_days_recommended: restDaysRecommended,
     });
   }
 

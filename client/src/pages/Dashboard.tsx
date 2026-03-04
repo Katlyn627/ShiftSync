@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import {
-  getSchedules, getLaborCost, getBurnoutRisks,
-  Schedule, LaborCostSummary, BurnoutRisk
+  getSchedules, getLaborCost, getBurnoutRisks, getStaffingSuggestions,
+  Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion
 } from '../api';
 
 const RISK_COLORS: Record<string, string> = {
@@ -11,11 +11,14 @@ const RISK_COLORS: Record<string, string> = {
   low: '#22c55e',
 };
 
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 export default function Dashboard() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [laborCost, setLaborCost] = useState<LaborCostSummary | null>(null);
   const [burnout, setBurnout] = useState<BurnoutRisk[]>([]);
+  const [staffingSuggestions, setStaffingSuggestions] = useState<DailyStaffingSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,6 +35,15 @@ export default function Dashboard() {
     getBurnoutRisks(selectedId).then(setBurnout).catch(() => setBurnout([]));
   }, [selectedId]);
 
+  // Load staffing suggestions for the selected schedule's week
+  useEffect(() => {
+    const schedule = schedules.find(s => s.id === selectedId);
+    if (!schedule) return;
+    getStaffingSuggestions(schedule.week_start)
+      .then(setStaffingSuggestions)
+      .catch(() => setStaffingSuggestions([]));
+  }, [selectedId, schedules]);
+
   if (loading) return <div className="flex justify-center py-20 text-gray-500">Loading...</div>;
 
   if (schedules.length === 0) {
@@ -47,6 +59,14 @@ export default function Dashboard() {
   const mediumRisk = burnout.filter(b => b.risk_level === 'medium');
   const budgetPct = laborCost ? (laborCost.projected_cost / laborCost.labor_budget) * 100 : 0;
   const overBudget = laborCost && laborCost.variance > 0;
+
+  // Aggregate total staff needed per day for the staffing chart
+  const staffingChartData = staffingSuggestions.map(day => ({
+    day: DAY_NAMES[day.day_of_week],
+    date: day.date,
+    total: day.staffing.reduce((sum, s) => sum + s.count, 0),
+    revenue: day.expected_revenue,
+  }));
 
   return (
     <div className="space-y-6">
@@ -92,6 +112,39 @@ export default function Dashboard() {
           color={mediumRisk.length > 2 ? 'yellow' : 'green'}
         />
       </div>
+
+      {/* Demand-Based Staffing Suggestions */}
+      {staffingChartData.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <h2 className="text-lg font-semibold mb-1 text-gray-700">📊 Demand-Based Staffing Suggestions</h2>
+          <p className="text-xs text-gray-400 mb-4">Recommended staff count per day based on forecast revenue</p>
+          <div className="grid grid-cols-7 gap-2 text-center text-xs">
+            {staffingSuggestions.map(day => {
+              const totalStaff = day.staffing.reduce((sum, s) => sum + s.count, 0);
+              const roleGroups: Record<string, number> = {};
+              for (const s of day.staffing) {
+                roleGroups[s.role] = (roleGroups[s.role] || 0) + s.count;
+              }
+              return (
+                <div key={day.date} className="bg-gray-50 rounded-lg p-2 border">
+                  <div className="font-semibold text-gray-600">{DAY_NAMES[day.day_of_week]}</div>
+                  <div className="text-gray-400">{day.date.slice(5)}</div>
+                  <div className="text-lg font-bold text-blue-600 mt-1">{totalStaff}</div>
+                  <div className="text-gray-400">staff</div>
+                  {day.expected_revenue > 0 && (
+                    <div className="text-gray-500 mt-1">${(day.expected_revenue / 1000).toFixed(1)}k</div>
+                  )}
+                  <div className="mt-1 space-y-0.5">
+                    {Object.entries(roleGroups).map(([role, count]) => (
+                      <div key={role} className="text-gray-500">{count} {role}</div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Labor Cost Chart */}
       {laborCost && laborCost.by_day.length > 0 && (
@@ -151,6 +204,11 @@ export default function Dashboard() {
                     </div>
                     {b.factors.length > 0 && (
                       <p className="text-xs text-gray-500 mt-0.5 truncate">{b.factors.join(' · ')}</p>
+                    )}
+                    {b.rest_days_recommended > 0 && (
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        💤 {b.rest_days_recommended} rest day{b.rest_days_recommended > 1 ? 's' : ''} recommended
+                      </p>
                     )}
                   </div>
                   <span

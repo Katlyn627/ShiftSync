@@ -62,6 +62,8 @@ export const rejectSwap = (id: number, manager_notes?: string) =>
 export const getForecasts = () => request<Forecast[]>('/forecasts');
 export const upsertForecast = (data: Omit<Forecast, 'id'>) =>
   request<Forecast>('/forecasts', { method: 'POST', body: JSON.stringify(data) });
+export const getStaffingSuggestions = (week_start: string) =>
+  request<DailyStaffingSuggestion[]>(`/schedules/staffing-suggestions?week_start=${week_start}`);
 
 // Types
 export interface Employee {
@@ -143,6 +145,8 @@ export interface BurnoutRisk {
   consecutive_days: number;
   clopens: number;
   doubles: number;
+  late_night_shifts: number;
+  rest_days_recommended: number;
 }
 
 export interface LaborCostSummary {
@@ -154,4 +158,19 @@ export interface LaborCostSummary {
   variance: number;
   by_day: { date: string; cost: number }[];
   by_role: { role: string; cost: number }[];
+}
+
+export interface StaffingNeed {
+  role: string;
+  start: string;
+  end: string;
+  count: number;
+}
+
+export interface DailyStaffingSuggestion {
+  date: string;
+  day_of_week: number;
+  expected_revenue: number;
+  expected_covers: number;
+  staffing: StaffingNeed[];
 }
