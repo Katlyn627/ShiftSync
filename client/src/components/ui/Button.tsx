@@ -1,6 +1,6 @@
 import { ButtonHTMLAttributes, forwardRef } from 'react';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'destructive' | 'outline';
 export type ButtonSize    = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -13,10 +13,14 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary:   'bg-brand-700 text-white hover:bg-brand-800 border border-transparent',
-  secondary: 'bg-white text-brand-700 border border-brand-300 hover:bg-brand-50',
-  ghost:     'bg-transparent text-neutral-600 border border-transparent hover:bg-neutral-100',
-  danger:    'bg-danger text-white hover:bg-danger-dark border border-transparent',
+  primary:     'bg-brand-700 text-white hover:bg-brand-800 border border-transparent',
+  secondary:   'bg-white text-brand-700 border border-brand-300 hover:bg-brand-50',
+  ghost:       'bg-transparent text-neutral-600 border border-transparent hover:bg-neutral-100',
+  /** danger — used for inline error actions (e.g. form-level delete). */
+  danger:      'bg-danger text-white hover:bg-danger-dark border border-transparent',
+  /** destructive — used for irreversible top-level actions (modals, confirmations). */
+  destructive: 'bg-danger text-white hover:bg-danger-dark border border-danger-dark',
+  outline:     'bg-transparent text-neutral-700 border border-neutral-300 hover:bg-neutral-50',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

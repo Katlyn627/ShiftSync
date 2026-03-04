@@ -12,7 +12,17 @@ export type BadgeVariant =
   | 'server'
   | 'kitchen'
   | 'bar'
-  | 'host';
+  | 'host'
+  // Burnout risk levels
+  | 'burnout-low'
+  | 'burnout-moderate'
+  | 'burnout-high'
+  | 'burnout-critical'
+  // Shift status
+  | 'shift-scheduled'
+  | 'shift-in-progress'
+  | 'shift-completed'
+  | 'shift-cancelled';
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   /** Visual style — maps to a Figma badge/tag variant. */
@@ -26,12 +36,22 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
  * Tailwind config entries are needed.
  */
 const twVariants: Partial<Record<BadgeVariant, string>> = {
-  default: 'bg-neutral-100 text-neutral-700',
-  primary: 'bg-brand-100  text-brand-800',
-  success: 'bg-success-light text-success-dark',
-  warning: 'bg-warning-light text-warning-dark',
-  danger:  'bg-danger-light  text-danger-dark',
-  info:    'bg-info-light    text-info-dark',
+  default:           'bg-neutral-100 text-neutral-700',
+  primary:           'bg-brand-100  text-brand-800',
+  success:           'bg-success-light text-success-dark',
+  warning:           'bg-warning-light text-warning-dark',
+  danger:            'bg-danger-light  text-danger-dark',
+  info:              'bg-info-light    text-info-dark',
+  // Burnout risk levels
+  'burnout-low':      'bg-success-light text-success-dark',
+  'burnout-moderate': 'bg-warning-light text-warning-dark',
+  'burnout-high':     'bg-danger-light  text-danger-dark',
+  'burnout-critical': 'bg-danger text-white',
+  // Shift status
+  'shift-scheduled':   'bg-info-light text-info-dark',
+  'shift-in-progress': 'bg-brand-100 text-brand-800',
+  'shift-completed':   'bg-success-light text-success-dark',
+  'shift-cancelled':   'bg-neutral-100 text-neutral-500',
 };
 
 /** Role variants are served from `colors.roles` design tokens. */
