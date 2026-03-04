@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
 import { getSwaps, approveSwap, rejectSwap, SwapWithDetails } from '../api';
 import { useAuth } from '../AuthContext';
+import { Button, Card, Badge, Input } from '../components/ui';
+import type { BadgeVariant } from '../components/ui';
 
-const STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
-};
+function statusVariant(status: string): BadgeVariant {
+  const map: Record<string, BadgeVariant> = {
+    pending: 'warning',
+    approved: 'success',
+    rejected: 'danger',
+  };
+  return map[status] ?? 'default';
+}
 
 export default function SwapsPage() {
   const { user } = useAuth();
@@ -88,13 +93,11 @@ function SwapCard({
   onReject?: () => void;
 }) {
   return (
-    <div className="bg-white rounded-xl border shadow-sm p-4">
+    <Card>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[swap.status]}`}>
-              {swap.status.toUpperCase()}
-            </span>
+            <Badge variant={statusVariant(swap.status)}>{swap.status.toUpperCase()}</Badge>
             <span className="text-xs text-gray-400">{new Date(swap.created_at).toLocaleDateString()}</span>
           </div>
           <p className="text-sm">
@@ -111,24 +114,18 @@ function SwapCard({
         </div>
         {swap.status === 'pending' && onApprove && onReject && (
           <div className="flex flex-col gap-2 min-w-[200px]">
-            <input
-              type="text"
+            <Input
               placeholder="Manager notes (optional)"
-              className="border rounded px-2 py-1 text-xs"
               value={notes}
               onChange={e => onNotesChange(e.target.value)}
             />
             <div className="flex gap-2">
-              <button onClick={onApprove} className="flex-1 bg-green-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-green-700">
-                ✓ Approve
-              </button>
-              <button onClick={onReject} className="flex-1 bg-red-500 text-white px-3 py-1 rounded text-xs font-medium hover:bg-red-600">
-                ✗ Reject
-              </button>
+              <Button variant="primary" size="sm" className="flex-1" onClick={onApprove}>✓ Approve</Button>
+              <Button variant="danger" size="sm" className="flex-1" onClick={onReject}>✗ Reject</Button>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

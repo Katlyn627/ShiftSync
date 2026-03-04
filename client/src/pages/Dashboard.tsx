@@ -5,12 +5,19 @@ import {
   Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion
 } from '../api';
 import { useAuth } from '../AuthContext';
+import { Card, Badge } from '../components/ui';
+import type { BadgeVariant } from '../components/ui';
 
 const RISK_COLORS: Record<string, string> = {
   high: '#ef4444',
   medium: '#f59e0b',
   low: '#22c55e',
 };
+
+function riskVariant(level: string): BadgeVariant {
+  const map: Record<string, BadgeVariant> = { high: 'danger', medium: 'warning', low: 'success' };
+  return map[level] ?? 'default';
+}
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -125,7 +132,7 @@ export default function Dashboard() {
 
       {/* Demand-Based Staffing Suggestions (manager only) */}
       {isManager && staffingChartData.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border p-5">
+        <Card>
           <h2 className="text-lg font-semibold mb-1 text-gray-700">📊 Demand-Based Staffing Suggestions</h2>
           <p className="text-xs text-gray-400 mb-4">Recommended staff count per day based on forecast revenue</p>
           <div className="grid grid-cols-7 gap-2 text-center text-xs">
@@ -153,12 +160,12 @@ export default function Dashboard() {
               );
             })}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Labor Cost Chart (manager only) */}
       {isManager && laborCost && laborCost.by_day.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border p-5">
+        <Card>
           <h2 className="text-lg font-semibold mb-4 text-gray-700">Daily Labor Cost</h2>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={laborCost.by_day}>
@@ -170,13 +177,13 @@ export default function Dashboard() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
       )}
 
       {/* Cost by Role + Burnout Risks side-by-side */}
       <div className="grid md:grid-cols-2 gap-4">
         {isManager && laborCost && laborCost.by_role.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm border p-5">
+          <Card>
             <h2 className="text-lg font-semibold mb-4 text-gray-700">Cost by Role</h2>
             <div className="space-y-2">
               {laborCost.by_role.map(r => (
@@ -192,10 +199,10 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border p-5">
+        <Card>
           <h2 className="text-lg font-semibold mb-4 text-gray-700">🔥 Burnout Risk Monitor</h2>
           {burnout.length === 0 ? (
             <p className="text-gray-400 text-sm">No data yet</p>
@@ -221,17 +228,12 @@ export default function Dashboard() {
                       </p>
                     )}
                   </div>
-                  <span
-                    className="text-xs font-semibold px-1.5 py-0.5 rounded"
-                    style={{ backgroundColor: RISK_COLORS[b.risk_level] + '22', color: RISK_COLORS[b.risk_level] }}
-                  >
-                    {b.risk_level.toUpperCase()}
-                  </span>
+                  <Badge variant={riskVariant(b.risk_level)}>{b.risk_level.toUpperCase()}</Badge>
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

@@ -5,14 +5,19 @@ import Dashboard from './pages/Dashboard';
 import SchedulePage from './pages/SchedulePage';
 import EmployeesPage from './pages/EmployeesPage';
 import SwapsPage from './pages/SwapsPage';
+import { Badge, Button } from './components/ui';
+import type { BadgeVariant } from './components/ui';
 
-const ROLE_BADGE: Record<string, string> = {
-  Manager: 'bg-purple-200 text-purple-800',
-  Server: 'bg-blue-200 text-blue-800',
-  Kitchen: 'bg-orange-200 text-orange-800',
-  Bar: 'bg-green-200 text-green-800',
-  Host: 'bg-pink-200 text-pink-800',
-};
+function roleVariant(role: string): BadgeVariant {
+  const map: Record<string, BadgeVariant> = {
+    Manager: 'manager',
+    Server: 'server',
+    Kitchen: 'kitchen',
+    Bar: 'bar',
+    Host: 'host',
+  };
+  return map[role] ?? 'default';
+}
 
 export default function App() {
   const { user, logout, loading } = useAuth();
@@ -64,18 +69,18 @@ export default function App() {
               <div className="text-right hidden sm:block">
                 <div className="text-sm font-medium leading-tight">{user.employeeName || user.username}</div>
                 {user.employeeRole && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${ROLE_BADGE[user.employeeRole] || 'bg-blue-200 text-blue-800'}`}>
-                    {user.employeeRole}
-                  </span>
+                  <Badge variant={roleVariant(user.employeeRole)}>{user.employeeRole}</Badge>
                 )}
               </div>
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={logout}
-                className="text-blue-200 hover:text-white text-sm px-2 py-1 rounded hover:bg-blue-600 transition-colors"
+                className="text-blue-200 hover:text-white hover:bg-blue-600"
                 title="Sign out"
               >
                 Sign out
-              </button>
+              </Button>
             </div>
           </nav>
         </div>

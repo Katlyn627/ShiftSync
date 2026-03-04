@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee, Employee } from '../api';
+import { Button, Card, Badge, Input } from '../components/ui';
+import type { BadgeVariant } from '../components/ui';
 
 const ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
 
-const ROLE_BADGE: Record<string, string> = {
-  Manager: 'bg-purple-100 text-purple-700',
-  Server: 'bg-blue-100 text-blue-700',
-  Kitchen: 'bg-orange-100 text-orange-700',
-  Bar: 'bg-green-100 text-green-700',
-  Host: 'bg-pink-100 text-pink-700',
-};
+function roleVariant(role: string): BadgeVariant {
+  const map: Record<string, BadgeVariant> = {
+    Manager: 'manager',
+    Server: 'server',
+    Kitchen: 'kitchen',
+    Bar: 'bar',
+    Host: 'host',
+  };
+  return map[role] ?? 'default';
+}
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -53,45 +58,62 @@ export default function EmployeesPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Employees</h1>
-        <button
+        <Button
+          variant="primary"
+          size="sm"
           onClick={() => { setShowForm(true); setEditingId(null); setForm({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40 }); }}
-          className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-blue-700"
         >
           + Add Employee
-        </button>
+        </Button>
       </div>
 
       {showForm && (
-        <div className="bg-white border rounded-xl p-5 shadow-sm">
+        <Card>
           <h2 className="font-semibold mb-3">{editingId ? 'Edit Employee' : 'Add Employee'}</h2>
           <form onSubmit={handleSubmit} className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="col-span-2">
-              <label className="text-xs text-gray-500">Name</label>
-              <input required className="w-full border rounded px-2 py-1.5 text-sm mt-0.5" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <Input
+                required
+                label="Name"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              />
             </div>
             <div>
-              <label className="text-xs text-gray-500">Role</label>
-              <select className="w-full border rounded px-2 py-1.5 text-sm mt-0.5" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+              <label className="text-sm font-medium text-neutral-700">Role</label>
+              <select className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm mt-1" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
                 {ROLES.map(r => <option key={r}>{r}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-500">Hourly Rate ($)</label>
-              <input type="number" min={8} step={0.5} className="w-full border rounded px-2 py-1.5 text-sm mt-0.5" value={form.hourly_rate} onChange={e => setForm(f => ({ ...f, hourly_rate: Number(e.target.value) }))} />
+              <Input
+                label="Hourly Rate ($)"
+                type="number"
+                min={8}
+                step={0.5}
+                value={form.hourly_rate}
+                onChange={e => setForm(f => ({ ...f, hourly_rate: Number(e.target.value) }))}
+              />
             </div>
             <div>
-              <label className="text-xs text-gray-500">Max Weekly Hours</label>
-              <input type="number" min={8} max={80} className="w-full border rounded px-2 py-1.5 text-sm mt-0.5" value={form.weekly_hours_max} onChange={e => setForm(f => ({ ...f, weekly_hours_max: Number(e.target.value) }))} />
+              <Input
+                label="Max Weekly Hours"
+                type="number"
+                min={8}
+                max={80}
+                value={form.weekly_hours_max}
+                onChange={e => setForm(f => ({ ...f, weekly_hours_max: Number(e.target.value) }))}
+              />
             </div>
             <div className="col-span-2 md:col-span-4 flex gap-2 pt-1">
-              <button type="submit" className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-blue-700">Save</button>
-              <button type="button" onClick={() => setShowForm(false)} className="border px-4 py-1.5 rounded text-sm">Cancel</button>
+              <Button type="submit" variant="primary" size="sm">Save</Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>
             </div>
           </form>
-        </div>
+        </Card>
       )}
 
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+      <Card noPadding>
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b text-left">
@@ -107,15 +129,13 @@ export default function EmployeesPage() {
               <tr key={emp.id} className={i % 2 === 0 ? '' : 'bg-gray-50'}>
                 <td className="px-4 py-2 font-medium">{emp.name}</td>
                 <td className="px-4 py-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_BADGE[emp.role] || 'bg-gray-100 text-gray-700'}`}>
-                    {emp.role}
-                  </span>
+                  <Badge variant={roleVariant(emp.role)}>{emp.role}</Badge>
                 </td>
                 <td className="px-4 py-2 text-right">${emp.hourly_rate.toFixed(2)}</td>
                 <td className="px-4 py-2 text-right">{emp.weekly_hours_max}h</td>
                 <td className="px-4 py-2 text-right">
-                  <button onClick={() => handleEdit(emp)} className="text-blue-600 hover:underline mr-3 text-xs">Edit</button>
-                  <button onClick={() => handleDelete(emp.id)} className="text-red-500 hover:underline text-xs">Delete</button>
+                  <Button variant="ghost" size="sm" onClick={() => handleEdit(emp)} className="mr-1">Edit</Button>
+                  <Button variant="danger" size="sm" onClick={() => handleDelete(emp.id)}>Delete</Button>
                 </td>
               </tr>
             ))}
@@ -124,7 +144,7 @@ export default function EmployeesPage() {
         {employees.length === 0 && (
           <p className="text-center py-8 text-gray-400">No employees yet.</p>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
