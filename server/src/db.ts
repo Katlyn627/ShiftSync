@@ -89,6 +89,15 @@ function initSchema(db: Database.Database): void {
     db.exec('ALTER TABLE users ADD COLUMN google_id TEXT');
     db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)');
   }
+
+  // Migrate employees table: add email and phone columns if absent
+  const empCols = db.pragma('table_info(employees)') as { name: string }[];
+  if (!empCols.some(c => c.name === 'email')) {
+    db.exec("ALTER TABLE employees ADD COLUMN email TEXT DEFAULT ''");
+  }
+  if (!empCols.some(c => c.name === 'phone')) {
+    db.exec("ALTER TABLE employees ADD COLUMN phone TEXT DEFAULT ''");
+  }
 }
 
 export function closeDb(): void {
