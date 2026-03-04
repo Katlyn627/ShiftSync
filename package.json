@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently --names server,client --prefix-colors cyan,magenta \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "concurrently --names server,client --prefix-colors cyan,magenta --kill-others-on-fail \"npm run dev:server\" \"wait-on http://127.0.0.1:3001/api/health && npm run dev:client\"",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
     "build": "npm run build:client && npm run build:server",
@@ -16,6 +16,7 @@
     "install:all": "cd server && npm install && cd ../client && npm install"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "wait-on": "^9.0.4"
   }
 }
