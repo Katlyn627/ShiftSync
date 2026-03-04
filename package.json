@@ -1,11 +1,11 @@
 {
   "dependencies": {
-<<<<<<< HEAD
-    "dependencies": "^0.0.1",
-    "node": "^25.8.0"
-=======
     "dotenv": "^17.3.1",
     "jsonwebtoken": "^9.0.3"
->>>>>>> e93fba2d50ae90a9b8c777750440043427b21986
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "concurrently": "^9.2.1",
+    "wait-on": "^9.0.4"
   }
 }
