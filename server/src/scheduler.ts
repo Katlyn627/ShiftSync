@@ -1,5 +1,5 @@
 import { getDb } from './db';
-import { Employee, Availability, Forecast, Shift } from './types';
+import { Employee, Availability, Forecast, Shift, DailyStaffingSuggestion } from './types';
 
 interface GenerateOptions {
   weekStart: string; // YYYY-MM-DD (Monday)
@@ -107,8 +107,10 @@ export function generateSchedule(options: GenerateOptions): number {
     const forecast = db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined;
     const dayNeeds = computeDayNeeds(forecast, date, dayOfWeek);
 
-    // Shuffle employees for variety
-    const shuffled = [...employees].sort(() => Math.random() - 0.5);
+    // Sort employees by fewest assigned hours this week first (fairness algorithm)
+    const sorted = [...employees].sort(
+      (a, b) => (employeeWeeklyHours[a.id] ?? 0) - (employeeWeeklyHours[b.id] ?? 0)
+    );
 
     for (const need of dayNeeds.shiftsNeeded) {
       let assigned = 0;
@@ -119,7 +121,7 @@ export function generateSchedule(options: GenerateOptions): number {
         return (e - s) / 60;
       })();
 
-      for (const emp of shuffled) {
+      for (const emp of sorted) {
         if (assigned >= need.count) break;
         if (emp.role !== need.role && emp.role !== 'Manager') continue;
         if (emp.role === 'Manager' && need.role !== 'Manager') continue;
@@ -159,4 +161,31 @@ export function generateSchedule(options: GenerateOptions): number {
   }
 
   return scheduleId;
+}
+
+// Returns demand-based staffing suggestions for a week without creating a schedule
+export function computeWeeklyStaffingNeeds(weekStart: string): DailyStaffingSuggestion[] {
+  const db = getDb();
+  const suggestions: DailyStaffingSuggestion[] = [];
+
+  const startDate = new Date(weekStart);
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + i);
+    const date = d.toISOString().split('T')[0];
+    const dayOfWeek = d.getDay();
+
+    const forecast = db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined;
+    const dayNeed = computeDayNeeds(forecast, date, dayOfWeek);
+
+    suggestions.push({
+      date,
+      day_of_week: dayOfWeek,
+      expected_revenue: forecast?.expected_revenue ?? 3000,
+      expected_covers: forecast?.expected_covers ?? 0,
+      staffing: dayNeed.shiftsNeeded,
+    });
+  }
+
+  return suggestions;
 }
