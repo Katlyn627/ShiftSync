@@ -13,7 +13,7 @@ router.get('/', (_req, res) => {
   res.json(schedules);
 });
 
-router.post('/generate', (req, res) => {
+router.post('/generate', requireManager, (req, res) => {
   const { week_start, labor_budget } = req.body;
   if (!week_start) return res.status(400).json({ error: 'week_start is required' });
   try {
@@ -46,7 +46,7 @@ router.get('/:id', (req, res) => {
   res.json(schedule);
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', requireManager, (req, res) => {
   const { status } = req.body;
   const db = getDb();
   const existing = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id) as any;

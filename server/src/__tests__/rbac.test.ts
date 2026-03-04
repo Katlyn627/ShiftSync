@@ -103,6 +103,68 @@ describe('Role-based access: staffing-suggestions endpoint', () => {
   });
 });
 
+describe('Role-based access: schedule generate endpoint', () => {
+  test('manager can generate a schedule', async () => {
+    const res = await request(app)
+      .post('/api/schedules/generate')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ week_start: '2025-06-02', labor_budget: 5000 });
+    expect(res.status).toBe(201);
+  });
+
+  test('non-manager cannot generate a schedule', async () => {
+    const res = await request(app)
+      .post('/api/schedules/generate')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ week_start: '2025-06-02', labor_budget: 5000 });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/manager/i);
+  });
+
+  test('unauthenticated cannot generate a schedule', async () => {
+    const res = await request(app)
+      .post('/api/schedules/generate')
+      .send({ week_start: '2025-06-02', labor_budget: 5000 });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('Role-based access: schedule update endpoint', () => {
+  let scheduleId: number;
+
+  beforeAll(async () => {
+    const res = await request(app)
+      .post('/api/schedules/generate')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ week_start: '2025-06-09', labor_budget: 5000 });
+    scheduleId = res.body.id;
+  });
+
+  test('non-manager cannot update a schedule', async () => {
+    const res = await request(app)
+      .put(`/api/schedules/${scheduleId}`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ status: 'published' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/manager/i);
+  });
+
+  test('manager can update a schedule', async () => {
+    const res = await request(app)
+      .put(`/api/schedules/${scheduleId}`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ status: 'draft' });
+    expect(res.status).toBe(200);
+  });
+
+  test('unauthenticated cannot update a schedule', async () => {
+    const res = await request(app)
+      .put(`/api/schedules/${scheduleId}`)
+      .send({ status: 'published' });
+    expect(res.status).toBe(401);
+  });
+});
+
 describe('Role-based access: swap approve/reject endpoints', () => {
   test('non-manager cannot approve a swap', async () => {
     const res = await request(app)

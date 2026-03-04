@@ -41,6 +41,7 @@ function shiftBarColor(role: string): string {
 
 export default function SchedulePage() {
   const { user } = useAuth();
+  const isManager = user?.isManager ?? false;
   const [schedules, setSchedules]     = useState<Schedule[]>([]);
   const [selectedId, setSelectedId]   = useState<number | null>(null);
   const [shifts, setShifts]           = useState<ShiftWithEmployee[]>([]);
@@ -165,25 +166,29 @@ export default function SchedulePage() {
 
       {/* ── Controls Bar ── */}
       <div className="flex flex-wrap items-end gap-3 p-4 bg-white rounded-xl border border-border shadow-sm">
-        <Input label="Week Starting" type="date" value={weekStart} onChange={e => setWeekStart(e.target.value)} />
-        <Input
-          label="Labor Budget ($)"
-          type="number"
-          className="w-32"
-          value={budget}
-          onChange={e => setBudget(Number(e.target.value))}
-          min={1000}
-          step={500}
-        />
-        <Button
-          variant="default"
-          onClick={handleGenerate}
-          disabled={generating}
-          isLoading={generating}
-          className="self-end"
-        >
-          Auto-Generate Schedule
-        </Button>
+        {isManager && (
+          <>
+            <Input label="Week Starting" type="date" value={weekStart} onChange={e => setWeekStart(e.target.value)} />
+            <Input
+              label="Labor Budget ($)"
+              type="number"
+              className="w-32"
+              value={budget}
+              onChange={e => setBudget(Number(e.target.value))}
+              min={1000}
+              step={500}
+            />
+            <Button
+              variant="default"
+              onClick={handleGenerate}
+              disabled={generating}
+              isLoading={generating}
+              className="self-end"
+            >
+              Auto-Generate Schedule
+            </Button>
+          </>
+        )}
 
         {schedules.length > 0 && (
           <>
@@ -199,7 +204,7 @@ export default function SchedulePage() {
                 ))}
               </select>
             </div>
-            {selectedSchedule && (
+            {isManager && selectedSchedule && (
               <Button
                 variant={selectedSchedule.status === 'published' ? 'outline' : 'default'}
                 onClick={handlePublish}
@@ -311,7 +316,9 @@ export default function SchedulePage() {
           </div>
           <p className="font-semibold text-foreground">No schedules yet</p>
           <p className="text-sm text-muted-foreground max-w-xs">
-            Set a week start date and labor budget above, then click "Auto-Generate Schedule" to create your first optimized schedule.
+            {isManager
+              ? 'Set a week start date and labor budget above, then click "Auto-Generate Schedule" to create your first optimized schedule.'
+              : 'No schedule has been published yet. Check back later.'}
           </p>
         </div>
       )}
