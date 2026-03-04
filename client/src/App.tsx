@@ -5,7 +5,6 @@ import Dashboard from './pages/Dashboard';
 import SchedulePage from './pages/SchedulePage';
 import EmployeesPage from './pages/EmployeesPage';
 import SwapsPage from './pages/SwapsPage';
-import ComponentsPage from './pages/ComponentsPage';
 import { Badge } from './components/ui';
 import type { BadgeVariant } from './components/ui';
 
@@ -57,13 +56,6 @@ function SwapIcon() {
     </svg>
   );
 }
-function ComponentsIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10 2l2.5 4.5L18 7.5l-4 3.9 1 5.5L10 14.5 5 16.9l1-5.5-4-3.9 5.5-1z" />
-    </svg>
-  );
-}
 
 export default function App() {
   const { user, logout, loading } = useAuth();
@@ -90,7 +82,6 @@ export default function App() {
     { to: '/schedule',  label: 'Schedule',  icon: <ScheduleIcon /> },
     ...(user.isManager ? [{ to: '/employees', label: 'Employees', icon: <EmployeesIcon /> }] : []),
     { to: '/swaps',      label: 'Shift Swaps', icon: <SwapIcon /> },
-    { to: '/components', label: 'Components',  icon: <ComponentsIcon /> },
   ];
 
   const initials = (user.employeeName || user.username)
@@ -168,7 +159,6 @@ export default function App() {
           <Route path="/schedule"   element={<SchedulePage />} />
           {user.isManager && <Route path="/employees" element={<EmployeesPage />} />}
           <Route path="/swaps"      element={<SwapsPage />} />
-          <Route path="/components" element={<ComponentsPage />} />
         </Routes>
       </main>
 
