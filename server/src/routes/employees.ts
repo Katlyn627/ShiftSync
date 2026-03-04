@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
-import { calculateBurnoutRisks, calculateTurnoverRisks } from '../burnout';
 
 const router = Router();
 
@@ -73,70 +72,6 @@ router.delete('/:id', requireManager, (req, res) => {
   const result = db.prepare('DELETE FROM employees WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Employee not found' });
   res.json({ success: true });
-});
-
-// Employee stats for a specific schedule
-router.get('/:id/stats', requireAuth, (req, res) => {
-  const db = getDb();
-  const employeeId = parseInt(req.params.id);
-  const scheduleId = parseInt(req.query.schedule_id as string);
-
-  const isManager = req.user?.isManager;
-  const isSelf = req.user?.employeeId === employeeId;
-  if (!isManager && !isSelf) {
-    return res.status(403).json({ error: 'Access denied' });
-  }
-
-  const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(employeeId) as any;
-  if (!employee) return res.status(404).json({ error: 'Employee not found' });
-
-  if (!scheduleId || isNaN(scheduleId)) {
-    return res.status(400).json({ error: 'schedule_id query parameter is required' });
-  }
-
-  const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(scheduleId) as any;
-  if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
-
-  const shifts = db.prepare(
-    "SELECT * FROM shifts WHERE schedule_id = ? AND employee_id = ? AND status != 'cancelled' ORDER BY date, start_time"
-  ).all(scheduleId, employeeId) as any[];
-
-  // Compute weekly hours and labor cost
-  const weeklyHours = shifts.reduce((sum: number, s: any) => {
-    const [sh, sm] = s.start_time.split(':').map(Number);
-    const [eh, em] = s.end_time.split(':').map(Number);
-    const startMin = sh * 60 + sm;
-    let endMin = eh * 60 + em;
-    if (endMin < startMin) endMin += 24 * 60;
-    return sum + (endMin - startMin) / 60;
-  }, 0);
-  const laborCost = weeklyHours * employee.hourly_rate;
-  const laborPctOfBudget = schedule.labor_budget > 0
-    ? (laborCost / schedule.labor_budget) * 100
-    : 0;
-
-  // Get burnout and turnover risks for this schedule and filter for this employee
-  let burnout = null;
-  let turnover = null;
-  try {
-    const burnoutRisks = calculateBurnoutRisks(scheduleId);
-    burnout = burnoutRisks.find(r => r.employee_id === employeeId) ?? null;
-  } catch (_) {}
-  try {
-    const turnoverRisks = calculateTurnoverRisks(scheduleId);
-    turnover = turnoverRisks.find(r => r.employee_id === employeeId) ?? null;
-  } catch (_) {}
-
-  res.json({
-    employee,
-    schedule_id: scheduleId,
-    weekly_hours: Math.round(weeklyHours * 10) / 10,
-    labor_cost: Math.round(laborCost * 100) / 100,
-    labor_pct_of_budget: Math.round(laborPctOfBudget * 10) / 10,
-    shifts,
-    burnout,
-    turnover,
-  });
 });
 
 // Availability
