@@ -5,6 +5,7 @@ import {
   Schedule, ShiftWithEmployee, Employee
 } from '../api';
 import { useAuth } from '../AuthContext';
+import { Button, Input } from '../components/ui';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const ROLE_COLORS: Record<string, string> = {
@@ -127,20 +128,33 @@ export default function SchedulePage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Week Starting</label>
-          <input type="date" className="border rounded px-3 py-1.5 text-sm" value={weekStart} onChange={e => setWeekStart(e.target.value)} />
+          <Input
+            label="Week Starting"
+            type="date"
+            value={weekStart}
+            onChange={e => setWeekStart(e.target.value)}
+          />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Labor Budget ($)</label>
-          <input type="number" className="border rounded px-3 py-1.5 text-sm w-28" value={budget} onChange={e => setBudget(Number(e.target.value))} min={1000} step={500} />
+          <Input
+            label="Labor Budget ($)"
+            type="number"
+            className="w-28"
+            value={budget}
+            onChange={e => setBudget(Number(e.target.value))}
+            min={1000}
+            step={500}
+          />
         </div>
-        <button
+        <Button
+          variant="primary"
+          size="sm"
           onClick={handleGenerate}
           disabled={generating}
-          className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          isLoading={generating}
         >
-          {generating ? '⚙️ Generating...' : '⚡ Auto-Generate Schedule'}
-        </button>
+          ⚡ Auto-Generate Schedule
+        </Button>
 
         {schedules.length > 0 && (
           <>
@@ -153,12 +167,13 @@ export default function SchedulePage() {
               </select>
             </div>
             {selectedSchedule && (
-              <button
+              <Button
+                variant={selectedSchedule.status === 'published' ? 'secondary' : 'primary'}
+                size="sm"
                 onClick={handlePublish}
-                className={`px-4 py-1.5 rounded text-sm font-medium ${selectedSchedule.status === 'published' ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-green-600 text-white hover:bg-green-700'}`}
               >
                 {selectedSchedule.status === 'published' ? 'Unpublish' : '✅ Publish Schedule'}
-              </button>
+              </Button>
             )}
           </>
         )}
@@ -227,10 +242,9 @@ export default function SchedulePage() {
             </p>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Reason (optional)</label>
-                <input
+                <Input
+                  label="Reason (optional)"
                   type="text"
-                  className="w-full border rounded px-3 py-1.5 text-sm"
                   placeholder="e.g. Doctor appointment"
                   value={swapReason}
                   onChange={e => setSwapReason(e.target.value)}
@@ -253,19 +267,23 @@ export default function SchedulePage() {
               </div>
             </div>
             <div className="flex gap-2 mt-5">
-              <button
+              <Button
+                variant="primary"
+                size="md"
+                className="flex-1"
                 onClick={handleSubmitSwap}
                 disabled={swapSubmitting}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                isLoading={swapSubmitting}
               >
                 {swapSubmitting ? 'Submitting…' : '🔄 Submit Swap Request'}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
                 onClick={() => setSwapShift(null)}
-                className="border px-4 py-2 rounded text-sm"
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         </div>
