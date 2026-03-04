@@ -1,20 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, CSSProperties } from 'react';
 import {
   getSchedules, generateSchedule, getScheduleShifts, updateSchedule,
   getEmployees, createSwap,
   Schedule, ShiftWithEmployee, Employee
 } from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Input } from '../components/ui';
+import { Button, Input, Card, Badge } from '../components/ui';
+import type { BadgeVariant } from '../components/ui';
+import { colors } from '../design-tokens';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const ROLE_COLORS: Record<string, string> = {
-  Manager: 'bg-purple-100 text-purple-800 border-purple-200',
-  Server: 'bg-blue-100 text-blue-800 border-blue-200',
-  Kitchen: 'bg-orange-100 text-orange-800 border-orange-200',
-  Bar: 'bg-green-100 text-green-800 border-green-200',
-  Host: 'bg-pink-100 text-pink-800 border-pink-200',
-};
+
+function roleVariant(role: string): BadgeVariant {
+  const map: Record<string, BadgeVariant> = {
+    Manager: 'manager',
+    Server: 'server',
+    Kitchen: 'kitchen',
+    Bar: 'bar',
+    Host: 'host',
+  };
+  return map[role] ?? 'default';
+}
+
+function shiftBlockStyle(role: string): CSSProperties {
+  const key = role.toLowerCase() as keyof typeof colors.roles;
+  if (key in colors.roles) {
+    const { bg, text } = colors.roles[key];
+    return { backgroundColor: bg, color: text, borderColor: text + '40' };
+  }
+  return { backgroundColor: colors.neutral[100], color: colors.neutral[700] };
+}
 
 export default function SchedulePage() {
   const { user } = useAuth();
@@ -122,7 +137,7 @@ export default function SchedulePage() {
       })
     : [];
 
-  if (loading) return <div className="flex justify-center py-20 text-gray-500">Loading...</div>;
+  if (loading) return <div className="flex justify-center py-20 text-neutral-500">Loading...</div>;
 
   return (
     <div className="space-y-5">
@@ -159,9 +174,12 @@ export default function SchedulePage() {
         {schedules.length > 0 && (
           <>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">View Schedule</label>
-              <select className="border rounded px-3 py-1.5 text-sm" value={selectedId ?? ''} onChange={e => setSelectedId(Number(e.target.value))}>
-                {schedules.map(s => (
+              <label className="block text-xs text-neutral-500 mb-1">View Schedule</label>
+              <select
+                className="border border-neutral-300 rounded-lg px-3 py-1.5 text-sm text-neutral-900 bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                value={selectedId ?? ''}
+                onChange={e => setSelectedId(Number(e.target.value))}
+              >                {schedules.map(s => (
                   <option key={s.id} value={s.id}>Week of {s.week_start} ({s.status})</option>
                 ))}
               </select>
@@ -185,14 +203,14 @@ export default function SchedulePage() {
             {weekDates.map((date, idx) => {
               const dayShifts = shiftsByDate[date] || [];
               return (
-                <div key={date} className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                  <div className="bg-gray-50 border-b px-2 py-2 text-center">
-                    <div className="text-xs font-semibold text-gray-500 uppercase">{DAYS[idx]}</div>
-                    <div className="text-sm font-bold text-gray-800">{date.slice(5)}</div>
+                <Card key={date} noPadding className="overflow-hidden">
+                  <div className="bg-neutral-50 border-b px-2 py-2 text-center">
+                    <div className="text-xs font-semibold text-neutral-500 uppercase">{DAYS[idx]}</div>
+                    <div className="text-sm font-bold text-neutral-800">{date.slice(5)}</div>
                   </div>
                   <div className="p-2 space-y-1 min-h-[120px]">
                     {dayShifts.length === 0 ? (
-                      <p className="text-xs text-gray-300 text-center mt-4">No shifts</p>
+                      <p className="text-xs text-neutral-300 text-center mt-4">No shifts</p>
                     ) : (
                       dayShifts.map(shift => {
                           const canRequestSwap = shift.status !== 'swapped' &&
@@ -200,24 +218,28 @@ export default function SchedulePage() {
                           return (
                             <div
                               key={shift.id}
-                              className={`rounded border px-1.5 py-1 text-xs ${ROLE_COLORS[shift.role] || 'bg-gray-100 text-gray-700'} ${shift.status === 'swapped' ? 'opacity-60 line-through' : ''}`}
+                              className={`rounded border px-1.5 py-1 text-xs ${shift.status === 'swapped' ? 'opacity-60 line-through' : ''}`}
+                              style={shiftBlockStyle(shift.role)}
                             >
                               <div className="font-semibold truncate">{shift.employee_name.split(' ')[0]}</div>
-                              <div className="opacity-70">{shift.start_time}–{shift.end_time}</div>
+                              <Badge variant={roleVariant(shift.role)} className="mt-0.5">{shift.role}</Badge>
+                              <div className="opacity-70 mt-0.5">{shift.start_time}–{shift.end_time}</div>
                               {canRequestSwap && (
-                                <button
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="mt-0.5 !px-0 !py-0 text-[10px] h-auto underline opacity-70 hover:opacity-100"
                                   onClick={() => handleOpenSwap(shift)}
-                                  className="mt-0.5 text-[10px] underline opacity-70 hover:opacity-100"
                                 >
                                   Request Swap
-                                </button>
+                                </Button>
                               )}
                             </div>
                           );
                         })
                     )}
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>
@@ -225,7 +247,7 @@ export default function SchedulePage() {
       )}
 
       {schedules.length === 0 && (
-        <div className="text-center py-20 text-gray-400">
+        <div className="text-center py-20 text-neutral-400">
           <p className="text-lg">No schedules yet.</p>
           <p className="mt-1 text-sm">Click "Auto-Generate Schedule" to create your first optimized schedule.</p>
         </div>
@@ -233,9 +255,9 @@ export default function SchedulePage() {
 
       {swapShift && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+          <Card className="w-full max-w-md shadow-xl">
             <h2 className="text-lg font-bold mb-1">Request Shift Swap</h2>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-neutral-500 mb-4">
               Your <span className="font-medium">{swapShift.role}</span> shift on{' '}
               <span className="font-medium">{swapShift.date}</span>{' '}
               ({swapShift.start_time}–{swapShift.end_time})
@@ -251,19 +273,21 @@ export default function SchedulePage() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Swap with (optional)</label>
-                <select
-                  className="w-full border rounded px-3 py-1.5 text-sm"
-                  value={swapTargetId}
-                  onChange={e => setSwapTargetId(e.target.value)}
-                >
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-neutral-700">Swap with (optional)</label>
+                  <select
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm text-neutral-900 bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                    value={swapTargetId}
+                    onChange={e => setSwapTargetId(e.target.value)}
+                  >
                   <option value="">— Any available employee —</option>
                   {employees
                     .filter(e => e.id !== swapShift.employee_id && (e.role === swapShift.role || e.role === 'Manager'))
                     .map(e => (
                       <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
                     ))}
-                </select>
+                  </select>
+                </div>
               </div>
             </div>
             <div className="flex gap-2 mt-5">
@@ -285,7 +309,7 @@ export default function SchedulePage() {
                 Cancel
               </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </div>
