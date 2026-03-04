@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import SchedulePage from './pages/SchedulePage';
 import EmployeesPage from './pages/EmployeesPage';
 import SwapsPage from './pages/SwapsPage';
+import ComponentsPage from './pages/ComponentsPage';
 import { Badge, Button } from './components/ui';
 import type { BadgeVariant } from './components/ui';
 
@@ -39,6 +40,7 @@ export default function App() {
     { to: '/schedule', label: '📅 Schedule' },
     ...(user.isManager ? [{ to: '/employees', label: '👥 Employees' }] : []),
     { to: '/swaps', label: '🔄 Shift Swaps' },
+    { to: '/components', label: '🎨 Components' },
   ];
 
   return (
@@ -91,6 +93,7 @@ export default function App() {
           <Route path="/schedule" element={<SchedulePage />} />
           {user.isManager && <Route path="/employees" element={<EmployeesPage />} />}
           <Route path="/swaps" element={<SwapsPage />} />
+          <Route path="/components" element={<ComponentsPage />} />
         </Routes>
       </main>
       <footer className="text-center text-neutral-400 text-xs py-3 border-t border-neutral-200">
