@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import rateLimit from 'express-rate-limit';
 import { getDb } from './db';
 import { seedDemoData } from './seed';
@@ -41,8 +42,16 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve built React frontend in production
+const clientDist = path.resolve(__dirname, '../../client/dist');
+app.use(express.static(clientDist));
+// SPA fallback: serve index.html for all non-API routes so React Router works
+app.get(/^(?!\/api).*/, (_req, res) => {
+  res.sendFile(path.join(clientDist, 'index.html'));
+});
+
 app.listen(PORT, () => {
-  console.log(`ShiftSync server running on port ${PORT}`);
+  console.log(`ShiftSync server running on http://localhost:${PORT}`);
 });
 
 export default app;
