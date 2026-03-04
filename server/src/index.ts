@@ -3,6 +3,7 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { getDb } from './db';
 import { seedDemoData } from './seed';
+import authRouter from './routes/auth';
 import employeesRouter from './routes/employees';
 import schedulesRouter from './routes/schedules';
 import shiftsRouter from './routes/shifts';
@@ -29,6 +30,7 @@ getDb();
 seedDemoData();
 
 // Routes
+app.use('/api/auth', authRouter);
 app.use('/api/employees', employeesRouter);
 app.use('/api/schedules', schedulesRouter);
 app.use('/api/shifts', shiftsRouter);

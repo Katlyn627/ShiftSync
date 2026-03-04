@@ -1,4 +1,5 @@
 import { getDb } from './db';
+import bcrypt from 'bcryptjs';
 
 export function seedDemoData(): void {
   const db = getDb();
@@ -65,5 +66,19 @@ export function seedDemoData(): void {
       const covers = Math.floor(revenue / 35);
       insertForecast.run(dateStr, revenue, covers);
     }
+  }
+
+  // Seed user accounts
+  // Manager account: alice / password123
+  // Employee accounts: bob, carol, david, ... / password123
+  const insertUser = db.prepare(
+    'INSERT INTO users (username, password_hash, employee_id, is_manager) VALUES (?, ?, ?, ?)'
+  );
+  const allSeeded = db.prepare('SELECT id, name, role FROM employees').all() as any[];
+  for (const emp of allSeeded) {
+    const username = emp.name.split(' ')[0].toLowerCase();
+    const hash = bcrypt.hashSync('password123', 10);
+    const isManager = emp.role === 'Manager' ? 1 : 0;
+    insertUser.run(username, hash, emp.id, isManager);
   }
 }

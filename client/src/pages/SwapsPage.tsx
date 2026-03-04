@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getSwaps, approveSwap, rejectSwap, SwapWithDetails } from '../api';
+import { useAuth } from '../AuthContext';
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -8,6 +9,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function SwapsPage() {
+  const { user } = useAuth();
   const [swaps, setSwaps] = useState<SwapWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState<Record<number, string>>({});
@@ -26,8 +28,12 @@ export default function SwapsPage() {
 
   if (loading) return <div className="flex justify-center py-20 text-gray-500">Loading...</div>;
 
-  const pending = swaps.filter(s => s.status === 'pending');
-  const resolved = swaps.filter(s => s.status !== 'pending');
+  // Employees only see their own swap requests; managers see all
+  const visibleSwaps = user?.isManager
+    ? swaps
+    : swaps.filter(s => s.requester_id === user?.employeeId || s.target_id === user?.employeeId);
+  const pending = visibleSwaps.filter(s => s.status === 'pending');
+  const resolved = visibleSwaps.filter(s => s.status !== 'pending');
 
   return (
     <div className="space-y-5">
@@ -43,8 +49,8 @@ export default function SwapsPage() {
                 swap={swap}
                 notes={notes[swap.id] ?? ''}
                 onNotesChange={v => setNotes(n => ({ ...n, [swap.id]: v }))}
-                onApprove={() => handleApprove(swap.id)}
-                onReject={() => handleReject(swap.id)}
+                onApprove={user?.isManager ? () => handleApprove(swap.id) : undefined}
+                onReject={user?.isManager ? () => handleReject(swap.id) : undefined}
               />
             ))}
           </div>
@@ -62,7 +68,7 @@ export default function SwapsPage() {
         </div>
       )}
 
-      {swaps.length === 0 && (
+      {visibleSwaps.length === 0 && (
         <div className="text-center py-20 text-gray-400">
           <p className="text-lg">No shift swap requests yet.</p>
           <p className="text-sm mt-1">Swap requests will appear here for manager approval.</p>
