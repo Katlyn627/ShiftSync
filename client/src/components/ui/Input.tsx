@@ -1,62 +1,37 @@
-import { InputHTMLAttributes, forwardRef, ReactNode } from 'react';
+import * as React from "react";
+import { cn } from "./utils";
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  /** Visible label rendered above the input. */
+export interface InputProps extends React.ComponentProps<"input"> {
   label?: string;
-  /** Error message shown below the input in red. */
   error?: string;
-  /** Icon or adornment placed on the left side inside the input. */
-  leftAdornment?: ReactNode;
 }
 
-/**
- * Input — form field component derived from the Figma UI kit.
- *
- * Usage:
- *   <Input label="Username" placeholder="e.g. alice" />
- *   <Input label="Password" type="password" error={errors.password} />
- */
-const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, leftAdornment, className = '', id, ...rest }, ref) => {
-    const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
-    return (
-      <div className="flex flex-col gap-1">
-        {label && (
-          <label
-            htmlFor={inputId}
-            className="text-sm font-medium text-neutral-700"
-          >
-            {label}
-          </label>
+function Input({ className, type, label, error, id, ...props }: InputProps) {
+  const inputId = id ?? (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+  return (
+    <div className="flex flex-col gap-1">
+      {label && (
+        <label htmlFor={inputId} className="text-sm font-medium text-foreground">
+          {label}
+        </label>
+      )}
+      <input
+        type={type}
+        id={inputId}
+        data-slot="input"
+        aria-invalid={!!error || undefined}
+        className={cn(
+          "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base bg-input-background transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+          "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+          "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+          className,
         )}
-        <div className="relative flex items-center">
-          {leftAdornment && (
-            <span className="absolute left-3 text-neutral-400">{leftAdornment}</span>
-          )}
-          <input
-            ref={ref}
-            id={inputId}
-            className={[
-              'w-full rounded-lg border text-sm transition-colors',
-              'placeholder:text-neutral-400',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1',
-              'disabled:cursor-not-allowed disabled:opacity-50',
-              error
-                ? 'border-danger bg-danger-light/30 text-danger-dark'
-                : 'border-neutral-300 bg-white text-neutral-900',
-              leftAdornment ? 'pl-9 pr-3 py-2' : 'px-3 py-2',
-              className,
-            ].join(' ')}
-            {...rest}
-          />
-        </div>
-        {error && (
-          <p className="text-xs text-danger-dark">{error}</p>
-        )}
-      </div>
-    );
-  },
-);
+        {...props}
+      />
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
 
-Input.displayName = 'Input';
+export { Input };
 export default Input;
