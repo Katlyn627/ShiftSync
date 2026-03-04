@@ -21,16 +21,32 @@ if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
 // ── Google OAuth strategy ──────────────────────────────────────────────────
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const GOOGLE_CALLBACK_URL =
-  process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3001/api/auth/google/callback';
+// If GOOGLE_CALLBACK_URL is not set, use a relative path so passport derives the
+// full URL from the incoming request.  This works automatically in every
+// environment (local dev, staging, production) without any extra configuration.
+// If you need an explicit URL (e.g. for a tunnel or non-standard host) set
+// GOOGLE_CALLBACK_URL to the full absolute URL in server/.env.
+const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || '/api/auth/google/callback';
 
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
+  console.log(
+    '[Google OAuth] Enabled. Register the callback URL shown below as an ' +
+    'Authorised redirect URI in Google Cloud Console → Credentials:\n' +
+    `  Explicit URL set:  ${process.env.GOOGLE_CALLBACK_URL ? GOOGLE_CALLBACK_URL : '(none — derived from request host at runtime)'}\n` +
+    '  Local dev default: http://localhost:3001/api/auth/google/callback\n' +
+    '  The most common cause of Error 400: redirect_uri_mismatch is ' +
+    'registering the wrong port (3000 instead of 3001) or a mismatched production URL.'
+  );
   passport.use(
     new GoogleStrategy(
       {
         clientID: GOOGLE_CLIENT_ID,
         clientSecret: GOOGLE_CLIENT_SECRET,
         callbackURL: GOOGLE_CALLBACK_URL,
+        // proxy: true tells passport-oauth2 to trust X-Forwarded-Proto so the
+        // derived callback URL uses https:// when the server sits behind an
+        // HTTPS reverse-proxy (Heroku, Render, AWS ALB, nginx, …).
+        proxy: true,
       },
       (_accessToken, _refreshToken, profile, done) => {
         try {
