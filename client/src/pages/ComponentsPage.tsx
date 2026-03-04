@@ -142,7 +142,7 @@ export default function ComponentsPage() {
   const [passwordValue, setPasswordValue] = useState('');
   const [emailValue,    setEmailValue]    = useState('');
   const [roleValue,     setRoleValue]     = useState('');
-  const [emailError]                      = useState('Please enter a valid email address');
+  const emailError = 'Please enter a valid email address';
 
   return (
     <div className="space-y-10 max-w-4xl">

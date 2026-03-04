@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee, Employee } from '../api';
-import { Button, Card, Badge, Input } from '../components/ui';
+import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
 const ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
-
-const SELECT_CLASS = "w-full border border-border rounded-md px-3 py-2 text-sm text-foreground bg-input-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 function roleVariant(role: string): BadgeVariant {
   const map: Record<string, BadgeVariant> = {
@@ -83,7 +81,7 @@ export default function EmployeesPage() {
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Role</label>
-              <select className={SELECT_CLASS + " mt-1"} value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+              <select className={`w-full ${NATIVE_SELECT_CLASS} mt-1`} value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
                 {ROLES.map(r => <option key={r}>{r}</option>)}
               </select>
             </div>

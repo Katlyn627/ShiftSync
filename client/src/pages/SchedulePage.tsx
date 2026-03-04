@@ -5,12 +5,12 @@ import {
   Schedule, ShiftWithEmployee, Employee
 } from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Input, Card, Badge } from '../components/ui';
+import { Button, Input, Card, Badge, NATIVE_SELECT_CLASS } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const SELECT_CLASS = "border border-border rounded-md px-3 py-1.5 text-sm text-foreground bg-input-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
 
 function roleVariant(role: string): BadgeVariant {
   const map: Record<string, BadgeVariant> = {
@@ -23,17 +23,18 @@ function roleVariant(role: string): BadgeVariant {
   return map[role] ?? 'default';
 }
 
+/** Role color map — Tailwind v400/v800 equivalents as CSS hex for shift block inline styles. */
+const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
+  manager: { bg: '#f3e8ff', text: '#6b21a8' }, // violet-100 / violet-800
+  server:  { bg: '#dbeafe', text: '#1e40af' }, // blue-100 / blue-800
+  kitchen: { bg: '#ffedd5', text: '#9a3412' }, // orange-100 / orange-800
+  bar:     { bg: '#dcfce7', text: '#166534' }, // green-100 / green-800
+  host:    { bg: '#fce7f3', text: '#9d174d' }, // pink-100 / pink-800
+};
+
 function shiftBlockStyle(role: string): CSSProperties {
-  const roleColors: Record<string, { bg: string; text: string }> = {
-    manager: { bg: '#f3e8ff', text: '#6b21a8' },
-    server:  { bg: '#dbeafe', text: '#1e40af' },
-    kitchen: { bg: '#ffedd5', text: '#9a3412' },
-    bar:     { bg: '#dcfce7', text: '#166534' },
-    host:    { bg: '#fce7f3', text: '#9d174d' },
-  };
-  const key = role.toLowerCase();
-  const colors = roleColors[key] ?? { bg: '#f1f5f9', text: '#334155' };
-  return { backgroundColor: colors.bg, color: colors.text, borderColor: colors.text + '40' };
+  const c = ROLE_COLORS[role.toLowerCase()] ?? { bg: '#f1f5f9', text: '#334155' };
+  return { backgroundColor: c.bg, color: c.text, borderColor: c.text + '40' };
 }
 
 export default function SchedulePage() {
@@ -178,7 +179,7 @@ export default function SchedulePage() {
             <div>
               <label className="block text-xs text-muted-foreground mb-1">View Schedule</label>
               <select
-                className={SELECT_CLASS}
+                className={NATIVE_SELECT_CLASS}
                 value={selectedId ?? ''}
                 onChange={e => setSelectedId(Number(e.target.value))}
               >
@@ -279,7 +280,7 @@ export default function SchedulePage() {
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium text-foreground">Swap with (optional)</label>
                   <select
-                    className={`w-full ${SELECT_CLASS}`}
+                    className={`w-full ${NATIVE_SELECT_CLASS}`}
                     value={swapTargetId}
                     onChange={e => setSwapTargetId(e.target.value)}
                   >
