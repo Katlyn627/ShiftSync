@@ -92,3 +92,24 @@ export interface LaborCostSummary {
   by_day: { date: string; cost: number }[];
   by_role: { role: string; cost: number }[];
 }
+
+export interface TurnoverRisk {
+  employee_id: number;
+  employee_name: string;
+  risk_level: 'low' | 'medium' | 'high';
+  risk_score: number;
+  factors: string[];
+  weekly_hours: number;
+  hours_utilization_pct: number;
+}
+
+export interface EmployeeStats {
+  employee: Employee;
+  schedule_id: number;
+  weekly_hours: number;
+  labor_cost: number;
+  labor_pct_of_budget: number;
+  shifts: Shift[];
+  burnout: BurnoutRisk | null;
+  turnover: TurnoverRisk | null;
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState, CSSProperties } from 'react';
 import {
-  getSchedules, generateSchedule, getScheduleShifts, updateSchedule,
+  getSchedules, generateSchedule, getScheduleShifts, updateSchedule, deleteSchedule,
   getEmployees, createSwap, updateShift, getBurnoutRisks, getAvailability,
   Schedule, ShiftWithEmployee, Employee, BurnoutRisk, Availability
 } from '../api';
@@ -68,6 +68,7 @@ export default function SchedulePage() {
   const [shifts, setShifts]           = useState<ShiftWithEmployee[]>([]);
   const [loading, setLoading]         = useState(true);
   const [generating, setGenerating]   = useState(false);
+  const [deleting, setDeleting]        = useState(false);
   const [weekStart, setWeekStart]     = useState(() => {
     const d = new Date();
     const day = d.getDay();
@@ -113,6 +114,12 @@ export default function SchedulePage() {
     getBurnoutRisks(selectedId).then(setBurnoutRisks).catch(() => setBurnoutRisks([]));
   }, [selectedId]);
 
+  // Auto-refresh shifts when employee count changes (e.g. after add/delete)
+  useEffect(() => {
+    if (!selectedId || employees.length === 0) return;
+    getScheduleShifts(selectedId).then(setShifts).catch(() => {});
+  }, [employees.length, selectedId]);
+
   const handleGenerate = async () => {
     setGenerating(true);
     try {
@@ -133,6 +140,28 @@ export default function SchedulePage() {
     const newStatus = s.status === 'published' ? 'draft' : 'published';
     await updateSchedule(selectedId, { status: newStatus });
     await load();
+  };
+
+  const handleDeleteSchedule = async () => {
+    if (!selectedId) return;
+    const s = schedules.find(sc => sc.id === selectedId);
+    if (!s) return;
+    const confirmed = window.confirm(
+      `Delete the schedule for the week of ${s.week_start}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      await deleteSchedule(selectedId);
+      const remaining = schedules.filter(sc => sc.id !== selectedId);
+      setSchedules(remaining);
+      setSelectedId(remaining.length > 0 ? remaining[0].id : null);
+      setShifts([]);
+    } catch (err: any) {
+      alert('Error deleting schedule: ' + err.message);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleOpenSwap = (shift: ShiftWithEmployee) => {
@@ -270,13 +299,24 @@ export default function SchedulePage() {
               </select>
             </div>
             {isManager && selectedSchedule && (
-              <Button
-                variant={selectedSchedule.status === 'published' ? 'outline' : 'default'}
-                onClick={handlePublish}
-                className="self-end"
-              >
-                {selectedSchedule.status === 'published' ? 'Unpublish' : 'Publish Schedule'}
-              </Button>
+              <>
+                <Button
+                  variant={selectedSchedule.status === 'published' ? 'outline' : 'default'}
+                  onClick={handlePublish}
+                  className="self-end"
+                >
+                  {selectedSchedule.status === 'published' ? 'Unpublish' : 'Publish Schedule'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleDeleteSchedule}
+                  disabled={deleting}
+                  isLoading={deleting}
+                  className="self-end text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  Delete Schedule
+                </Button>
+              </>
             )}
           </>
         )}
