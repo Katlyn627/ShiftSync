@@ -31,7 +31,7 @@ export default function SwapsPage() {
     load();
   };
 
-  if (loading) return <div className="flex justify-center py-20 text-gray-500">Loading...</div>;
+  if (loading) return <div className="flex justify-center py-20 text-neutral-500">Loading...</div>;
 
   // Employees only see their own swap requests; managers see all
   const visibleSwaps = user?.isManager
@@ -42,11 +42,11 @@ export default function SwapsPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-bold text-gray-800">Shift Swaps</h1>
+      <h1 className="text-2xl font-bold text-neutral-800">Shift Swaps</h1>
 
       {pending.length > 0 && (
         <div>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase mb-2">⏳ Pending ({pending.length})</h2>
+          <h2 className="text-sm font-semibold text-neutral-500 uppercase mb-2">⏳ Pending ({pending.length})</h2>
           <div className="space-y-3">
             {pending.map(swap => (
               <SwapCard
@@ -64,7 +64,7 @@ export default function SwapsPage() {
 
       {resolved.length > 0 && (
         <div>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase mb-2">History</h2>
+          <h2 className="text-sm font-semibold text-neutral-500 uppercase mb-2">History</h2>
           <div className="space-y-2">
             {resolved.map(swap => (
               <SwapCard key={swap.id} swap={swap} notes="" onNotesChange={() => {}} />
@@ -74,7 +74,7 @@ export default function SwapsPage() {
       )}
 
       {visibleSwaps.length === 0 && (
-        <div className="text-center py-20 text-gray-400">
+        <div className="text-center py-20 text-neutral-400">
           <p className="text-lg">No shift swap requests yet.</p>
           <p className="text-sm mt-1">To request a swap, go to the <strong>Schedule</strong> page, find your shift, and click <strong>"Request Swap"</strong>.</p>
         </div>
@@ -98,7 +98,7 @@ function SwapCard({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Badge variant={statusVariant(swap.status)}>{swap.status.toUpperCase()}</Badge>
-            <span className="text-xs text-gray-400">{new Date(swap.created_at).toLocaleDateString()}</span>
+            <span className="text-xs text-neutral-400">{new Date(swap.created_at).toLocaleDateString()}</span>
           </div>
           <p className="text-sm">
             <span className="font-semibold">{swap.requester_name}</span> wants to swap their{' '}
@@ -109,8 +109,8 @@ function SwapCard({
               <> with <span className="font-semibold">{swap.target_name}</span></>
             )}
           </p>
-          {swap.reason && <p className="text-xs text-gray-500 mt-1">Reason: {swap.reason}</p>}
-          {swap.manager_notes && <p className="text-xs text-blue-600 mt-1">Notes: {swap.manager_notes}</p>}
+          {swap.reason && <p className="text-xs text-neutral-500 mt-1">Reason: {swap.reason}</p>}
+          {swap.manager_notes && <p className="text-xs text-brand-600 mt-1">Notes: {swap.manager_notes}</p>}
         </div>
         {swap.status === 'pending' && onApprove && onReject && (
           <div className="flex flex-col gap-2 min-w-[200px]">
