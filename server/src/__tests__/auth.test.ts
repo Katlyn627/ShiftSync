@@ -94,3 +94,18 @@ describe('GET /api/auth/me', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('GET /api/auth/google (unconfigured)', () => {
+  test('returns 503 when Google credentials are not set', async () => {
+    // GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set in the test environment
+    const res = await request(app).get('/api/auth/google');
+    expect(res.status).toBe(503);
+    expect(res.body.error).toMatch(/not configured/i);
+  });
+
+  test('callback returns 503 when Google credentials are not set', async () => {
+    const res = await request(app).get('/api/auth/google/callback');
+    expect(res.status).toBe(503);
+    expect(res.body.error).toMatch(/not configured/i);
+  });
+});

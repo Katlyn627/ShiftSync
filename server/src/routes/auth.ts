@@ -204,25 +204,33 @@ router.post('/register', (req, res) => {
 });
 
 // ── Google OAuth routes ────────────────────────────────────────────────────
+const googleNotConfigured = (_req: import('express').Request, res: import('express').Response) => {
+  res.status(503).json({ error: 'Google OAuth is not configured on this server.' });
+};
+
 router.get(
   '/google',
-  passport.authenticate('google', { scope: ['profile', 'email'], session: false })
+  GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
+    ? passport.authenticate('google', { scope: ['profile', 'email'], session: false })
+    : googleNotConfigured
 );
 
 router.get(
   '/google/callback',
-  (req, res, next) => {
-    passport.authenticate('google', { session: false }, (err: Error | null, userPayload: AuthPayload | false) => {
-      const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
-      if (err || !userPayload) {
-        return res.redirect(
-          `${CLIENT_URL}/login?error=${encodeURIComponent('Google sign-in failed. You must be an existing employee.')}`
-        );
+  GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
+    ? (req, res, next) => {
+        passport.authenticate('google', { session: false }, (err: Error | null, userPayload: AuthPayload | false) => {
+          const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+          if (err || !userPayload) {
+            return res.redirect(
+              `${CLIENT_URL}/login?error=${encodeURIComponent('Google sign-in failed. You must be an existing employee.')}`
+            );
+          }
+          const token = jwt.sign(userPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+          res.redirect(`${CLIENT_URL}/login?token=${encodeURIComponent(token)}`);
+        })(req, res, next);
       }
-      const token = jwt.sign(userPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-      res.redirect(`${CLIENT_URL}/login?token=${encodeURIComponent(token)}`);
-    })(req, res, next);
-  }
+    : googleNotConfigured
 );
 
 router.get('/me', (req, res) => {
