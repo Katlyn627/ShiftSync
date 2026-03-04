@@ -57,13 +57,13 @@ export default function Dashboard() {
       .catch(() => setStaffingSuggestions([]));
   }, [selectedId, schedules, isManager]);
 
-  if (loading) return <div className="flex justify-center py-20 text-gray-500">Loading...</div>;
+  if (loading) return <div className="flex justify-center py-20 text-neutral-500">Loading...</div>;
 
   if (schedules.length === 0) {
     return (
       <div className="text-center py-20">
-        <p className="text-gray-500 text-lg">No schedules yet.</p>
-        <p className="text-gray-400 mt-1">Go to the Schedule tab to generate one.</p>
+        <p className="text-neutral-500 text-lg">No schedules yet.</p>
+        <p className="text-neutral-400 mt-1">Go to the Schedule tab to generate one.</p>
       </div>
     );
   }
@@ -84,9 +84,9 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-neutral-800">Dashboard</h1>
         <select
-          className="border rounded px-3 py-1.5 text-sm"
+          className="border border-neutral-300 rounded-lg px-3 py-1.5 text-sm text-neutral-900 bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           value={selectedId ?? ''}
           onChange={e => setSelectedId(Number(e.target.value))}
         >
@@ -133,8 +133,8 @@ export default function Dashboard() {
       {/* Demand-Based Staffing Suggestions (manager only) */}
       {isManager && staffingChartData.length > 0 && (
         <Card>
-          <h2 className="text-lg font-semibold mb-1 text-gray-700">📊 Demand-Based Staffing Suggestions</h2>
-          <p className="text-xs text-gray-400 mb-4">Recommended staff count per day based on forecast revenue</p>
+          <h2 className="text-lg font-semibold mb-1 text-neutral-700">📊 Demand-Based Staffing Suggestions</h2>
+          <p className="text-xs text-neutral-400 mb-4">Recommended staff count per day based on forecast revenue</p>
           <div className="grid grid-cols-7 gap-2 text-center text-xs">
             {staffingSuggestions.map(day => {
               const totalStaff = day.staffing.reduce((sum, s) => sum + s.count, 0);
@@ -143,17 +143,17 @@ export default function Dashboard() {
                 roleGroups[s.role] = (roleGroups[s.role] || 0) + s.count;
               }
               return (
-                <div key={day.date} className="bg-gray-50 rounded-lg p-2 border">
-                  <div className="font-semibold text-gray-600">{DAY_NAMES[day.day_of_week]}</div>
-                  <div className="text-gray-400">{day.date.slice(5)}</div>
-                  <div className="text-lg font-bold text-blue-600 mt-1">{totalStaff}</div>
-                  <div className="text-gray-400">staff</div>
+                <div key={day.date} className="bg-neutral-50 rounded-lg p-2 border border-neutral-200">
+                  <div className="font-semibold text-neutral-600">{DAY_NAMES[day.day_of_week]}</div>
+                  <div className="text-neutral-400">{day.date.slice(5)}</div>
+                  <div className="text-lg font-bold text-brand-600 mt-1">{totalStaff}</div>
+                  <div className="text-neutral-400">staff</div>
                   {day.expected_revenue > 0 && (
-                    <div className="text-gray-500 mt-1">${(day.expected_revenue / 1000).toFixed(1)}k</div>
+                    <div className="text-neutral-500 mt-1">${(day.expected_revenue / 1000).toFixed(1)}k</div>
                   )}
                   <div className="mt-1 space-y-0.5">
                     {Object.entries(roleGroups).map(([role, count]) => (
-                      <div key={role} className="text-gray-500">{count} {role}</div>
+                      <div key={role} className="text-neutral-500">{count} {role}</div>
                     ))}
                   </div>
                 </div>
@@ -166,7 +166,7 @@ export default function Dashboard() {
       {/* Labor Cost Chart (manager only) */}
       {isManager && laborCost && laborCost.by_day.length > 0 && (
         <Card>
-          <h2 className="text-lg font-semibold mb-4 text-gray-700">Daily Labor Cost</h2>
+          <h2 className="text-lg font-semibold mb-4 text-neutral-700">Daily Labor Cost</h2>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={laborCost.by_day}>
               <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={d => d.slice(5)} />
@@ -184,18 +184,18 @@ export default function Dashboard() {
       <div className="grid md:grid-cols-2 gap-4">
         {isManager && laborCost && laborCost.by_role.length > 0 && (
           <Card>
-            <h2 className="text-lg font-semibold mb-4 text-gray-700">Cost by Role</h2>
+            <h2 className="text-lg font-semibold mb-4 text-neutral-700">Cost by Role</h2>
             <div className="space-y-2">
               {laborCost.by_role.map(r => (
                 <div key={r.role} className="flex items-center gap-2">
-                  <span className="text-sm w-24 text-gray-600">{r.role}</span>
-                  <div className="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
+                  <span className="text-sm w-24 text-neutral-600">{r.role}</span>
+                  <div className="flex-1 bg-neutral-100 rounded-full h-4 overflow-hidden">
                     <div
-                      className="h-4 bg-blue-500 rounded-full"
+                      className="h-4 bg-brand-500 rounded-full"
                       style={{ width: `${Math.min(100, (r.cost / laborCost.projected_cost) * 100)}%` }}
                     />
                   </div>
-                  <span className="text-sm font-medium text-gray-700 w-16 text-right">${r.cost.toFixed(0)}</span>
+                  <span className="text-sm font-medium text-neutral-700 w-16 text-right">${r.cost.toFixed(0)}</span>
                 </div>
               ))}
             </div>
@@ -203,13 +203,13 @@ export default function Dashboard() {
         )}
 
         <Card>
-          <h2 className="text-lg font-semibold mb-4 text-gray-700">🔥 Burnout Risk Monitor</h2>
+          <h2 className="text-lg font-semibold mb-4 text-neutral-700">🔥 Burnout Risk Monitor</h2>
           {burnout.length === 0 ? (
-            <p className="text-gray-400 text-sm">No data yet</p>
+            <p className="text-neutral-400 text-sm">No data yet</p>
           ) : (
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {burnout.map(b => (
-                <div key={b.employee_id} className="flex items-start gap-3 p-2 rounded-lg bg-gray-50">
+                <div key={b.employee_id} className="flex items-start gap-3 p-2 rounded-lg bg-neutral-50">
                   <span
                     className="mt-0.5 w-2.5 h-2.5 rounded-full flex-shrink-0"
                     style={{ backgroundColor: RISK_COLORS[b.risk_level] }}
@@ -217,10 +217,10 @@ export default function Dashboard() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-sm">{b.employee_name}</span>
-                      <span className="text-xs text-gray-500">{b.weekly_hours}h/wk</span>
+                      <span className="text-xs text-neutral-500">{b.weekly_hours}h/wk</span>
                     </div>
                     {b.factors.length > 0 && (
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">{b.factors.join(' · ')}</p>
+                      <p className="text-xs text-neutral-500 mt-0.5 truncate">{b.factors.join(' · ')}</p>
                     )}
                     {b.rest_days_recommended > 0 && (
                       <p className="text-xs text-amber-600 mt-0.5">
@@ -240,16 +240,16 @@ export default function Dashboard() {
 }
 
 function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
-  const colors: Record<string, string> = {
-    green: 'border-green-200 bg-green-50 text-green-700',
-    red: 'border-red-200 bg-red-50 text-red-700',
-    yellow: 'border-yellow-200 bg-yellow-50 text-yellow-700',
+  const colorClasses: Record<string, string> = {
+    green:  'border-success text-success-dark bg-success-light',
+    red:    'border-danger text-danger-dark bg-danger-light',
+    yellow: 'border-warning text-warning-dark bg-warning-light',
   };
   return (
-    <div className={`rounded-xl border p-4 ${colors[color] || colors.green}`}>
+    <Card className={`${colorClasses[color] ?? colorClasses.green} !border`}>
       <p className="text-xs uppercase tracking-wide opacity-70">{label}</p>
       <p className="text-2xl font-bold mt-1">{value}</p>
       {sub && <p className="text-xs mt-1 opacity-70">{sub}</p>}
-    </div>
+    </Card>
   );
 }

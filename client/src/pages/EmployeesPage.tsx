@@ -52,12 +52,12 @@ export default function EmployeesPage() {
     load();
   };
 
-  if (loading) return <div className="flex justify-center py-20 text-gray-500">Loading...</div>;
+  if (loading) return <div className="flex justify-center py-20 text-neutral-500">Loading...</div>;
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">Employees</h1>
+        <h1 className="text-2xl font-bold text-neutral-800">Employees</h1>
         <Button
           variant="primary"
           size="sm"
@@ -116,17 +116,17 @@ export default function EmployeesPage() {
       <Card noPadding>
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 border-b text-left">
-              <th className="px-4 py-2 font-semibold text-gray-600">Name</th>
-              <th className="px-4 py-2 font-semibold text-gray-600">Role</th>
-              <th className="px-4 py-2 font-semibold text-gray-600 text-right">Rate/hr</th>
-              <th className="px-4 py-2 font-semibold text-gray-600 text-right">Max Hours</th>
+            <tr className="bg-neutral-50 border-b text-left">
+              <th className="px-4 py-2 font-semibold text-neutral-600">Name</th>
+              <th className="px-4 py-2 font-semibold text-neutral-600">Role</th>
+              <th className="px-4 py-2 font-semibold text-neutral-600 text-right">Rate/hr</th>
+              <th className="px-4 py-2 font-semibold text-neutral-600 text-right">Max Hours</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {employees.map((emp, i) => (
-              <tr key={emp.id} className={i % 2 === 0 ? '' : 'bg-gray-50'}>
+              <tr key={emp.id} className={i % 2 === 0 ? '' : 'bg-neutral-50'}>
                 <td className="px-4 py-2 font-medium">{emp.name}</td>
                 <td className="px-4 py-2">
                   <Badge variant={roleVariant(emp.role)}>{emp.role}</Badge>
@@ -142,7 +142,7 @@ export default function EmployeesPage() {
           </tbody>
         </table>
         {employees.length === 0 && (
-          <p className="text-center py-8 text-gray-400">No employees yet.</p>
+          <p className="text-center py-8 text-neutral-400">No employees yet.</p>
         )}
       </Card>
     </div>
