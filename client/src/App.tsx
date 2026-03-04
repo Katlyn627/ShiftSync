@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink } from 'react-router-dom';
+import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
@@ -69,6 +69,7 @@ function ProfileIcon() {
 
 export default function App() {
   const { user, logout, loading } = useAuth();
+  const navigate = useNavigate();
 
   if (loading) {
     return (
@@ -92,7 +93,7 @@ export default function App() {
     { to: '/schedule',  label: 'Schedule',  icon: <ScheduleIcon /> },
     ...(user.isManager ? [{ to: '/employees', label: 'Employees', icon: <EmployeesIcon /> }] : []),
     { to: '/swaps',      label: 'Shift Swaps', icon: <SwapIcon /> },
-    ...(user.employeeId ? [{ to: '/profile', label: 'My Profile', icon: <ProfileIcon /> }] : []),
+    { to: '/profile',   label: 'My Profile',  icon: <ProfileIcon /> },
   ];
 
   const initials = (user.employeeName || user.username)
@@ -148,9 +149,13 @@ export default function App() {
               )}
               <span className="text-sm font-medium text-foreground">{user.employeeName || user.username}</span>
             </div>
-            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center border border-primary/20">
+            <button
+              onClick={() => navigate('/profile')}
+              className="w-8 h-8 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center border border-primary/20 hover:bg-primary/20 transition-colors"
+              title="View profile"
+            >
               {initials}
-            </div>
+            </button>
             <button
               onClick={logout}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/60"
@@ -170,7 +175,7 @@ export default function App() {
           <Route path="/schedule"   element={<SchedulePage />} />
           {user.isManager && <Route path="/employees" element={<EmployeesPage />} />}
           <Route path="/swaps"      element={<SwapsPage />} />
-          {user.employeeId && <Route path="/profile" element={<ProfilePage />} />}
+          <Route path="/profile"    element={<ProfilePage />} />
         </Routes>
       </main>
 

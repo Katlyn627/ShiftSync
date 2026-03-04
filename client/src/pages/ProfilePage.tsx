@@ -236,11 +236,27 @@ export default function ProfilePage() {
 
   if (!myEmployee && !isManager) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center bg-white rounded-xl border border-border">
-        <p className="font-semibold text-foreground">Profile not linked</p>
-        <p className="text-sm text-muted-foreground max-w-xs">
-          Your account isn't linked to an employee record. Please contact a manager.
-        </p>
+      <div className="space-y-6 max-w-2xl mx-auto">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">My Profile</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Your account details</p>
+        </div>
+        <Card className="p-5">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-primary/10 text-primary text-lg font-bold flex items-center justify-center border border-primary/20">
+              {initials(user?.employeeName || user?.username || '?')}
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">{user?.employeeName || user?.username}</h2>
+              <p className="text-sm text-muted-foreground">@{user?.username}</p>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-sm text-muted-foreground">
+              Your account isn't linked to an employee record. Please contact a manager to complete your profile setup.
+            </p>
+          </div>
+        </Card>
       </div>
     );
   }
@@ -253,6 +269,24 @@ export default function ProfilePage() {
         <h1 className="text-xl font-bold text-foreground">My Profile</h1>
         <p className="text-sm text-muted-foreground mt-0.5">View and update your profile, availability, and contact info</p>
       </div>
+
+      {/* ── Account card for managers without a linked employee record ── */}
+      {!myEmployee && isManager && (
+        <Card className="p-5">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-violet-100 text-violet-700 text-lg font-bold flex items-center justify-center">
+              {initials(user?.employeeName || user?.username || '?')}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg font-bold text-foreground">{user?.employeeName || user?.username}</h2>
+                <Badge variant="manager">Manager</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">@{user?.username}</p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {myEmployee && (
         <>
