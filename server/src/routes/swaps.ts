@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../db';
+import { requireManager } from '../middleware/auth';
 
 const router = Router();
 
@@ -77,7 +78,7 @@ router.post('/', (req, res) => {
   res.status(201).json(swap);
 });
 
-router.put('/:id/approve', (req, res) => {
+router.put('/:id/approve', requireManager, (req, res) => {
   const { manager_notes } = req.body;
   const db = getDb();
   const swap = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(req.params.id) as any;
@@ -95,7 +96,7 @@ router.put('/:id/approve', (req, res) => {
   res.json(updated);
 });
 
-router.put('/:id/reject', (req, res) => {
+router.put('/:id/reject', requireManager, (req, res) => {
   const { manager_notes } = req.body;
   const db = getDb();
   const swap = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(req.params.id) as any;

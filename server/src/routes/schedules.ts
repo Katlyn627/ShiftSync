@@ -3,6 +3,7 @@ import { getDb } from '../db';
 import { generateSchedule, computeWeeklyStaffingNeeds } from '../scheduler';
 import { getLaborCostSummary } from '../laborCost';
 import { calculateBurnoutRisks } from '../burnout';
+import { requireManager } from '../middleware/auth';
 
 const router = Router();
 
@@ -25,7 +26,7 @@ router.post('/generate', (req, res) => {
   }
 });
 
-router.get('/staffing-suggestions', (req, res) => {
+router.get('/staffing-suggestions', requireManager, (req, res) => {
   const { week_start } = req.query;
   if (!week_start || typeof week_start !== 'string') {
     return res.status(400).json({ error: 'week_start query parameter is required' });
@@ -67,7 +68,7 @@ router.get('/:id/shifts', (req, res) => {
   res.json(shifts);
 });
 
-router.get('/:id/labor-cost', (req, res) => {
+router.get('/:id/labor-cost', requireManager, (req, res) => {
   try {
     const summary = getLaborCostSummary(parseInt(req.params.id));
     res.json(summary);
