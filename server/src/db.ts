@@ -75,12 +75,19 @@ function initSchema(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
+      password_hash TEXT,
+      google_id TEXT UNIQUE,
       employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
       is_manager INTEGER NOT NULL DEFAULT 0, -- 0=employee, 1=manager
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  // Migrate existing databases: add google_id column if absent
+  const cols = db.pragma('table_info(users)') as { name: string }[];
+  if (!cols.some(c => c.name === 'google_id')) {
+    db.exec('ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE');
+  }
 }
 
 export function closeDb(): void {
