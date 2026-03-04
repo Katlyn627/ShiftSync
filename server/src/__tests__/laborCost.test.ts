@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { getLaborCostSummary } from '../laborCost';
 import { getDb, closeDb } from '../db';
 import path from 'path';
@@ -5,7 +6,6 @@ import path from 'path';
 process.env.DB_PATH = path.join('/tmp', 'test-labor.db');
 
 beforeAll(() => {
-  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
   const db = getDb();
   db.prepare('INSERT INTO employees (id, name, role, hourly_rate, weekly_hours_max) VALUES (1, ?, ?, ?, ?)').run('Alice', 'Server', 20, 40);
@@ -15,7 +15,6 @@ beforeAll(() => {
 
 afterAll(() => {
   closeDb();
-  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
 });
 

@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { computeWeeklyStaffingNeeds } from '../scheduler';
 import { getDb, closeDb } from '../db';
 import path from 'path';
@@ -5,7 +6,6 @@ import path from 'path';
 process.env.DB_PATH = path.join('/tmp', 'test-scheduler.db');
 
 beforeAll(() => {
-  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
   // Initialize DB (triggers schema creation)
   getDb();
@@ -13,7 +13,6 @@ beforeAll(() => {
 
 afterAll(() => {
   closeDb();
-  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
 });
 
