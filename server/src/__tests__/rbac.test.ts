@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import { getDb, closeDb } from '../db';
 import { seedDemoData } from '../seed';
@@ -14,7 +15,6 @@ let managerToken: string;
 let staffToken: string;
 
 beforeAll(async () => {
-  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
   getDb();
   seedDemoData();
@@ -37,7 +37,6 @@ beforeAll(async () => {
 
 afterAll(() => {
   closeDb();
-  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
 });
 

@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import { getDb, closeDb } from '../db';
 import { seedDemoData } from '../seed';
@@ -10,7 +11,6 @@ process.env.DB_PATH = path.join('/tmp', 'test-auth.db');
 let app: express.Express;
 
 beforeAll(() => {
-  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
   getDb();
   seedDemoData();
@@ -21,7 +21,6 @@ beforeAll(() => {
 
 afterAll(() => {
   closeDb();
-  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
 });
 
