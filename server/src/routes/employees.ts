@@ -35,12 +35,12 @@ router.put('/:id', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'You can only update your own profile' });
   }
 
-  const { name, role, hourly_rate, weekly_hours_max, email, phone } = req.body;
+  const { name, role, hourly_rate, weekly_hours_max, email, phone, photo_url } = req.body;
 
   if (isManager) {
     // Managers can update everything
     db.prepare(
-      'UPDATE employees SET name=?, role=?, hourly_rate=?, weekly_hours_max=?, email=?, phone=? WHERE id=?'
+      'UPDATE employees SET name=?, role=?, hourly_rate=?, weekly_hours_max=?, email=?, phone=?, photo_url=? WHERE id=?'
     ).run(
       name ?? existing.name,
       role ?? existing.role,
@@ -48,16 +48,18 @@ router.put('/:id', requireAuth, (req, res) => {
       weekly_hours_max ?? existing.weekly_hours_max,
       email !== undefined ? email : (existing.email ?? ''),
       phone !== undefined ? phone : (existing.phone ?? ''),
+      photo_url !== undefined ? photo_url : (existing.photo_url ?? null),
       req.params.id
     );
   } else {
-    // Employees can only update their own contact info and availability preferences
+    // Employees can only update their own contact info, availability preferences, and photo
     db.prepare(
-      'UPDATE employees SET weekly_hours_max=?, email=?, phone=? WHERE id=?'
+      'UPDATE employees SET weekly_hours_max=?, email=?, phone=?, photo_url=? WHERE id=?'
     ).run(
       weekly_hours_max ?? existing.weekly_hours_max,
       email !== undefined ? email : (existing.email ?? ''),
       phone !== undefined ? phone : (existing.phone ?? ''),
+      photo_url !== undefined ? photo_url : (existing.photo_url ?? null),
       req.params.id
     );
   }
