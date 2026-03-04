@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { Button, Card, Badge, Input, Modal } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
-// ─── Section helper ────────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">{title}</h2>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{title}</h2>
       {children}
     </div>
   );
@@ -15,13 +14,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function SubSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <h3 className="text-xs font-medium text-neutral-400">{title}</h3>
+      <h3 className="text-xs font-medium text-muted-foreground/70">{title}</h3>
       {children}
     </div>
   );
 }
 
-// ─── Icons ──────────────────────────────────────────────────────────────────────
 function ScheduleIcon() {
   return (
     <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -49,22 +47,20 @@ function ProfileIcon() {
   );
 }
 
-// ─── KPI Card ──────────────────────────────────────────────────────────────────
 function KpiCard({ label, value, delta, deltaLabel }: { label: string; value: string; delta: string; deltaLabel: string }) {
   const isPositive = delta.startsWith('+');
   return (
-    <Card className="flex flex-col gap-1">
-      <p className="text-xs text-neutral-500">{label}</p>
-      <p className="text-2xl font-bold text-neutral-900">{value}</p>
+    <Card className="p-5 flex flex-col gap-1">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-2xl font-bold text-foreground">{value}</p>
       <div className="flex items-center gap-1">
-        <span className={`text-xs font-medium ${isPositive ? 'text-success-dark' : 'text-danger-dark'}`}>{delta}</span>
-        <span className="text-xs text-neutral-400">{deltaLabel}</span>
+        <span className={`text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>{delta}</span>
+        <span className="text-xs text-muted-foreground/70">{deltaLabel}</span>
       </div>
     </Card>
   );
 }
 
-// ─── Shift Block ───────────────────────────────────────────────────────────────
 const ROLE_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
   Manager:  { bg: '#f3e8ff', text: '#6b21a8', bar: '#a855f7' },
   Server:   { bg: '#dbeafe', text: '#1e40af', bar: '#3b82f6' },
@@ -112,7 +108,6 @@ const STATE_VARIANT: Record<string, BadgeVariant> = {
   Pending:   'warning',
 };
 
-// ─── Employee table rows ───────────────────────────────────────────────────────
 const EMPLOYEES = [
   { initials: 'SJ', name: 'Sarah Johnson', email: 'sarah@example.com', role: 'Manager', hours: 40, status: 'Active', risk: 'Low' as const },
   { initials: 'MC', name: 'Mike Chen',     email: 'mike@example.com',  role: 'Server',  hours: 38, status: 'Active', risk: 'Moderate' as const },
@@ -133,12 +128,11 @@ const ROLE_VARIANT: Record<string, BadgeVariant> = {
 };
 
 const AVATAR_COLORS = [
-  'bg-brand-100 text-brand-700',
-  'bg-success-light text-success-dark',
-  'bg-warning-light text-warning-dark',
+  'bg-indigo-100 text-indigo-700',
+  'bg-green-100 text-green-700',
+  'bg-yellow-100 text-yellow-700',
 ];
 
-// ─── Main page ─────────────────────────────────────────────────────────────────
 export default function ComponentsPage() {
   const [swapModalOpen,    setSwapModalOpen]    = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
@@ -148,23 +142,22 @@ export default function ComponentsPage() {
   const [passwordValue, setPasswordValue] = useState('');
   const [emailValue,    setEmailValue]    = useState('');
   const [roleValue,     setRoleValue]     = useState('');
-  const [emailError,    setEmailError]    = useState('Please enter a valid email address');
+  const [emailError]                      = useState('Please enter a valid email address');
 
   return (
     <div className="space-y-10 max-w-4xl">
       <div>
-        <h1 className="text-3xl font-bold text-neutral-900">Components</h1>
-        <p className="text-neutral-500 mt-1">UI components with variants, sizes, and states</p>
+        <h1 className="text-3xl font-bold text-foreground">Components</h1>
+        <p className="text-muted-foreground mt-1">UI components with variants, sizes, and states</p>
       </div>
 
       {/* ── BUTTONS ──────────────────────────────────────────────────────────── */}
       <Section title="Buttons">
-        <Card>
+        <Card className="p-5">
           <div className="space-y-6">
-            {/* Variants */}
             <SubSection title="Variants">
               <div className="flex flex-wrap gap-3">
-                <Button variant="primary">Primary</Button>
+                <Button variant="default">Default</Button>
                 <Button variant="secondary">Secondary</Button>
                 <Button variant="ghost">Ghost</Button>
                 <Button variant="destructive">Destructive</Button>
@@ -172,34 +165,31 @@ export default function ComponentsPage() {
               </div>
             </SubSection>
 
-            {/* Sizes */}
             <SubSection title="Sizes">
               <div className="flex flex-wrap items-center gap-3">
-                <Button variant="primary" size="sm">Small</Button>
-                <Button variant="primary" size="md">Default</Button>
-                <Button variant="primary" size="lg">Large</Button>
+                <Button variant="default" size="sm">Small</Button>
+                <Button variant="default" size="default">Default</Button>
+                <Button variant="default" size="lg">Large</Button>
               </div>
             </SubSection>
 
-            {/* States */}
             <SubSection title="States">
               <div className="flex flex-wrap gap-3">
-                <Button variant="primary">Normal</Button>
-                <Button variant="primary" className="bg-brand-800">Hover</Button>
-                <Button variant="primary" disabled>Disabled</Button>
+                <Button variant="default">Normal</Button>
+                <Button variant="default" disabled>Disabled</Button>
+                <Button variant="default" isLoading>Loading</Button>
               </div>
             </SubSection>
 
-            {/* With Icons */}
             <SubSection title="With Icons">
               <div className="flex flex-wrap gap-3">
-                <Button variant="primary" size="md">
+                <Button variant="default" size="default">
                   <span className="mr-2"><ScheduleIcon /></span>Schedule
                 </Button>
-                <Button variant="secondary" size="md">
+                <Button variant="secondary" size="default">
                   <span className="mr-2"><TimeOffIcon /></span>Time Off
                 </Button>
-                <Button variant="outline" size="md">
+                <Button variant="outline" size="default">
                   <span className="mr-2"><ProfileIcon /></span>Profile
                 </Button>
               </div>
@@ -210,7 +200,7 @@ export default function ComponentsPage() {
 
       {/* ── INPUTS ───────────────────────────────────────────────────────────── */}
       <Section title="Inputs">
-        <Card>
+        <Card className="p-5">
           <div className="grid sm:grid-cols-2 gap-6">
             <Input
               label="Enter your name"
@@ -225,7 +215,7 @@ export default function ComponentsPage() {
                 value={nameValue}
                 onChange={e => setNameValue(e.target.value)}
               />
-              <p className="text-xs text-neutral-400">Helper text for additional context</p>
+              <p className="text-xs text-muted-foreground/70">Helper text for additional context</p>
             </div>
             <Input
               label="Enter password"
@@ -243,9 +233,9 @@ export default function ComponentsPage() {
               error={emailError}
             />
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-neutral-700">Choose a role</label>
+              <label className="text-sm font-medium text-foreground">Choose a role</label>
               <select
-                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                className="w-full rounded-md border border-border bg-input-background px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={roleValue}
                 onChange={e => setRoleValue(e.target.value)}
               >
@@ -266,7 +256,7 @@ export default function ComponentsPage() {
 
       {/* ── BADGES ───────────────────────────────────────────────────────────── */}
       <Section title="Badges">
-        <Card>
+        <Card className="p-5">
           <div className="space-y-5">
             <SubSection title="Status Badges">
               <div className="flex flex-wrap gap-2">
@@ -300,37 +290,32 @@ export default function ComponentsPage() {
       {/* ── CARDS ────────────────────────────────────────────────────────────── */}
       <Section title="Cards">
         <div className="space-y-4">
-          {/* KPI cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <KpiCard label="Total Employees" value="247" delta="+12.5%" deltaLabel="vs last month" />
             <KpiCard label="Hours Scheduled"  value="1,842" delta="+5.2%"  deltaLabel="vs last week" />
             <KpiCard label="Labor Cost"        value="$48.2K" delta="+8.1%"  deltaLabel="vs last month" />
           </div>
 
-          {/* Calendar Shift Blocks */}
-          <Card>
-            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-3">Calendar Shift Blocks</p>
+          <Card className="p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Calendar Shift Blocks</p>
             <div className="grid sm:grid-cols-2 gap-6">
-              {/* By Role */}
               <div className="space-y-2">
-                <p className="text-xs text-neutral-400">By Role</p>
+                <p className="text-xs text-muted-foreground/70">By Role</p>
                 <ShiftBlock role="Manager" time="8:00 AM - 5:00 PM" hours="9h" />
                 <ShiftBlock role="Server"  time="11:00 AM - 7:00 PM" hours="8h" />
                 <ShiftBlock role="Cook"    time="10:00 AM - 6:00 PM" hours="8h" />
                 <ShiftBlock role="Cashier" time="9:00 AM - 5:00 PM"  hours="8h" />
               </div>
-
-              {/* By State */}
               <div className="space-y-2">
-                <p className="text-xs text-neutral-400">By State</p>
+                <p className="text-xs text-muted-foreground/70">By State</p>
                 {STATE_SHIFTS.map(s => (
                   <div
                     key={s.name}
-                    className="rounded-lg border border-neutral-200 px-3 py-2 flex items-center justify-between text-xs bg-neutral-50"
+                    className="rounded-lg border border-border px-3 py-2 flex items-center justify-between text-xs bg-muted/30"
                   >
                     <div>
-                      <div className="font-semibold text-neutral-800">{s.name}</div>
-                      <div className="text-neutral-500">{s.time}</div>
+                      <div className="font-semibold text-foreground">{s.name}</div>
+                      <div className="text-muted-foreground">{s.time}</div>
                     </div>
                     <Badge variant={STATE_VARIANT[s.state]}>{s.state}</Badge>
                   </div>
@@ -343,35 +328,35 @@ export default function ComponentsPage() {
 
       {/* ── TABLES ───────────────────────────────────────────────────────────── */}
       <Section title="Tables">
-        <Card noPadding>
+        <Card className="p-0">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-neutral-200 bg-neutral-50 text-left">
-                <th className="px-4 py-3 font-semibold text-neutral-600">Employee</th>
-                <th className="px-4 py-3 font-semibold text-neutral-600">Role</th>
-                <th className="px-4 py-3 font-semibold text-neutral-600">Hours/Week</th>
-                <th className="px-4 py-3 font-semibold text-neutral-600">Status</th>
-                <th className="px-4 py-3 font-semibold text-neutral-600">Burnout Risk</th>
+              <tr className="border-b border-border bg-muted/30 text-left">
+                <th className="px-4 py-3 font-semibold text-muted-foreground">Employee</th>
+                <th className="px-4 py-3 font-semibold text-muted-foreground">Role</th>
+                <th className="px-4 py-3 font-semibold text-muted-foreground">Hours/Week</th>
+                <th className="px-4 py-3 font-semibold text-muted-foreground">Status</th>
+                <th className="px-4 py-3 font-semibold text-muted-foreground">Burnout Risk</th>
               </tr>
             </thead>
             <tbody>
               {EMPLOYEES.map((emp, i) => (
-                <tr key={emp.name} className={i % 2 === 1 ? 'bg-neutral-50' : ''}>
+                <tr key={emp.name} className={i % 2 === 1 ? 'bg-muted/20' : ''}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${AVATAR_COLORS[i]}`}>
                         {emp.initials}
                       </div>
                       <div>
-                        <div className="font-medium text-neutral-900">{emp.name}</div>
-                        <div className="text-xs text-neutral-400">{emp.email}</div>
+                        <div className="font-medium text-foreground">{emp.name}</div>
+                        <div className="text-xs text-muted-foreground/70">{emp.email}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant={ROLE_VARIANT[emp.role] ?? 'default'}>{emp.role}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-neutral-700">{emp.hours}</td>
+                  <td className="px-4 py-3 text-foreground">{emp.hours}</td>
                   <td className="px-4 py-3">
                     <Badge variant="success">{emp.status}</Badge>
                   </td>
@@ -387,16 +372,15 @@ export default function ComponentsPage() {
 
       {/* ── MODALS ───────────────────────────────────────────────────────────── */}
       <Section title="Modals">
-        <Card>
+        <Card className="p-5">
           <div className="flex flex-wrap gap-3">
             <Button variant="secondary" onClick={() => setSwapModalOpen(true)}>Approve Swap Request</Button>
-            <Button variant="primary"   onClick={() => setPublishModalOpen(true)}>Publish Schedule</Button>
+            <Button variant="default"   onClick={() => setPublishModalOpen(true)}>Publish Schedule</Button>
             <Button variant="destructive" onClick={() => setDeleteModalOpen(true)}>Delete Shift</Button>
           </div>
         </Card>
       </Section>
 
-      {/* ── Modal instances ──────────────────────────────────────────────────── */}
       <Modal
         open={swapModalOpen}
         onClose={() => setSwapModalOpen(false)}
@@ -404,7 +388,7 @@ export default function ComponentsPage() {
         actions={
           <>
             <Button variant="destructive" size="sm" onClick={() => setSwapModalOpen(false)}>Deny</Button>
-            <Button variant="primary"     size="sm" onClick={() => setSwapModalOpen(false)}>Approve</Button>
+            <Button variant="default"     size="sm" onClick={() => setSwapModalOpen(false)}>Approve</Button>
           </>
         }
       >
@@ -418,7 +402,7 @@ export default function ComponentsPage() {
         actions={
           <>
             <Button variant="outline"  size="sm" onClick={() => setPublishModalOpen(false)}>Cancel</Button>
-            <Button variant="primary"  size="sm" onClick={() => setPublishModalOpen(false)}>Publish</Button>
+            <Button variant="default"  size="sm" onClick={() => setPublishModalOpen(false)}>Publish</Button>
           </>
         }
       >

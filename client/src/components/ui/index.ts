@@ -1,27 +1,31 @@
-/**
- * ShiftSync UI Component Library
- *
- * These components are built on the Figma design tokens defined in
- * `src/design-tokens.ts`.  Import them individually or from this barrel:
- *
- *   import { Button, Card, Badge, Input } from '@/components/ui';
- *
- * To add a new Figma component:
- *   1. Create `ComponentName.tsx` in this directory.
- *   2. Export it from this file.
- *   3. Reference the design tokens from `src/design-tokens.ts`.
- */
-export { default as Button } from './Button';
+export { Button, buttonVariants } from './Button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './Button';
 
-export { default as Card } from './Card';
-export type { CardProps } from './Card';
+export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent } from './Card';
 
-export { default as Badge } from './Badge';
+export { Badge, badgeVariants } from './Badge';
 export type { BadgeProps, BadgeVariant } from './Badge';
 
-export { default as Input } from './Input';
+export { Input } from './Input';
 export type { InputProps } from './Input';
 
-export { default as Modal } from './Modal';
+export { Label } from './Label';
+
+export {
+  Dialog, DialogClose, DialogContent, DialogDescription,
+  DialogFooter, DialogHeader, DialogOverlay, DialogPortal,
+  DialogTitle, DialogTrigger, Modal,
+} from './Modal';
 export type { ModalProps } from './Modal';
+
+export {
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel,
+  SelectScrollDownButton, SelectScrollUpButton, SelectSeparator,
+  SelectTrigger, SelectValue,
+} from './Select';
+
+export { Separator } from './Separator';
+export { Skeleton } from './Skeleton';
+export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from './Table';
+
+export { cn } from './utils';

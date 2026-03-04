@@ -5,6 +5,8 @@ import type { BadgeVariant } from '../components/ui';
 
 const ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
 
+const SELECT_CLASS = "w-full border border-border rounded-md px-3 py-2 text-sm text-foreground bg-input-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
 function roleVariant(role: string): BadgeVariant {
   const map: Record<string, BadgeVariant> = {
     Manager: 'manager',
@@ -52,14 +54,14 @@ export default function EmployeesPage() {
     load();
   };
 
-  if (loading) return <div className="flex justify-center py-20 text-neutral-500">Loading...</div>;
+  if (loading) return <div className="flex justify-center py-20 text-muted-foreground">Loading...</div>;
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-neutral-800">Employees</h1>
+        <h1 className="text-2xl font-bold text-foreground">Employees</h1>
         <Button
-          variant="primary"
+          variant="default"
           size="sm"
           onClick={() => { setShowForm(true); setEditingId(null); setForm({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40 }); }}
         >
@@ -68,7 +70,7 @@ export default function EmployeesPage() {
       </div>
 
       {showForm && (
-        <Card>
+        <Card className="p-5">
           <h2 className="font-semibold mb-3">{editingId ? 'Edit Employee' : 'Add Employee'}</h2>
           <form onSubmit={handleSubmit} className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="col-span-2">
@@ -80,8 +82,8 @@ export default function EmployeesPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-neutral-700">Role</label>
-              <select className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm mt-1" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+              <label className="text-sm font-medium text-foreground">Role</label>
+              <select className={SELECT_CLASS + " mt-1"} value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
                 {ROLES.map(r => <option key={r}>{r}</option>)}
               </select>
             </div>
@@ -106,27 +108,27 @@ export default function EmployeesPage() {
               />
             </div>
             <div className="col-span-2 md:col-span-4 flex gap-2 pt-1">
-              <Button type="submit" variant="primary" size="sm">Save</Button>
+              <Button type="submit" variant="default" size="sm">Save</Button>
               <Button type="button" variant="secondary" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>
             </div>
           </form>
         </Card>
       )}
 
-      <Card noPadding>
+      <Card className="p-0">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-neutral-50 border-b text-left">
-              <th className="px-4 py-2 font-semibold text-neutral-600">Name</th>
-              <th className="px-4 py-2 font-semibold text-neutral-600">Role</th>
-              <th className="px-4 py-2 font-semibold text-neutral-600 text-right">Rate/hr</th>
-              <th className="px-4 py-2 font-semibold text-neutral-600 text-right">Max Hours</th>
+            <tr className="bg-muted/30 border-b text-left">
+              <th className="px-4 py-2 font-semibold text-muted-foreground">Name</th>
+              <th className="px-4 py-2 font-semibold text-muted-foreground">Role</th>
+              <th className="px-4 py-2 font-semibold text-muted-foreground text-right">Rate/hr</th>
+              <th className="px-4 py-2 font-semibold text-muted-foreground text-right">Max Hours</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {employees.map((emp, i) => (
-              <tr key={emp.id} className={i % 2 === 0 ? '' : 'bg-neutral-50'}>
+              <tr key={emp.id} className={i % 2 === 0 ? '' : 'bg-muted/20'}>
                 <td className="px-4 py-2 font-medium">{emp.name}</td>
                 <td className="px-4 py-2">
                   <Badge variant={roleVariant(emp.role)}>{emp.role}</Badge>
@@ -135,14 +137,14 @@ export default function EmployeesPage() {
                 <td className="px-4 py-2 text-right">{emp.weekly_hours_max}h</td>
                 <td className="px-4 py-2 text-right">
                   <Button variant="ghost" size="sm" onClick={() => handleEdit(emp)} className="mr-1">Edit</Button>
-                  <Button variant="danger" size="sm" onClick={() => handleDelete(emp.id)}>Delete</Button>
+                  <Button variant="destructive" size="sm" onClick={() => handleDelete(emp.id)}>Delete</Button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
         {employees.length === 0 && (
-          <p className="text-center py-8 text-neutral-400">No employees yet.</p>
+          <p className="text-center py-8 text-muted-foreground/70">No employees yet.</p>
         )}
       </Card>
     </div>

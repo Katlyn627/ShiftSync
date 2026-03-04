@@ -1,86 +1,82 @@
-import { ButtonHTMLAttributes, forwardRef } from 'react';
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "./utils";
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'destructive' | 'outline';
-export type ButtonSize    = 'sm' | 'md' | 'lg';
-
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  /** Visual style — maps to a Figma button variant. */
-  variant?: ButtonVariant;
-  /** Size token — maps to a Figma button size. */
-  size?: ButtonSize;
-  /** Show a loading spinner and disable interaction. */
-  isLoading?: boolean;
-}
-
-const variantClasses: Record<ButtonVariant, string> = {
-  primary:     'bg-brand-700 text-white hover:bg-brand-800 border border-transparent',
-  secondary:   'bg-white text-brand-700 border border-brand-300 hover:bg-brand-50',
-  ghost:       'bg-transparent text-neutral-600 border border-transparent hover:bg-neutral-100',
-  /** danger — used for inline error actions (e.g. form-level delete). */
-  danger:      'bg-danger text-white hover:bg-danger-dark border border-transparent',
-  /** destructive — used for irreversible top-level actions (modals, confirmations). */
-  destructive: 'bg-danger text-white hover:bg-danger-dark border border-danger-dark',
-  outline:     'bg-transparent text-neutral-700 border border-neutral-300 hover:bg-neutral-50',
-};
-
-const sizeClasses: Record<ButtonSize, string> = {
-  sm: 'px-3 py-1 text-xs rounded-md',
-  md: 'px-4 py-2 text-sm rounded-lg',
-  lg: 'px-5 py-2.5 text-base rounded-xl',
-};
-
-/**
- * Button — primitive UI component derived from the Figma UI kit.
- *
- * Usage:
- *   <Button variant="primary" size="md" onClick={handleSave}>Save</Button>
- *   <Button variant="secondary" isLoading={submitting}>Submit</Button>
- *   <Button variant="danger" size="sm">Delete</Button>
- */
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  (
-    {
-      variant = 'primary',
-      size = 'md',
-      isLoading = false,
-      disabled,
-      className = '',
-      children,
-      ...rest
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+        outline:
+          "border bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost:
+          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-9 px-4 py-2 has-[>svg]:px-3",
+        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
+        icon: "size-9 rounded-md",
+      },
     },
-    ref,
-  ) => {
-    return (
-      <button
-        ref={ref}
-        disabled={disabled || isLoading}
-        className={[
-          'inline-flex items-center justify-center font-semibold transition-colors',
-          'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2',
-          'disabled:opacity-50 disabled:cursor-not-allowed',
-          variantClasses[variant],
-          sizeClasses[size],
-          className,
-        ].join(' ')}
-        {...rest}
-      >
-        {isLoading && (
-          <svg
-            className="mr-2 h-4 w-4 animate-spin"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-          </svg>
-        )}
-        {children}
-      </button>
-    );
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
   },
 );
 
-Button.displayName = 'Button';
+export type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
+export type ButtonSize = VariantProps<typeof buttonVariants>["size"];
+
+export interface ButtonProps
+  extends React.ComponentProps<"button">,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+  isLoading?: boolean;
+}
+
+function Button({
+  className,
+  variant,
+  size,
+  asChild = false,
+  isLoading = false,
+  disabled,
+  children,
+  ...props
+}: ButtonProps) {
+  const Comp = asChild ? Slot : "button";
+  return (
+    <Comp
+      data-slot="button"
+      className={cn(buttonVariants({ variant, size, className }))}
+      disabled={disabled || isLoading}
+      {...props}
+    >
+      {isLoading && (
+        <svg
+          className="mr-1 h-4 w-4 animate-spin"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+        </svg>
+      )}
+      {children}
+    </Comp>
+  );
+}
+
+export { Button, buttonVariants };
 export default Button;
