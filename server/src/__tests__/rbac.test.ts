@@ -165,6 +165,48 @@ describe('Role-based access: schedule update endpoint', () => {
   });
 });
 
+describe('Role-based access: schedule delete endpoint', () => {
+  let scheduleId: number;
+
+  beforeAll(async () => {
+    const res = await request(app)
+      .post('/api/schedules/generate')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ week_start: '2025-07-07', labor_budget: 5000 });
+    scheduleId = res.body.id;
+  });
+
+  test('non-manager cannot delete a schedule', async () => {
+    const res = await request(app)
+      .delete(`/api/schedules/${scheduleId}`)
+      .set('Authorization', `Bearer ${staffToken}`);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/manager/i);
+  });
+
+  test('unauthenticated cannot delete a schedule', async () => {
+    const res = await request(app)
+      .delete(`/api/schedules/${scheduleId}`);
+    expect(res.status).toBe(401);
+  });
+
+  test('manager can delete a schedule', async () => {
+    const res = await request(app)
+      .delete(`/api/schedules/${scheduleId}`)
+      .set('Authorization', `Bearer ${managerToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  test('deleting a non-existent schedule returns 404', async () => {
+    const res = await request(app)
+      .delete('/api/schedules/99999')
+      .set('Authorization', `Bearer ${managerToken}`);
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/not found/i);
+  });
+});
+
 describe('Role-based access: swap approve/reject endpoints', () => {
   test('non-manager cannot approve a swap', async () => {
     const res = await request(app)
