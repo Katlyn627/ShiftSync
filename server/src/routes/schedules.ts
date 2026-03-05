@@ -56,6 +56,14 @@ router.put('/:id', requireManager, (req, res) => {
   res.json(updated);
 });
 
+router.delete('/:id', requireManager, (req, res) => {
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id) as any;
+  if (!existing) return res.status(404).json({ error: 'Schedule not found' });
+  db.prepare('DELETE FROM schedules WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
 router.get('/:id/shifts', (req, res) => {
   const db = getDb();
   const shifts = db.prepare(`

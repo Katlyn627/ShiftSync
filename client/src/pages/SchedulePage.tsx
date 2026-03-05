@@ -1,6 +1,6 @@
 import { useEffect, useState, CSSProperties } from 'react';
 import {
-  getSchedules, generateSchedule, getScheduleShifts, updateSchedule,
+  getSchedules, generateSchedule, getScheduleShifts, updateSchedule, deleteSchedule,
   getEmployees, createSwap, updateShift, createShift, deleteShift, getBurnoutRisks, getAvailability,
   Schedule, ShiftWithEmployee, Employee, BurnoutRisk, Availability
 } from '../api';
@@ -143,8 +143,26 @@ export default function SchedulePage() {
     const s = schedules.find(sc => sc.id === selectedId);
     if (!s) return;
     const newStatus = s.status === 'published' ? 'draft' : 'published';
-    await updateSchedule(selectedId, { status: newStatus });
-    await load();
+    try {
+      await updateSchedule(selectedId, { status: newStatus });
+      await load();
+    } catch (err: any) {
+      alert('Error updating schedule: ' + err.message);
+    }
+  };
+
+  const handleDeleteSchedule = async () => {
+    if (!selectedId || !isManager) return;
+    if (!confirm('Delete this schedule and all its shifts? This cannot be undone.')) return;
+    try {
+      await deleteSchedule(selectedId);
+      const remaining = schedules.filter(s => s.id !== selectedId);
+      setSchedules(remaining);
+      setSelectedId(remaining.length > 0 ? remaining[0].id : null);
+      setShifts([]);
+    } catch (err: any) {
+      alert('Error deleting schedule: ' + err.message);
+    }
   };
 
   const handleOpenSwap = (shift: ShiftWithEmployee) => {
@@ -355,13 +373,22 @@ export default function SchedulePage() {
               </select>
             </div>
             {isManager && selectedSchedule && (
-              <Button
-                variant={selectedSchedule.status === 'published' ? 'outline' : 'default'}
-                onClick={handlePublish}
-                className="self-end"
-              >
-                {selectedSchedule.status === 'published' ? 'Unpublish' : 'Publish Schedule'}
-              </Button>
+              <>
+                <Button
+                  variant={selectedSchedule.status === 'published' ? 'outline' : 'default'}
+                  onClick={handlePublish}
+                  className="self-end"
+                >
+                  {selectedSchedule.status === 'published' ? 'Unpublish' : 'Publish Schedule'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleDeleteSchedule}
+                  className="self-end text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  Delete Schedule
+                </Button>
+              </>
             )}
           </>
         )}

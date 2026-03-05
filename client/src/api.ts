@@ -50,6 +50,8 @@ export const getLaborCost = (id: number) => request<LaborCostSummary>(`/schedule
 export const getBurnoutRisks = (id: number) => request<BurnoutRisk[]>(`/schedules/${id}/burnout-risks`);
 export const updateSchedule = (id: number, data: { status: string }) =>
   request<Schedule>(`/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteSchedule = (id: number) =>
+  request<{ success: boolean }>(`/schedules/${id}`, { method: 'DELETE' });
 
 // Shifts
 export const updateShift = (id: number, data: Partial<Shift> & { employee_id?: number }) =>
