@@ -93,6 +93,14 @@ export const getRestaurantSettings = () => request<RestaurantSettings>('/setting
 export const updateRestaurantSettings = (data: Partial<RestaurantSettings>) =>
   request<RestaurantSettings>('/settings', { method: 'PUT', body: JSON.stringify(data) });
 
+// Sites
+export const getSites = () => request<Site[]>('/sites');
+export const getSiteEmployees = (siteId: number) => request<Employee[]>(`/sites/${siteId}/employees`);
+
+// Overtime
+export const getOvertime = () => request<WeeklyOvertime[]>('/overtime');
+export const getEmployeeOvertime = (empId: number) => request<WeeklyOvertime[]>(`/overtime/employee/${empId}`);
+
 // Profitability Metrics
 export const getProfitabilityMetrics = (scheduleId: number) =>
   request<ProfitabilityMetrics>(`/schedules/${scheduleId}/profitability-metrics`);
@@ -102,15 +110,31 @@ export const getScheduleCoverage = (scheduleId: number) =>
   request<ScheduleCoverageReport>(`/schedules/${scheduleId}/coverage`);
 
 // Types
+export interface Site {
+  id: number;
+  name: string;
+  city: string;
+  state: string;
+  timezone: string;
+  site_type: 'restaurant' | 'hotel';
+  created_at: string;
+}
+
 export interface Employee {
   id: number;
   name: string;
+  first_name?: string;
+  last_name?: string;
   role: string;
+  role_title?: string;
+  department?: string;
   hourly_rate: number;
   weekly_hours_max: number;
   email?: string;
   phone?: string;
   photo_url?: string | null;
+  hire_date?: string;
+  site_id?: number | null;
   created_at: string;
 }
 
@@ -128,6 +152,20 @@ export interface Schedule {
   week_start: string;
   labor_budget: number;
   status: string;
+  site_id?: number | null;
+  created_at: string;
+}
+
+export interface WeeklyOvertime {
+  id: number;
+  employee_id: number;
+  employee_name: string;
+  role: string;
+  site_id?: number | null;
+  week_start: string;
+  regular_hours: number;
+  overtime_hours: number;
+  overtime_pay: number;
   created_at: string;
 }
 

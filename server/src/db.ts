@@ -21,6 +21,16 @@ export function getDb(): Database.Database {
 
 function initSchema(db: Database.Database): void {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS sites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      city TEXT NOT NULL,
+      state TEXT NOT NULL,
+      timezone TEXT NOT NULL DEFAULT 'America/Chicago',
+      site_type TEXT NOT NULL DEFAULT 'restaurant', -- restaurant | hotel
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS employees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -28,6 +38,17 @@ function initSchema(db: Database.Database): void {
       hourly_rate REAL NOT NULL DEFAULT 15.0,
       weekly_hours_max INTEGER NOT NULL DEFAULT 40,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS weekly_overtime (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      week_start TEXT NOT NULL,
+      regular_hours REAL NOT NULL DEFAULT 0.0,
+      overtime_hours REAL NOT NULL DEFAULT 0.0,
+      overtime_pay REAL NOT NULL DEFAULT 0.0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(employee_id, week_start)
     );
 
     CREATE TABLE IF NOT EXISTS availability (
@@ -52,6 +73,7 @@ function initSchema(db: Database.Database): void {
       week_start TEXT NOT NULL,     -- YYYY-MM-DD (Monday)
       labor_budget REAL NOT NULL DEFAULT 5000.0,
       status TEXT NOT NULL DEFAULT 'draft', -- draft | published
+      site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -137,11 +159,35 @@ function initSchema(db: Database.Database): void {
   if (!empCols.some(c => c.name === 'photo_url')) {
     db.exec("ALTER TABLE employees ADD COLUMN photo_url TEXT DEFAULT NULL");
   }
+  if (!empCols.some(c => c.name === 'first_name')) {
+    db.exec("ALTER TABLE employees ADD COLUMN first_name TEXT NOT NULL DEFAULT ''");
+  }
+  if (!empCols.some(c => c.name === 'last_name')) {
+    db.exec("ALTER TABLE employees ADD COLUMN last_name TEXT NOT NULL DEFAULT ''");
+  }
+  if (!empCols.some(c => c.name === 'department')) {
+    db.exec("ALTER TABLE employees ADD COLUMN department TEXT NOT NULL DEFAULT ''");
+  }
+  if (!empCols.some(c => c.name === 'role_title')) {
+    db.exec("ALTER TABLE employees ADD COLUMN role_title TEXT NOT NULL DEFAULT ''");
+  }
+  if (!empCols.some(c => c.name === 'hire_date')) {
+    db.exec("ALTER TABLE employees ADD COLUMN hire_date TEXT NOT NULL DEFAULT ''");
+  }
+  if (!empCols.some(c => c.name === 'site_id')) {
+    db.exec("ALTER TABLE employees ADD COLUMN site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL");
+  }
 
   // Migrate availability table: add availability_type column if absent
   const availCols = db.pragma('table_info(availability)') as { name: string }[];
   if (!availCols.some(c => c.name === 'availability_type')) {
     db.exec("ALTER TABLE availability ADD COLUMN availability_type TEXT NOT NULL DEFAULT 'specific'");
+  }
+
+  // Migrate schedules table: add site_id column if absent
+  const scheduleCols = db.pragma('table_info(schedules)') as { name: string }[];
+  if (!scheduleCols.some(c => c.name === 'site_id')) {
+    db.exec("ALTER TABLE schedules ADD COLUMN site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL");
   }
 }
 
