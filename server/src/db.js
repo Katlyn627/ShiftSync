@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 
 let connected = false;
 let mongoClient = null;
+// Holds the MongoMemoryServer instance when the automatic in-memory fallback is active.
+let memoryServer = null;
 
 export function isConnected() {
   return connected;
@@ -73,9 +75,39 @@ export function buildConnectionErrorMessage(err) {
   return lines.join('\n');
 }
 
+/**
+ * Attempts to start an in-memory MongoDB instance using mongodb-memory-server.
+ * Only activates outside of production so that the optional devDependency is
+ * never required in a production build.
+ *
+ * Returns { uri, mongod } on success, or null if unavailable.
+ */
+async function startInMemoryFallback() {
+  if (process.env.NODE_ENV === 'production') return null;
+  try {
+    const { MongoMemoryServer } = await import('mongodb-memory-server');
+    const mongod = await MongoMemoryServer.create();
+    // getUri() returns something like mongodb://127.0.0.1:PORT/ — append the db name.
+    const uri = `${mongod.getUri()}shiftsync`;
+    console.warn(
+      '\n⚠️  WARNING: Cannot reach a real MongoDB instance.\n' +
+      '   Falling back to an IN-MEMORY database — data will NOT persist between restarts.\n' +
+      '   To use a real database, set MONGODB_URI in server/.env\n'
+    );
+    return { uri, mongod };
+  } catch {
+    // mongodb-memory-server not available (e.g. a production install without devDeps).
+    return null;
+  }
+}
+
 export async function connectDb({ retries = 5, retryDelayMs = 5000 } = {}) {
   if (connected) return;
-  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/shiftsync';
+
+  // If MONGODB_URI is explicitly set, use it; otherwise default to localhost
+  // and allow an automatic in-memory fallback on failure.
+  const explicitUri = process.env.MONGODB_URI;
+  const uri = explicitUri || 'mongodb://localhost:27017/shiftsync';
 
   // Use the MongoDB Stable API (ServerApiVersion.v1) so that Atlas commands
   // behave consistently across server upgrades.  The native MongoClient is
@@ -88,6 +120,7 @@ export async function connectDb({ retries = 5, retryDelayMs = 5000 } = {}) {
     },
   };
 
+  let lastError;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       // Connect the native driver client.
@@ -109,10 +142,11 @@ export async function connectDb({ retries = 5, retryDelayMs = 5000 } = {}) {
       console.log('Connected to MongoDB:', uri.replace(/\/\/.*@/, '//***@'));
       return;
     } catch (err) {
-      // SRV DNS failures will never resolve with more retries — fail fast.
-      if (isSrvError(err)) throw err;
+      lastError = err;
+      // SRV DNS failures will never resolve with more retries — stop immediately.
+      if (isSrvError(err)) break;
 
-      if (attempt === retries) throw err;
+      if (attempt === retries) break;
       console.warn(
         `MongoDB connection attempt ${attempt}/${retries} failed: ${err.message}`
       );
@@ -120,6 +154,32 @@ export async function connectDb({ retries = 5, retryDelayMs = 5000 } = {}) {
       await new Promise(resolve => setTimeout(resolve, retryDelayMs));
     }
   }
+
+  // When the caller did not configure an explicit MONGODB_URI, automatically
+  // fall back to an in-memory MongoDB instance so the app stays functional
+  // regardless of network access or Atlas availability.
+  if (!explicitUri) {
+    const fallback = await startInMemoryFallback();
+    if (fallback) {
+      try {
+        // Reset any partial Mongoose state from the failed attempts above.
+        await mongoose.disconnect();
+        // The in-memory server is a plain MongoDB binary — no Stable API needed.
+        const client = new MongoClient(fallback.uri);
+        await client.connect();
+        await mongoose.connect(fallback.uri);
+        mongoClient = client;
+        memoryServer = fallback.mongod;
+        connected = true;
+        return;
+      } catch (fallbackErr) {
+        // Fallback also failed; stop the memory server and fall through to throw.
+        await fallback.mongod.stop().catch(() => {});
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 export async function closeDb() {
@@ -128,6 +188,10 @@ export async function closeDb() {
     if (mongoClient) {
       await mongoClient.close();
       mongoClient = null;
+    }
+    if (memoryServer) {
+      await memoryServer.stop();
+      memoryServer = null;
     }
     connected = false;
   }
