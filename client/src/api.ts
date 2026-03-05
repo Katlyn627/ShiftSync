@@ -36,6 +36,8 @@ export const deleteEmployee = (id: number) =>
 
 export const getAvailability = (empId: number) =>
   request<Availability[]>(`/employees/${empId}/availability`);
+export const getEmployeeStats = (employeeId: number, scheduleId: number) =>
+  request<EmployeeStats>(`/employees/${employeeId}/stats?schedule_id=${scheduleId}`);
 export const setAvailability = (empId: number, data: Omit<Availability, 'id' | 'employee_id'>) =>
   request<Availability>(`/employees/${empId}/availability`, { method: 'POST', body: JSON.stringify(data) });
 export const deleteAvailability = (empId: number, dayOfWeek: number) =>
@@ -199,6 +201,16 @@ export interface DailyStaffingSuggestion {
   expected_revenue: number;
   expected_covers: number;
   staffing: StaffingNeed[];
+}
+
+export interface EmployeeStats {
+  employee_id: number;
+  schedule_id: number;
+  shifts_count: number;
+  total_hours: number;
+  labor_cost: number;
+  overtime_hours: number;
+  avg_hours_per_shift: number;
 }
 
 export interface TimeOffRequest {

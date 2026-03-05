@@ -74,6 +74,47 @@ router.delete('/:id', requireManager, (req, res) => {
   res.json({ success: true });
 });
 
+// Stats for a specific employee within a schedule
+router.get('/:id/stats', requireAuth, (req, res) => {
+  const db = getDb();
+  const employeeId = parseInt(req.params.id);
+  const scheduleId = parseInt(req.query.schedule_id as string);
+
+  if (!scheduleId) return res.status(400).json({ error: 'schedule_id is required' });
+
+  const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(employeeId) as any;
+  if (!employee) return res.status(404).json({ error: 'Employee not found' });
+
+  const shifts = db.prepare(
+    'SELECT * FROM shifts WHERE employee_id = ? AND schedule_id = ?'
+  ).all(employeeId, scheduleId) as any[];
+
+  function parseMinutes(time: string): number {
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  function shiftHours(start: string, end: string): number {
+    const startMin = parseMinutes(start);
+    let endMin = parseMinutes(end);
+    if (endMin < startMin) endMin += 24 * 60;
+    return (endMin - startMin) / 60;
+  }
+
+  const total_hours = shifts.reduce((sum: number, s: any) => sum + shiftHours(s.start_time, s.end_time), 0);
+  const labor_cost = total_hours * employee.hourly_rate;
+
+  res.json({
+    employee_id: employeeId,
+    schedule_id: scheduleId,
+    shifts_count: shifts.length,
+    total_hours,
+    labor_cost,
+    overtime_hours: Math.max(0, total_hours - 40),
+    avg_hours_per_shift: shifts.length > 0 ? total_hours / shifts.length : 0,
+  });
+});
+
 // Availability
 router.get('/:id/availability', requireAuth, (req, res) => {
   const db = getDb();
