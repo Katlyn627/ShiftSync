@@ -2,7 +2,8 @@ import { useEffect, useState, CSSProperties } from 'react';
 import {
   getSchedules, generateSchedule, getScheduleShifts, updateSchedule, deleteSchedule,
   getEmployees, createSwap, updateShift, createShift, deleteShift, getBurnoutRisks, getAvailability,
-  Schedule, ShiftWithEmployee, Employee, BurnoutRisk, Availability
+  getScheduleCoverage,
+  Schedule, ShiftWithEmployee, Employee, BurnoutRisk, Availability, ScheduleCoverageReport
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Button, Input, Card, Badge, NATIVE_SELECT_CLASS } from '../components/ui';
@@ -83,6 +84,7 @@ export default function SchedulePage() {
   const [swapTargetId, setSwapTargetId]     = useState('');
   const [swapSubmitting, setSwapSubmitting] = useState(false);
   const [burnoutRisks, setBurnoutRisks]     = useState<BurnoutRisk[]>([]);
+  const [coverage, setCoverage]             = useState<ScheduleCoverageReport | null>(null);
   const [availabilityByEmployee, setAvailabilityByEmployee] = useState<Record<number, Availability[]>>({});
   const [dropLoadingShiftId, setDropLoadingShiftId] = useState<number | null>(null);
 
@@ -123,6 +125,7 @@ export default function SchedulePage() {
     if (!selectedId) return;
     getScheduleShifts(selectedId).then(setShifts).catch(() => setShifts([]));
     getBurnoutRisks(selectedId).then(setBurnoutRisks).catch(() => setBurnoutRisks([]));
+    getScheduleCoverage(selectedId).then(setCoverage).catch(() => setCoverage(null));
   }, [selectedId]);
 
   const handleGenerate = async () => {
@@ -577,6 +580,74 @@ export default function SchedulePage() {
               : 'No schedule has been published yet. Check back later.'}
           </p>
         </div>
+      )}
+
+      {/* ── Callout Coverage Panel ── */}
+      {selectedSchedule && coverage && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-semibold text-foreground">Callout Coverage &amp; Standby Pool</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                On-call employees reserved to cover last-minute callouts. Staffing scales with forecast revenue.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {coverage.days_at_risk > 0 ? (
+                <Badge variant="warning">{coverage.days_at_risk} day{coverage.days_at_risk > 1 ? 's' : ''} at risk</Badge>
+              ) : (
+                <Badge variant="success">All days covered</Badge>
+              )}
+              <span className="text-xs text-muted-foreground">{coverage.total_standby_count} total standbys</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+            {coverage.days.map(day => {
+              const statusColors: Record<string, { bg: string; border: string; label: string }> = {
+                good:     { bg: '#f0fdf4', border: '#86efac', label: '#15803d' },
+                at_risk:  { bg: '#fffbeb', border: '#fcd34d', label: '#92400e' },
+                critical: { bg: '#fff1f2', border: '#fca5a5', label: '#991b1b' },
+              };
+              const colors = statusColors[day.coverage_status];
+              const dayLabel = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day.day_of_week];
+
+              return (
+                <div
+                  key={day.date}
+                  className="rounded-lg border p-2.5"
+                  style={{ backgroundColor: colors.bg, borderColor: colors.border }}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold" style={{ color: colors.label }}>{dayLabel}</span>
+                    {day.coverage_status === 'critical' && (
+                      <span className="text-[9px] font-bold text-red-700 bg-red-100 px-1 rounded">CRITICAL</span>
+                    )}
+                    {day.coverage_status === 'at_risk' && (
+                      <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-1 rounded">AT RISK</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{day.date.slice(5)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    ${(day.expected_revenue / 1000).toFixed(1)}k rev
+                  </p>
+                  <p className="text-[11px] font-semibold mt-1.5" style={{ color: colors.label }}>
+                    {day.standby_count} standby{day.standby_count !== 1 ? 's' : ''}
+                  </p>
+                  {day.standbys.length > 0 && (
+                    <div className="mt-1.5 space-y-0.5">
+                      {day.standbys.map(s => (
+                        <p key={s.id} className="text-[10px] text-muted-foreground truncate">
+                          {s.employee_name} <span className="opacity-60">({s.role})</span>
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       )}
 
       {/* ── Swap Request Modal ── */}
