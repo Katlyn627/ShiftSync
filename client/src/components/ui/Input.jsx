@@ -1,13 +1,7 @@
 import * as React from "react";
 import { cn } from "./utils";
 
-export interface InputProps extends React.ComponentProps<"input"> {
-  label?: string;
-  error?: string;
-  hint?: string;
-}
-
-function Input({ className, type, label, error, hint, id, ...props }: InputProps) {
+function Input({ className, type, label, error, hint, id, ...props }) {
   const inputId = id ?? (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
   return (
     <div className="flex flex-col gap-1.5">

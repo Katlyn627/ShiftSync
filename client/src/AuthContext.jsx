@@ -1,29 +1,10 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 
-export interface AuthUser {
-  userId: number;
-  username: string;
-  employeeId: number | null;
-  isManager: boolean;
-  employeeName: string | null;
-  employeeRole: string | null;
-}
+const AuthContext = createContext(null);
 
-interface AuthContextValue {
-  user: AuthUser | null;
-  token: string | null;
-  login: (username: string, password: string) => Promise<void>;
-  loginWithToken: (token: string) => Promise<void>;
-  register: (employeeName: string, username: string, password: string) => Promise<void>;
-  logout: () => void;
-  loading: boolean;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = async (username: string, password: string) => {
+  const login = async (username, password) => {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -66,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   };
 
-  const loginWithToken = async (jwtToken: string) => {
+  const loginWithToken = async (jwtToken) => {
     const res = await fetch('/api/auth/me', {
       headers: { Authorization: `Bearer ${jwtToken}` },
     });
@@ -77,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   };
 
-  const register = async (employeeName: string, username: string, password: string) => {
+  const register = async (employeeName, username, password) => {
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -106,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useAuth(): AuthContextValue {
+export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;

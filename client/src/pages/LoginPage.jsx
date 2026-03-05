@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import { Button, Input, Badge } from '../components/ui';
-import type { BadgeVariant } from '../components/ui';
 
-const DEMO_ACCOUNTS: { username: string; role: string; variant: BadgeVariant }[] = [
+const DEMO_ACCOUNTS = [
   { username: 'alice',  role: 'Manager', variant: 'manager' },
   { username: 'bob',    role: 'Server',  variant: 'server'  },
   { username: 'carol',  role: 'Server',  variant: 'server'  },
@@ -14,7 +13,7 @@ const DEMO_ACCOUNTS: { username: string; role: string; variant: BadgeVariant }[]
 
 export default function LoginPage() {
   const { login, loginWithToken, register } = useAuth();
-  const [tab, setTab] = useState<'login' | 'register'>('login');
+  const [tab, setTab] = useState('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [employeeName, setEmployeeName] = useState('');
@@ -39,33 +38,33 @@ export default function LoginPage() {
     }
   }, [loginWithToken]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
       await login(username, password);
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
       await register(employeeName, regUsername, regPassword);
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const fillDemo = (u: string) => {
+  const fillDemo = (u) => {
     setUsername(u);
     setPassword('password123');
     setError('');
@@ -94,7 +93,7 @@ export default function LoginPage() {
 
         {/* ── Tabs ── */}
         <div className="flex rounded-xl border border-border bg-muted/30 p-1 gap-1">
-          {(['login', 'register'] as const).map(t => (
+          {(['login', 'register']).map(t => (
             <button
               key={t}
               type="button"

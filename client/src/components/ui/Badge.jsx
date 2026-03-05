@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import { cn } from "./utils";
 
 const badgeVariants = cva(
@@ -42,20 +42,12 @@ const badgeVariants = cva(
   },
 );
 
-export type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>;
-
-export interface BadgeProps
-  extends React.ComponentProps<"span">,
-    VariantProps<typeof badgeVariants> {
-  asChild?: boolean;
-}
-
 function Badge({
   className,
   variant,
   asChild = false,
   ...props
-}: BadgeProps) {
+}) {
   const Comp = asChild ? Slot : "span";
   return (
     <Comp

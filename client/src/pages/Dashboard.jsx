@@ -3,31 +3,29 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import {
   getSchedules, getLaborCost, getBurnoutRisks, getStaffingSuggestions,
   getEmployees, getScheduleShifts, getAvailability, getEmployeeStats,
-  Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee, Availability, EmployeeStats
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Card, Badge, Modal, NATIVE_SELECT_CLASS } from '../components/ui';
-import type { BadgeVariant } from '../components/ui';
 
-const RISK_COLORS: Record<string, string> = {
+const RISK_COLORS = {
   high:   '#ef4444',
   medium: '#f59e0b',
   low:    '#10b981',
 };
 
-function riskVariant(level: string): BadgeVariant {
-  const map: Record<string, BadgeVariant> = { high: 'danger', medium: 'warning', low: 'success' };
+function riskVariant(level) {
+  const map = { high: 'danger', medium: 'warning', low: 'success' };
   return map[level] ?? 'default';
 }
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /* ── Employee avatar helpers (consistent with EmployeesPage) ── */
-function initials(name: string) {
+function initials(name) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
-const AVATAR_BG: Record<string, string> = {
+const AVATAR_BG = {
   Manager: 'bg-violet-100 text-violet-700',
   Server:  'bg-blue-100 text-blue-700',
   Kitchen: 'bg-orange-100 text-orange-700',
@@ -36,12 +34,12 @@ const AVATAR_BG: Record<string, string> = {
 };
 
 /* ── Shift duration helpers ── */
-function parseMinutes(time: string): number {
+function parseMinutes(time) {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
 }
 
-function shiftHours(start: string, end: string): number {
+function shiftHours(start, end) {
   const startMin = parseMinutes(start);
   let endMin = parseMinutes(end);
   if (endMin < startMin) endMin += 24 * 60;
@@ -49,21 +47,21 @@ function shiftHours(start: string, end: string): number {
 }
 
 /* ── Role-to-badge-variant mapping (consistent with EmployeesPage) ── */
-const ROLE_BADGE_VARIANT: Record<string, BadgeVariant> = {
+const ROLE_BADGE_VARIANT = {
   Manager: 'manager', Server: 'server', Kitchen: 'kitchen', Bar: 'bar', Host: 'host',
 };
 
 /* ── Employee shift cost / hours helpers ── */
-function calculateEmployeeLaborCost(shifts: ShiftWithEmployee[]): number {
+function calculateEmployeeLaborCost(shifts) {
   return shifts.reduce((sum, s) => sum + shiftHours(s.start_time, s.end_time) * (s.hourly_rate ?? 0), 0);
 }
 
-function calculateTotalHours(shifts: ShiftWithEmployee[]): number {
+function calculateTotalHours(shifts) {
   return shifts.reduce((sum, s) => sum + shiftHours(s.start_time, s.end_time), 0);
 }
 
 /* ── Turnover risk derived from burnout ── */
-function getTurnoverRisk(burnoutRisk: BurnoutRisk | undefined): { level: 'low' | 'medium' | 'high'; reason: string } {
+function getTurnoverRisk(burnoutRisk) {
   if (!burnoutRisk) return { level: 'low', reason: 'No schedule data for this week' };
   if (burnoutRisk.risk_level === 'high') return { level: 'high', reason: 'High burnout risk strongly correlates with turnover intent' };
   if (burnoutRisk.risk_level === 'medium') return { level: 'medium', reason: 'Moderate stress factors may affect long-term retention' };
@@ -73,12 +71,6 @@ function getTurnoverRisk(burnoutRisk: BurnoutRisk | undefined): { level: 'low' |
 /* ── KPI Card ── */
 function KpiCard({
   label, value, sub, trend, icon,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  trend?: 'up' | 'down' | 'neutral';
-  icon: React.ReactNode;
 }) {
   return (
     <Card className="p-5 flex flex-col gap-3">
@@ -104,14 +96,6 @@ function KpiCard({
 /* ── Employee Detail Modal ── */
 function EmployeeDetailModal({
   emp, empShifts, selectedEmployeeStats, burnout, laborCost, employeeAvailability, onClose,
-}: {
-  emp: Employee;
-  empShifts: ShiftWithEmployee[];
-  selectedEmployeeStats: EmployeeStats | null;
-  burnout: BurnoutRisk[];
-  laborCost: LaborCostSummary | null;
-  employeeAvailability: Availability[];
-  onClose: () => void;
 }) {
   const burnoutRisk    = burnout.find(b => b.employee_id === emp.id);
   const turnoverRisk   = getTurnoverRisk(burnoutRisk);
@@ -331,17 +315,17 @@ function UsersIcon() {
 export default function Dashboard() {
   const { user } = useAuth();
   const isManager = user?.isManager ?? false;
-  const [schedules, setSchedules]                   = useState<Schedule[]>([]);
-  const [selectedId, setSelectedId]                 = useState<number | null>(null);
-  const [laborCost, setLaborCost]                   = useState<LaborCostSummary | null>(null);
-  const [burnout, setBurnout]                       = useState<BurnoutRisk[]>([]);
-  const [staffingSuggestions, setStaffingSuggestions] = useState<DailyStaffingSuggestion[]>([]);
+  const [schedules, setSchedules]                   = useState([]);
+  const [selectedId, setSelectedId]                 = useState(null);
+  const [laborCost, setLaborCost]                   = useState(null);
+  const [burnout, setBurnout]                       = useState([]);
+  const [staffingSuggestions, setStaffingSuggestions] = useState([]);
   const [loading, setLoading]                       = useState(true);
-  const [employees, setEmployees]                   = useState<Employee[]>([]);
-  const [scheduleShifts, setScheduleShifts]         = useState<ShiftWithEmployee[]>([]);
-  const [selectedEmployee, setSelectedEmployee]     = useState<Employee | null>(null);
-  const [employeeAvailability, setEmployeeAvailability] = useState<Availability[]>([]);
-  const [selectedEmployeeStats, setSelectedEmployeeStats] = useState<EmployeeStats | null>(null);
+  const [employees, setEmployees]                   = useState([]);
+  const [scheduleShifts, setScheduleShifts]         = useState([]);
+  const [selectedEmployee, setSelectedEmployee]     = useState(null);
+  const [employeeAvailability, setEmployeeAvailability] = useState([]);
+  const [selectedEmployeeStats, setSelectedEmployeeStats] = useState(null);
 
   useEffect(() => {
     getSchedules().then(s => {
@@ -448,7 +432,7 @@ export default function Dashboard() {
             label="Budget Usage"
             value={laborCost ? `${budgetPct.toFixed(1)}%` : '—'}
             sub={overBudget
-              ? `$${Math.abs(laborCost!.variance).toFixed(0)} over budget`
+              ? `$${Math.abs(laborCost.variance).toFixed(0)} over budget`
               : laborCost ? `$${Math.abs(laborCost.variance).toFixed(0)} under budget` : ''}
             trend={budgetPct > 100 ? 'down' : budgetPct > 90 ? 'neutral' : 'up'}
             icon={<ChartIcon />}
@@ -535,7 +519,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-7 gap-2">
             {staffingSuggestions.map(day => {
               const totalStaff = day.staffing.reduce((sum, s) => sum + s.count, 0);
-              const roleGroups: Record<string, number> = {};
+              const roleGroups = {};
               for (const s of day.staffing) roleGroups[s.role] = (roleGroups[s.role] || 0) + s.count;
               return (
                 <div key={day.date} className="bg-muted/40 rounded-xl p-3 text-center border border-border">
@@ -567,7 +551,7 @@ export default function Dashboard() {
               <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={d => d.slice(5)} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={v => `$${v}`} axisLine={false} tickLine={false} width={50} />
               <Tooltip
-                formatter={(v: number) => [`$${v.toFixed(2)}`, 'Cost']}
+                formatter={(v) => [`$${v.toFixed(2)}`, 'Cost']}
                 labelFormatter={l => `Date: ${l}`}
                 contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 12 }}
               />

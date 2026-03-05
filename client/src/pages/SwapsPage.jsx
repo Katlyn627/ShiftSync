@@ -1,25 +1,24 @@
 import { useEffect, useState } from 'react';
-import { getSwaps, approveSwap, rejectSwap, SwapWithDetails } from '../api';
+import { getSwaps, approveSwap, rejectSwap } from '../api';
 import { useAuth } from '../AuthContext';
 import { Button, Card, Badge, Input } from '../components/ui';
-import type { BadgeVariant } from '../components/ui';
 
-function statusVariant(status: string): BadgeVariant {
-  const map: Record<string, BadgeVariant> = { pending: 'warning', approved: 'success', rejected: 'danger' };
+function statusVariant(status) {
+  const map = { pending: 'warning', approved: 'success', rejected: 'danger' };
   return map[status] ?? 'default';
 }
 
 export default function SwapsPage() {
   const { user }  = useAuth();
-  const [swaps, setSwaps]     = useState<SwapWithDetails[]>([]);
+  const [swaps, setSwaps]     = useState([]);
   const [loading, setLoading] = useState(true);
-  const [notes, setNotes]     = useState<Record<number, string>>({});
+  const [notes, setNotes]     = useState({});
 
   const load = () => getSwaps().then(s => { setSwaps(s); setLoading(false); });
   useEffect(() => { load(); }, []);
 
-  const handleApprove = async (id: number) => { await approveSwap(id, notes[id]); load(); };
-  const handleReject  = async (id: number) => { await rejectSwap(id, notes[id]);  load(); };
+  const handleApprove = async (id) => { await approveSwap(id, notes[id]); load(); };
+  const handleReject  = async (id) => { await rejectSwap(id, notes[id]);  load(); };
 
   if (loading) {
     return (
@@ -107,12 +106,6 @@ export default function SwapsPage() {
 
 function SwapCard({
   swap, notes, onNotesChange, onApprove, onReject,
-}: {
-  swap: SwapWithDetails;
-  notes: string;
-  onNotesChange: (v: string) => void;
-  onApprove?: () => void;
-  onReject?: () => void;
 }) {
   const isPending = swap.status === 'pending';
   return (

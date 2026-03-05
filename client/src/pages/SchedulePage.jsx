@@ -1,12 +1,10 @@
-import { useEffect, useState, CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import {
   getSchedules, generateSchedule, getScheduleShifts, updateSchedule, deleteSchedule,
   getEmployees, createSwap, updateShift, createShift, deleteShift, getBurnoutRisks, getAvailability,
-  Schedule, ShiftWithEmployee, Employee, BurnoutRisk, Availability
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Button, Input, Card, Badge, NATIVE_SELECT_CLASS } from '../components/ui';
-import type { BadgeVariant } from '../components/ui';
 
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const SHIFT_SLOTS = [
@@ -14,25 +12,24 @@ const SHIFT_SLOTS = [
   { key: 'mid', label: 'Mid', min: 12 * 60, max: 16 * 60 },
   { key: 'evening', label: 'Evening', min: 16 * 60, max: 20 * 60 },
   { key: 'close', label: 'Close', min: 20 * 60, max: 24 * 60 },
-] as const;
-type ShiftSlotKey = (typeof SHIFT_SLOTS)[number]['key'];
+];
 
-function toMinutes(time: string): number {
+function toMinutes(time) {
   const [h, m] = time.split(':').map(Number);
   return (h * 60) + m;
 }
 
-function shiftSlot(startTime: string): ShiftSlotKey {
+function shiftSlot(startTime) {
   const mins = toMinutes(startTime);
   return SHIFT_SLOTS.find(slot => mins >= slot.min && mins < slot.max)?.key ?? 'close';
 }
 
-function shiftHours(start: string, end: string): number {
+function shiftHours(start, end) {
   return (toMinutes(end) - toMinutes(start)) / 60;
 }
 
-function roleVariant(role: string): BadgeVariant {
-  const map: Record<string, BadgeVariant> = {
+function roleVariant(role) {
+  const map = {
     Manager: 'manager',
     Server:  'server',
     Kitchen: 'kitchen',
@@ -43,7 +40,7 @@ function roleVariant(role: string): BadgeVariant {
 }
 
 /** Role colour palette — left-bar accent + soft card background */
-const ROLE_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
+const ROLE_COLORS = {
   manager: { bg: '#f5f3ff', text: '#5b21b6', bar: '#7c3aed' },
   server:  { bg: '#eff6ff', text: '#1d4ed8', bar: '#3b82f6' },
   kitchen: { bg: '#fff7ed', text: '#c2410c', bar: '#f97316' },
@@ -51,21 +48,21 @@ const ROLE_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
   host:    { bg: '#fdf2f8', text: '#9d174d', bar: '#ec4899' },
 };
 
-function shiftBlockStyle(role: string): CSSProperties {
+function shiftBlockStyle(role) {
   const c = ROLE_COLORS[role.toLowerCase()] ?? { bg: '#f8fafc', text: '#475569', bar: '#94a3b8' };
   return { backgroundColor: c.bg, color: c.text };
 }
 
-function shiftBarColor(role: string): string {
+function shiftBarColor(role) {
   return (ROLE_COLORS[role.toLowerCase()] ?? { bar: '#94a3b8' }).bar;
 }
 
 export default function SchedulePage() {
   const { user } = useAuth();
   const isManager = user?.isManager ?? false;
-  const [schedules, setSchedules]     = useState<Schedule[]>([]);
-  const [selectedId, setSelectedId]   = useState<number | null>(null);
-  const [shifts, setShifts]           = useState<ShiftWithEmployee[]>([]);
+  const [schedules, setSchedules]     = useState([]);
+  const [selectedId, setSelectedId]   = useState(null);
+  const [shifts, setShifts]           = useState([]);
   const [loading, setLoading]         = useState(true);
   const [generating, setGenerating]   = useState(false);
   const [weekStart, setWeekStart]     = useState(() => {
@@ -77,17 +74,17 @@ export default function SchedulePage() {
   });
   const [budget, setBudget] = useState(5000);
 
-  const [swapShift, setSwapShift]           = useState<ShiftWithEmployee | null>(null);
-  const [employees, setEmployees]           = useState<Employee[]>([]);
+  const [swapShift, setSwapShift]           = useState(null);
+  const [employees, setEmployees]           = useState([]);
   const [swapReason, setSwapReason]         = useState('');
   const [swapTargetId, setSwapTargetId]     = useState('');
   const [swapSubmitting, setSwapSubmitting] = useState(false);
-  const [burnoutRisks, setBurnoutRisks]     = useState<BurnoutRisk[]>([]);
-  const [availabilityByEmployee, setAvailabilityByEmployee] = useState<Record<number, Availability[]>>({});
-  const [dropLoadingShiftId, setDropLoadingShiftId] = useState<number | null>(null);
+  const [burnoutRisks, setBurnoutRisks]     = useState([]);
+  const [availabilityByEmployee, setAvailabilityByEmployee] = useState({});
+  const [dropLoadingShiftId, setDropLoadingShiftId] = useState(null);
 
   // Manual shift creation modal state
-  const [addShiftCell, setAddShiftCell] = useState<{ date: string; slotKey: string } | null>(null);
+  const [addShiftCell, setAddShiftCell] = useState(null);
   const [addShiftForm, setAddShiftForm] = useState({
     employee_id: '',
     start_time: '09:00',
@@ -113,7 +110,7 @@ export default function SchedulePage() {
     getEmployees().then(async data => {
       setEmployees(data);
       const entries = await Promise.all(
-        data.map(async employee => [employee.id, await getAvailability(employee.id).catch(() => [])] as const)
+        data.map(async employee => [employee.id, await getAvailability(employee.id).catch(() => [])])
       );
       setAvailabilityByEmployee(Object.fromEntries(entries));
     }).catch(err => console.error('Failed to load employees:', err));
@@ -131,7 +128,7 @@ export default function SchedulePage() {
       const s = await generateSchedule(weekStart, budget);
       await load();
       setSelectedId(s.id);
-    } catch (err: any) {
+    } catch (err) {
       alert('Error: ' + err.message);
     } finally {
       setGenerating(false);
@@ -146,7 +143,7 @@ export default function SchedulePage() {
     try {
       await updateSchedule(selectedId, { status: newStatus });
       await load();
-    } catch (err: any) {
+    } catch (err) {
       alert('Error updating schedule: ' + err.message);
     }
   };
@@ -160,12 +157,12 @@ export default function SchedulePage() {
       setSchedules(remaining);
       setSelectedId(remaining.length > 0 ? remaining[0].id : null);
       setShifts([]);
-    } catch (err: any) {
+    } catch (err) {
       alert('Error deleting schedule: ' + err.message);
     }
   };
 
-  const handleOpenSwap = (shift: ShiftWithEmployee) => {
+  const handleOpenSwap = (shift) => {
     setSwapShift(shift);
     setSwapReason('');
     setSwapTargetId('');
@@ -183,7 +180,7 @@ export default function SchedulePage() {
       });
       setSwapShift(null);
       alert('Swap request submitted! A manager will review it shortly.');
-    } catch (err: any) {
+    } catch (err) {
       alert('Error: ' + err.message);
     } finally {
       setSwapSubmitting(false);
@@ -192,8 +189,8 @@ export default function SchedulePage() {
 
   const selectedSchedule = schedules.find(s => s.id === selectedId);
 
-  const shiftsByDateAndSlot: Record<string, Record<ShiftSlotKey, ShiftWithEmployee[]>> = {};
-  const employeeHours: Record<number, number> = {};
+  const shiftsByDateAndSlot = {};
+  const employeeHours = {};
   for (const shift of shifts) {
     shiftsByDateAndSlot[shift.date] ??= { morning: [], mid: [], evening: [], close: [] };
     shiftsByDateAndSlot[shift.date][shiftSlot(shift.start_time)].push(shift);
@@ -202,7 +199,7 @@ export default function SchedulePage() {
 
   const burnoutByEmployee = Object.fromEntries(burnoutRisks.map(risk => [risk.employee_id, risk]));
 
-  const hasAvailabilityWarning = (shift: ShiftWithEmployee) => {
+  const hasAvailabilityWarning = (shift) => {
     const rules = availabilityByEmployee[shift.employee_id];
     if (!rules || rules.length === 0) return false;
     const day = new Date(shift.date).getDay();
@@ -216,7 +213,7 @@ export default function SchedulePage() {
     });
   };
 
-  const handleDropEmployee = async (targetShift: ShiftWithEmployee, employeeId: number) => {
+  const handleDropEmployee = async (targetShift, employeeId) => {
     if (!isManager || targetShift.employee_id === employeeId) return;
 
     // Check hours limit before dropping
@@ -233,16 +230,16 @@ export default function SchedulePage() {
     setDropLoadingShiftId(targetShift.id);
     try {
       await updateShift(targetShift.id, { employee_id: employeeId });
-      const refreshed = await getScheduleShifts(selectedId!);
+      const refreshed = await getScheduleShifts(selectedId);
       setShifts(refreshed);
-    } catch (err: any) {
+    } catch (err) {
       alert('Error: ' + err.message);
     } finally {
       setDropLoadingShiftId(null);
     }
   };
 
-  const handleOpenAddShift = (date: string, slotKey: string) => {
+  const handleOpenAddShift = (date, slotKey) => {
     const slot = SHIFT_SLOTS.find(s => s.key === slotKey);
     const defaultStart = slot
       ? `${String(Math.floor(slot.min / 60)).padStart(2, '0')}:00`
@@ -285,20 +282,20 @@ export default function SchedulePage() {
       const refreshed = await getScheduleShifts(selectedId);
       setShifts(refreshed);
       setAddShiftCell(null);
-    } catch (err: any) {
+    } catch (err) {
       alert('Error: ' + err.message);
     } finally {
       setAddShiftSubmitting(false);
     }
   };
 
-  const handleDeleteShift = async (shiftId: number) => {
+  const handleDeleteShift = async (shiftId) => {
     if (!isManager || !confirm('Remove this shift?')) return;
     try {
       await deleteShift(shiftId);
-      const refreshed = await getScheduleShifts(selectedId!);
+      const refreshed = await getScheduleShifts(selectedId);
       setShifts(refreshed);
-    } catch (err: any) {
+    } catch (err) {
       alert('Error: ' + err.message);
     }
   };

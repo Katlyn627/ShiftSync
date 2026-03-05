@@ -7,10 +7,9 @@ import EmployeesPage from './pages/EmployeesPage';
 import SwapsPage from './pages/SwapsPage';
 import ProfilePage from './pages/ProfilePage';
 import { Badge } from './components/ui';
-import type { BadgeVariant } from './components/ui';
 
-function roleVariant(role: string): BadgeVariant {
-  const map: Record<string, BadgeVariant> = {
+function roleVariant(role) {
+  const map = {
     Manager: 'manager',
     Server:  'server',
     Kitchen: 'kitchen',
@@ -98,7 +97,7 @@ export default function App() {
 
   const initials = (user.employeeName || user.username)
     .split(' ')
-    .map((n: string) => n[0])
+    .map((n) => n[0])
     .join('')
     .toUpperCase()
     .slice(0, 2);

@@ -2,15 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import {
   getEmployees, updateEmployee, getAvailability, setAvailability, deleteAvailability,
   getTimeOffRequests, createTimeOffRequest, cancelTimeOffRequest,
-  Employee, Availability, TimeOffRequest,
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS } from '../components/ui';
-import type { BadgeVariant } from '../components/ui';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-const AVATAR_BG: Record<string, string> = {
+const AVATAR_BG = {
   Manager: 'bg-violet-100 text-violet-700',
   Server:  'bg-blue-100 text-blue-700',
   Kitchen: 'bg-orange-100 text-orange-700',
@@ -18,25 +16,25 @@ const AVATAR_BG: Record<string, string> = {
   Host:    'bg-pink-100 text-pink-700',
 };
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS = {
   pending:  'bg-yellow-100 text-yellow-800',
   approved: 'bg-green-100 text-green-800',
   rejected: 'bg-red-100 text-red-800',
 };
 
-function roleVariant(role: string): BadgeVariant {
-  const map: Record<string, BadgeVariant> = {
+function roleVariant(role) {
+  const map = {
     Manager: 'manager', Server: 'server', Kitchen: 'kitchen', Bar: 'bar', Host: 'host',
   };
   return map[role] ?? 'default';
 }
 
-function initials(name: string) {
+function initials(name) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
 /** Returns YYYY-MM-DD that is `days` days from today */
-function addDays(days: number): string {
+function addDays(days) {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
@@ -48,10 +46,10 @@ export default function ProfilePage() {
   const { user } = useAuth();
   const isManager = user?.isManager ?? false;
 
-  const [myEmployee, setMyEmployee]         = useState<Employee | null>(null);
-  const [availability, setAvailabilityList] = useState<Availability[]>([]);
-  const [colleagues, setColleagues]         = useState<Employee[]>([]);
-  const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
+  const [myEmployee, setMyEmployee]         = useState(null);
+  const [availability, setAvailabilityList] = useState([]);
+  const [colleagues, setColleagues]         = useState([]);
+  const [timeOffRequests, setTimeOffRequests] = useState([]);
   const [loading, setLoading]               = useState(true);
 
   // Profile edit form
@@ -70,7 +68,7 @@ export default function ProfilePage() {
 
   // Profile photo
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef(null);
 
   const loadData = async () => {
     try {
@@ -113,7 +111,7 @@ export default function ProfilePage() {
       });
       setMyEmployee(updated);
       setEditProfile(false);
-    } catch (err: any) {
+    } catch (err) {
       alert('Error saving profile: ' + err.message);
     } finally {
       setSavingProfile(false);
@@ -131,19 +129,19 @@ export default function ProfilePage() {
       });
       const refreshed = await getAvailability(myEmployee.id);
       setAvailabilityList(refreshed);
-    } catch (err: any) {
+    } catch (err) {
       alert('Error saving availability: ' + err.message);
     } finally {
       setSavingAvail(false);
     }
   };
 
-  const handleRemoveAvailability = async (dayOfWeek: number) => {
+  const handleRemoveAvailability = async (dayOfWeek) => {
     if (!myEmployee || !confirm('Remove availability for this day?')) return;
     try {
       await deleteAvailability(myEmployee.id, dayOfWeek);
       setAvailabilityList(prev => prev.filter(a => a.day_of_week !== dayOfWeek));
-    } catch (err: any) {
+    } catch (err) {
       alert('Error removing availability: ' + err.message);
     }
   };
@@ -159,24 +157,24 @@ export default function ProfilePage() {
       });
       setTimeOffRequests(prev => [created, ...prev]);
       setTimeOffForm({ start_date: minTimeOffDate, end_date: minTimeOffDate, reason: '' });
-    } catch (err: any) {
+    } catch (err) {
       alert('Error submitting time-off request: ' + err.message);
     } finally {
       setSavingTimeOff(false);
     }
   };
 
-  const handleCancelTimeOff = async (id: number) => {
+  const handleCancelTimeOff = async (id) => {
     if (!confirm('Cancel this time-off request?')) return;
     try {
       await cancelTimeOffRequest(id);
       setTimeOffRequests(prev => prev.filter(r => r.id !== id));
-    } catch (err: any) {
+    } catch (err) {
       alert('Error cancelling request: ' + err.message);
     }
   };
 
-  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !myEmployee) return;
 
@@ -191,15 +189,15 @@ export default function ProfilePage() {
 
     setUploadingPhoto(true);
     try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
+      const dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
+        reader.onload = () => resolve(reader.result);
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
       const updated = await updateEmployee(myEmployee.id, { photo_url: dataUrl });
       setMyEmployee(updated);
-    } catch (err: any) {
+    } catch (err) {
       alert('Error uploading photo: ' + err.message);
     } finally {
       setUploadingPhoto(false);
@@ -212,7 +210,7 @@ export default function ProfilePage() {
     try {
       const updated = await updateEmployee(myEmployee.id, { photo_url: null });
       setMyEmployee(updated);
-    } catch (err: any) {
+    } catch (err) {
       alert('Error removing photo: ' + err.message);
     }
   };

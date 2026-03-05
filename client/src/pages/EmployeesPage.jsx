@@ -1,22 +1,21 @@
 import { useEffect, useState } from 'react';
-import { getEmployees, createEmployee, updateEmployee, deleteEmployee, Employee } from '../api';
+import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../api';
 import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS } from '../components/ui';
-import type { BadgeVariant } from '../components/ui';
 
 const ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
 
-function roleVariant(role: string): BadgeVariant {
-  const map: Record<string, BadgeVariant> = {
+function roleVariant(role) {
+  const map = {
     Manager: 'manager', Server: 'server', Kitchen: 'kitchen', Bar: 'bar', Host: 'host',
   };
   return map[role] ?? 'default';
 }
 
-function initials(name: string) {
+function initials(name) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
-const AVATAR_BG: Record<string, string> = {
+const AVATAR_BG = {
   Manager: 'bg-violet-100 text-violet-700',
   Server:  'bg-blue-100 text-blue-700',
   Kitchen: 'bg-orange-100 text-orange-700',
@@ -25,16 +24,16 @@ const AVATAR_BG: Record<string, string> = {
 };
 
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm]           = useState({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
 
   const load = () => getEmployees().then(e => { setEmployees(e); setLoading(false); });
   useEffect(() => { load(); }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (editingId) { await updateEmployee(editingId, form); }
     else           { await createEmployee(form); }
@@ -44,13 +43,13 @@ export default function EmployeesPage() {
     load();
   };
 
-  const handleEdit = (emp: Employee) => {
+  const handleEdit = (emp) => {
     setForm({ name: emp.name, role: emp.role, hourly_rate: emp.hourly_rate, weekly_hours_max: emp.weekly_hours_max, email: emp.email ?? '', phone: emp.phone ?? '' });
     setEditingId(emp.id);
     setShowForm(true);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id) => {
     if (!confirm('Delete this employee?')) return;
     await deleteEmployee(id);
     load();
