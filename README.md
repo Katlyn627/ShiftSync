@@ -36,7 +36,7 @@
 
 <img src="https://github.com/user-attachments/assets/5bea754f-ef5c-4b67-9a0d-03c8ced64dbb" alt="Login page" width="700" />
 
-> Sign in with Google OAuth or demo credentials — six pre-loaded demo accounts let you explore every role.
+> Sign in with Google OAuth or username/password — see [docs/demo-data.md](docs/demo-data.md) for the full list of pre-loaded accounts.
 
 ---
 
@@ -182,16 +182,16 @@ cd client && npm run dev
 
 Open **http://localhost:3000** in your browser.
 
-Six demo accounts are pre-loaded — use any of them to explore:
+32 demo accounts are pre-loaded across 4 sites. Use a manager account to access all features:
 
-| Username | Role | Password |
-|---|---|---|
-| `alice` | Manager | `password123` |
-| `bob` | Server | `password123` |
-| `carol` | Server | `password123` |
-| `eve` | Kitchen | `password123` |
-| `henry` | Bar | `password123` |
-| `jack` | Host | `password123` |
+| Username | Role | Site | Password |
+|---|---|---|---|
+| `alice` | Manager | Bella Napoli (Restaurant, Chicago) | `password123` |
+| `iris` | Manager | The Blue Door (Restaurant, Austin) | `password123` |
+| `quinn` | Manager | Grand Pacific Hotel (Hotel, New York) | `password123` |
+| `yara` | Manager | Seaside Suites & Spa (Hotel, Miami) | `password123` |
+
+For the complete list of all 32 accounts (including employee-role accounts), see [docs/demo-data.md](docs/demo-data.md).
 
 ### 4. Run tests
 

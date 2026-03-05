@@ -30,11 +30,15 @@ function initials(name: string) {
 }
 
 const AVATAR_BG: Record<string, string> = {
-  Manager: 'bg-violet-100 text-violet-700',
-  Server:  'bg-blue-100 text-blue-700',
-  Kitchen: 'bg-orange-100 text-orange-700',
-  Bar:     'bg-emerald-100 text-emerald-700',
-  Host:    'bg-pink-100 text-pink-700',
+  Manager:     'bg-violet-100 text-violet-700',
+  Server:      'bg-blue-100 text-blue-700',
+  Kitchen:     'bg-orange-100 text-orange-700',
+  Bar:         'bg-emerald-100 text-emerald-700',
+  Host:        'bg-pink-100 text-pink-700',
+  'Front Desk': 'bg-sky-100 text-sky-700',
+  Housekeeping:'bg-amber-100 text-amber-700',
+  'F&B':       'bg-lime-100 text-lime-700',
+  Maintenance: 'bg-gray-100 text-gray-700',
 };
 
 /* ── Shift duration helpers ── */
@@ -496,8 +500,14 @@ export default function Dashboard() {
                   onClick={() => setSelectedEmployee(emp)}
                   className="flex flex-col items-center gap-2 p-3 rounded-xl bg-muted/30 border border-border hover:bg-muted/60 hover:border-primary/30 transition-all cursor-pointer text-center w-full"
                 >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${AVATAR_BG[emp.role] ?? 'bg-muted text-muted-foreground'}`}>
-                    {initials(emp.name)}
+                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                    {emp.photo_url ? (
+                      <img src={emp.photo_url} alt={emp.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className={`w-full h-full flex items-center justify-center text-sm font-bold ${AVATAR_BG[emp.role] ?? 'bg-muted text-muted-foreground'}`}>
+                        {initials(emp.name)}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-foreground leading-tight">{emp.name}</p>
@@ -540,8 +550,14 @@ export default function Dashboard() {
 
               {/* Profile */}
               <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border border-border">
-                <div className={`w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0 ${AVATAR_BG[emp.role] ?? 'bg-muted text-muted-foreground'}`}>
-                  {initials(emp.name)}
+                <div className="w-14 h-14 rounded-full overflow-hidden shrink-0">
+                  {emp.photo_url ? (
+                    <img src={emp.photo_url} alt={emp.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className={`w-full h-full flex items-center justify-center text-lg font-bold ${AVATAR_BG[emp.role] ?? 'bg-muted text-muted-foreground'}`}>
+                      {initials(emp.name)}
+                    </div>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">

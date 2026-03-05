@@ -36,18 +36,62 @@ Manager · Front Desk · Housekeeping · F&B · Maintenance
 
 ## Users / Authentication
 
-Every employee has a corresponding login:
+Every employee has a corresponding login. Password is `password123` for all accounts.
 
-| Username | Password | Role |
-|----------|----------|------|
-| `alice` | `password123` | Manager (Bella Napoli) |
-| `iris` | `password123` | Manager (The Blue Door) |
-| `quinn` | `password123` | Manager (Grand Pacific) |
-| `yara` | `password123` | Manager (Seaside Suites) |
-| `bob`, `carol`, … | `password123` | Employee |
+### Site 1 — Bella Napoli (Restaurant, Chicago IL)
 
-> Managers set `is_manager = 1`; all others set `is_manager = 0`.
-> Duplicate first names get a numeric suffix (e.g. `amy2`).
+| Username | Full Name | Role | Role Title | Hourly Rate |
+|----------|-----------|------|------------|-------------|
+| `alice` | Alice Johnson | Manager | General Manager | $24.00 |
+| `bob` | Bob Smith | Server | Lead Server | $14.00 |
+| `carol` | Carol White | Server | Server | $13.50 |
+| `david` | David Brown | Kitchen | Sous Chef | $19.00 |
+| `eve` | Eve Davis | Kitchen | Line Cook | $17.00 |
+| `frank` | Frank Miller | Bar | Head Bartender | $17.50 |
+| `grace` | Grace Wilson | Host | Host / Cashier | $13.00 |
+| `henry` | Henry Moore | Server | Server | $13.50 |
+
+### Site 2 — The Blue Door (Restaurant, Austin TX)
+
+| Username | Full Name | Role | Role Title | Hourly Rate |
+|----------|-----------|------|------------|-------------|
+| `iris` | Iris Taylor | Manager | Restaurant Manager | $23.00 |
+| `jack` | Jack Anderson | Server | Server | $13.50 |
+| `karen` | Karen Thomas | Server | Senior Server | $14.50 |
+| `liam` | Liam Jackson | Kitchen | Prep Cook | $16.00 |
+| `mia` | Mia Robinson | Kitchen | Line Cook | $17.00 |
+| `noah` | Noah Harris | Bar | Bartender | $16.00 |
+| `olivia` | Olivia Martin | Host | Host | $12.50 |
+| `peter` | Peter Clark | Server | Server | $13.00 |
+
+### Site 3 — Grand Pacific Hotel (Hotel, New York NY)
+
+| Username | Full Name | Role | Role Title | Hourly Rate |
+|----------|-----------|------|------------|-------------|
+| `quinn` | Quinn Lewis | Manager | Hotel General Manager | $30.00 |
+| `rachel` | Rachel Scott | Front Desk | Front Desk Agent | $18.00 |
+| `sam` | Sam Turner | Front Desk | Night Auditor | $19.50 |
+| `tina` | Tina Mitchell | Housekeeping | Room Attendant | $16.50 |
+| `uma` | Uma Johnson | Housekeeping | Housekeeping Supervisor | $20.00 |
+| `victor` | Victor Lee | F&B | F&B Attendant | $17.00 |
+| `wendy` | Wendy Chen | Maintenance | Maintenance Technician | $21.00 |
+| `xavier` | Xavier Brown | Front Desk | Front Desk Supervisor | $22.00 |
+
+### Site 4 — Seaside Suites & Spa (Hotel, Miami FL)
+
+| Username | Full Name | Role | Role Title | Hourly Rate |
+|----------|-----------|------|------------|-------------|
+| `yara` | Yara Davis | Manager | Operations Manager | $28.00 |
+| `zach` | Zach Wilson | Front Desk | Front Desk Agent | $17.50 |
+| `amy` | Amy Taylor | Front Desk | Night Auditor | $19.00 |
+| `ben` | Ben Martinez | Housekeeping | Room Attendant | $16.00 |
+| `clara` | Clara Nguyen | Housekeeping | Laundry Attendant | $15.50 |
+| `dan` | Dan Roberts | F&B | Poolside Server | $15.00 |
+| `elena` | Elena Kim | Maintenance | Facilities Technician | $20.50 |
+| `felix` | Felix Garcia | F&B | Banquet Server | $15.50 |
+
+> Managers (`alice`, `iris`, `quinn`, `yara`) have `is_manager = 1`; all others have `is_manager = 0`.
+> Duplicate first names across sites get a numeric suffix (e.g. `amy2`), though none exist in the current seed.
 
 ---
 
