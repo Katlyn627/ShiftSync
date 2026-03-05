@@ -128,7 +128,7 @@ router.post('/login', (req, res) => {
 
   const db = getDb();
   const user = db.prepare(`
-    SELECT u.*, e.name as employee_name, e.role as employee_role
+    SELECT u.*, e.name as employee_name, e.role as employee_role, e.photo_url as employee_photo_url
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
     WHERE u.username = ?
@@ -154,6 +154,7 @@ router.post('/login', (req, res) => {
     isManager: user.is_manager === 1,
     employeeName: user.employee_name,
     employeeRole: user.employee_role,
+    photoUrl: user.employee_photo_url ?? null,
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -213,6 +214,7 @@ router.post('/register', (req, res) => {
     isManager: newUser.is_manager === 1,
     employeeName: employee.name,
     employeeRole: employee.role,
+    photoUrl: employee.photo_url ?? null,
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -257,7 +259,12 @@ router.get('/me', (req, res) => {
   const token = authHeader.slice(7);
   try {
     const payload = jwt.verify(token, JWT_SECRET) as any;
-    res.json({ user: payload });
+    // Fetch fresh employee data (including latest photo_url)
+    const db = getDb();
+    const emp = payload.employeeId
+      ? (db.prepare('SELECT photo_url FROM employees WHERE id = ?').get(payload.employeeId) as any)
+      : null;
+    res.json({ user: { ...payload, photoUrl: emp?.photo_url ?? payload.photoUrl ?? null } });
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
   }

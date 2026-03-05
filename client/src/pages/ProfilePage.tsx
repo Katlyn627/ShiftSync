@@ -5,7 +5,7 @@ import {
   Employee, Availability, TimeOffRequest,
 } from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS } from '../components/ui';
+import { Button, Card, Badge, Input } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -44,6 +44,22 @@ function addDays(days: number): string {
 
 const MAX_PHOTO_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 
+type DayAvailType = 'none' | 'specific' | 'open' | 'unavailable';
+interface DayAvailState {
+  type: DayAvailType;
+  start_time: string;
+  end_time: string;
+  saving: boolean;
+}
+
+function defaultDayAvailState(): Record<number, DayAvailState> {
+  const init: Record<number, DayAvailState> = {};
+  for (let d = 0; d < 7; d++) {
+    init[d] = { type: 'none', start_time: '09:00', end_time: '17:00', saving: false };
+  }
+  return init;
+}
+
 export default function ProfilePage() {
   const { user } = useAuth();
   const isManager = user?.isManager ?? false;
@@ -59,9 +75,8 @@ export default function ProfilePage() {
   const [profileForm, setProfileForm]   = useState({ email: '', phone: '', weekly_hours_max: 40 });
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Availability form
-  const [availForm, setAvailForm] = useState({ day_of_week: 1, start_time: '09:00', end_time: '17:00' });
-  const [savingAvail, setSavingAvail] = useState(false);
+  // Per-day availability state
+  const [dayAvailState, setDayAvailState] = useState<Record<number, DayAvailState>>(defaultDayAvailState);
 
   // Time-off form
   const minTimeOffDate = addDays(14);
@@ -87,9 +102,20 @@ export default function ProfilePage() {
           });
           // Same-role colleagues (excluding self)
           setColleagues(all.filter(e => e.role === me.role && e.id !== empId));
-          // Load availability
+          // Load availability and build per-day state
           const avail = await getAvailability(empId);
           setAvailabilityList(avail);
+          const newDayState = defaultDayAvailState();
+          for (const a of avail) {
+            const type = (a.availability_type as DayAvailType) || 'specific';
+            newDayState[a.day_of_week] = {
+              type,
+              start_time: a.start_time,
+              end_time: a.end_time,
+              saving: false,
+            };
+          }
+          setDayAvailState(newDayState);
         }
       }
       // Load time-off requests
@@ -120,31 +146,30 @@ export default function ProfilePage() {
     }
   };
 
-  const handleAddAvailability = async () => {
+  const handleSaveDayAvailability = async (day: number) => {
     if (!myEmployee) return;
-    setSavingAvail(true);
+    const state = dayAvailState[day];
+    setDayAvailState(prev => ({ ...prev, [day]: { ...prev[day], saving: true } }));
     try {
-      await setAvailability(myEmployee.id, {
-        day_of_week: availForm.day_of_week,
-        start_time: availForm.start_time,
-        end_time: availForm.end_time,
-      });
-      const refreshed = await getAvailability(myEmployee.id);
-      setAvailabilityList(refreshed);
+      if (state.type === 'none') {
+        // Remove the availability entry for this day
+        try { await deleteAvailability(myEmployee.id, day); } catch { /* not found is ok */ }
+        setAvailabilityList(prev => prev.filter(a => a.day_of_week !== day));
+      } else {
+        const saved = await setAvailability(myEmployee.id, {
+          day_of_week: day,
+          availability_type: state.type,
+          ...(state.type === 'specific' ? { start_time: state.start_time, end_time: state.end_time } : {}),
+        });
+        setAvailabilityList(prev => {
+          const filtered = prev.filter(a => a.day_of_week !== day);
+          return [...filtered, saved];
+        });
+      }
     } catch (err: any) {
       alert('Error saving availability: ' + err.message);
     } finally {
-      setSavingAvail(false);
-    }
-  };
-
-  const handleRemoveAvailability = async (dayOfWeek: number) => {
-    if (!myEmployee || !confirm('Remove availability for this day?')) return;
-    try {
-      await deleteAvailability(myEmployee.id, dayOfWeek);
-      setAvailabilityList(prev => prev.filter(a => a.day_of_week !== dayOfWeek));
-    } catch (err: any) {
-      alert('Error removing availability: ' + err.message);
+      setDayAvailState(prev => ({ ...prev, [day]: { ...prev[day], saving: false } }));
     }
   };
 
@@ -408,66 +433,95 @@ export default function ProfilePage() {
           {/* ── Availability ── */}
           <Card className="p-5">
             <h2 className="text-base font-semibold text-foreground">My Availability</h2>
-            <p className="text-xs text-muted-foreground mt-1">Set the days and hours you're available to work. Managers use this when scheduling.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Set your availability for each day. Check <strong>Open all day</strong> to be available any time,
+              or <strong>Unavailable</strong> to mark a day off. Otherwise, set specific hours.
+            </p>
 
-            {availability.length > 0 ? (
-              <div className="mt-3 space-y-2">
-                {availability.map(a => (
-                  <div key={a.day_of_week} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2 text-sm">
-                    <span className="font-medium text-foreground w-28">{DAY_NAMES[a.day_of_week]}</span>
-                    <span className="text-muted-foreground">{a.start_time} – {a.end_time}</span>
-                    <button
-                      className="text-xs text-red-500 hover:text-red-700 transition-colors ml-3"
-                      onClick={() => handleRemoveAvailability(a.day_of_week)}
-                      title="Remove"
-                    >
-                      Remove
-                    </button>
+            <div className="mt-4 space-y-2">
+              {DAY_NAMES.map((dayName, dayIndex) => {
+                const state = dayAvailState[dayIndex];
+                return (
+                  <div key={dayIndex} className="flex flex-wrap items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 border border-border">
+                    <span className="text-sm font-medium text-foreground w-24 shrink-0">{dayName}</span>
+
+                    {/* Open all day checkbox */}
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={state.type === 'open'}
+                        onChange={e => {
+                          const newType: DayAvailType = e.target.checked ? 'open' : 'none';
+                          setDayAvailState(prev => ({ ...prev, [dayIndex]: { ...prev[dayIndex], type: newType } }));
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 accent-emerald-600"
+                      />
+                      <span className="text-sm text-foreground">Open all day</span>
+                    </label>
+
+                    {/* Unavailable checkbox */}
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={state.type === 'unavailable'}
+                        onChange={e => {
+                          const newType: DayAvailType = e.target.checked ? 'unavailable' : 'none';
+                          setDayAvailState(prev => ({ ...prev, [dayIndex]: { ...prev[dayIndex], type: newType } }));
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 accent-red-500"
+                      />
+                      <span className="text-sm text-foreground">Unavailable</span>
+                    </label>
+
+                    {/* Specific time inputs */}
+                    {(state.type === 'none' || state.type === 'specific') && (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          label=""
+                          type="time"
+                          className="w-28"
+                          value={state.start_time}
+                          onChange={e => setDayAvailState(prev => ({
+                            ...prev,
+                            [dayIndex]: { ...prev[dayIndex], type: 'specific', start_time: e.target.value },
+                          }))}
+                        />
+                        <span className="text-muted-foreground text-sm">–</span>
+                        <Input
+                          label=""
+                          type="time"
+                          className="w-28"
+                          value={state.end_time}
+                          onChange={e => setDayAvailState(prev => ({
+                            ...prev,
+                            [dayIndex]: { ...prev[dayIndex], type: 'specific', end_time: e.target.value },
+                          }))}
+                        />
+                      </div>
+                    )}
+
+                    {/* Status label */}
+                    {state.type === 'open' && (
+                      <span className="text-xs text-emerald-600 font-medium">All day available</span>
+                    )}
+                    {state.type === 'unavailable' && (
+                      <span className="text-xs text-red-600 font-medium">Not available</span>
+                    )}
+
+                    <div className="ml-auto">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSaveDayAvailability(dayIndex)}
+                        disabled={state.saving}
+                        isLoading={state.saving}
+                      >
+                        Save
+                      </Button>
+                    </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-muted-foreground italic">No availability rules set. Add days below.</p>
-            )}
-
-            <div className="mt-4 pt-4 border-t border-border">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Add / Update Availability</h3>
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground">Day</label>
-                  <select
-                    className={NATIVE_SELECT_CLASS}
-                    value={availForm.day_of_week}
-                    onChange={e => setAvailForm(f => ({ ...f, day_of_week: Number(e.target.value) }))}
-                  >
-                    {DAY_NAMES.map((day, idx) => (
-                      <option key={idx} value={idx}>{day}</option>
-                    ))}
-                  </select>
-                </div>
-                <Input
-                  label="From"
-                  type="time"
-                  value={availForm.start_time}
-                  onChange={e => setAvailForm(f => ({ ...f, start_time: e.target.value }))}
-                />
-                <Input
-                  label="To"
-                  type="time"
-                  value={availForm.end_time}
-                  onChange={e => setAvailForm(f => ({ ...f, end_time: e.target.value }))}
-                />
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="self-end"
-                  onClick={handleAddAvailability}
-                  disabled={savingAvail}
-                  isLoading={savingAvail}
-                >
-                  Save
-                </Button>
-              </div>
+                );
+              })}
             </div>
           </Card>
 

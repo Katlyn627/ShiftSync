@@ -36,6 +36,7 @@ function initSchema(db: Database.Database): void {
       day_of_week INTEGER NOT NULL, -- 0=Sun, 1=Mon, ..., 6=Sat
       start_time TEXT NOT NULL,     -- HH:MM
       end_time TEXT NOT NULL,       -- HH:MM
+      availability_type TEXT NOT NULL DEFAULT 'specific', -- specific | open | unavailable
       UNIQUE(employee_id, day_of_week)
     );
 
@@ -135,6 +136,12 @@ function initSchema(db: Database.Database): void {
   }
   if (!empCols.some(c => c.name === 'photo_url')) {
     db.exec("ALTER TABLE employees ADD COLUMN photo_url TEXT DEFAULT NULL");
+  }
+
+  // Migrate availability table: add availability_type column if absent
+  const availCols = db.pragma('table_info(availability)') as { name: string }[];
+  if (!availCols.some(c => c.name === 'availability_type')) {
+    db.exec("ALTER TABLE availability ADD COLUMN availability_type TEXT NOT NULL DEFAULT 'specific'");
   }
 }
 

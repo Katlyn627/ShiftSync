@@ -6,6 +6,7 @@ import SchedulePage from './pages/SchedulePage';
 import EmployeesPage from './pages/EmployeesPage';
 import SwapsPage from './pages/SwapsPage';
 import ProfilePage from './pages/ProfilePage';
+import TimeOffApprovalsPage from './pages/TimeOffApprovalsPage';
 import { Badge } from './components/ui';
 import type { BadgeVariant } from './components/ui';
 
@@ -67,6 +68,16 @@ function ProfileIcon() {
   );
 }
 
+function TimeOffIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="14" height="13" rx="2" />
+      <path d="M7 2v4M13 2v4M3 9h14" />
+      <path d="M7 13l2 2 4-4" />
+    </svg>
+  );
+}
+
 export default function App() {
   const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
@@ -94,6 +105,7 @@ export default function App() {
     ...(user.isManager ? [{ to: '/employees', label: 'Employees', icon: <EmployeesIcon /> }] : []),
     { to: '/swaps',      label: 'Shift Swaps', icon: <SwapIcon /> },
     { to: '/profile',   label: 'My Profile',  icon: <ProfileIcon /> },
+    ...(user.isManager ? [{ to: '/time-off-approvals', label: 'Time-Off Approvals', icon: <TimeOffIcon /> }] : []),
   ];
 
   const initials = (user.employeeName || user.username)
@@ -151,10 +163,16 @@ export default function App() {
             </div>
             <button
               onClick={() => navigate('/profile')}
-              className="w-8 h-8 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center border border-primary/20 hover:bg-primary/20 transition-colors"
+              className="w-8 h-8 rounded-full overflow-hidden border border-primary/20 hover:opacity-90 transition-opacity shrink-0"
               title="View profile"
             >
-              {initials}
+              {user.photoUrl ? (
+                <img src={user.photoUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">
+                  {initials}
+                </div>
+              )}
             </button>
             <button
               onClick={logout}
@@ -176,6 +194,7 @@ export default function App() {
           {user.isManager && <Route path="/employees" element={<EmployeesPage />} />}
           <Route path="/swaps"      element={<SwapsPage />} />
           <Route path="/profile"    element={<ProfilePage />} />
+          {user.isManager && <Route path="/time-off-approvals" element={<TimeOffApprovalsPage />} />}
         </Routes>
       </main>
 

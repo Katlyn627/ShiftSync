@@ -36,7 +36,7 @@ export const deleteEmployee = (id: number) =>
 
 export const getAvailability = (empId: number) =>
   request<Availability[]>(`/employees/${empId}/availability`);
-export const setAvailability = (empId: number, data: Omit<Availability, 'id' | 'employee_id'>) =>
+export const setAvailability = (empId: number, data: { day_of_week: number; availability_type: string; start_time?: string; end_time?: string }) =>
   request<Availability>(`/employees/${empId}/availability`, { method: 'POST', body: JSON.stringify(data) });
 export const deleteAvailability = (empId: number, dayOfWeek: number) =>
   request<{ success: boolean }>(`/employees/${empId}/availability/${dayOfWeek}`, { method: 'DELETE' });
@@ -120,6 +120,7 @@ export interface Availability {
   day_of_week: number;
   start_time: string;
   end_time: string;
+  availability_type: 'specific' | 'open' | 'unavailable';
 }
 
 export interface Schedule {
