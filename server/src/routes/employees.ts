@@ -90,13 +90,32 @@ router.post('/:id/availability', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'You can only update your own availability' });
   }
 
-  const { day_of_week, start_time, end_time } = req.body;
-  if (day_of_week === undefined || !start_time || !end_time) {
-    return res.status(400).json({ error: 'day_of_week, start_time, end_time are required' });
+  const { day_of_week, start_time, end_time, availability_type } = req.body;
+  if (day_of_week === undefined) {
+    return res.status(400).json({ error: 'day_of_week is required' });
   }
+
+  const type = availability_type ?? 'specific';
+
+  // For 'open', store full-day times; for 'unavailable', store sentinel times;
+  // for 'specific', require explicit start/end times.
+  let resolvedStart = start_time;
+  let resolvedEnd = end_time;
+  if (type === 'open') {
+    resolvedStart = '00:00';
+    resolvedEnd = '23:59';
+  } else if (type === 'unavailable') {
+    resolvedStart = '00:00';
+    resolvedEnd = '00:00';
+  } else {
+    if (!start_time || !end_time) {
+      return res.status(400).json({ error: 'start_time and end_time are required for specific availability' });
+    }
+  }
+
   db.prepare(
-    'INSERT OR REPLACE INTO availability (employee_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)'
-  ).run(req.params.id, day_of_week, start_time, end_time);
+    'INSERT OR REPLACE INTO availability (employee_id, day_of_week, start_time, end_time, availability_type) VALUES (?, ?, ?, ?, ?)'
+  ).run(req.params.id, day_of_week, resolvedStart, resolvedEnd, type);
   const avail = db.prepare('SELECT * FROM availability WHERE employee_id = ? AND day_of_week = ?').get(req.params.id, day_of_week);
   res.status(201).json(avail);
 });

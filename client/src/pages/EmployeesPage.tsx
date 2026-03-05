@@ -175,8 +175,14 @@ export default function EmployeesPage() {
               <tr key={emp.id} className="hover:bg-muted/20 transition-colors">
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${AVATAR_BG[emp.role] ?? 'bg-muted text-muted-foreground'}`}>
-                      {initials(emp.name)}
+                    <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
+                      {emp.photo_url ? (
+                        <img src={emp.photo_url} alt={emp.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className={`w-full h-full flex items-center justify-center text-xs font-bold ${AVATAR_BG[emp.role] ?? 'bg-muted text-muted-foreground'}`}>
+                          {initials(emp.name)}
+                        </div>
+                      )}
                     </div>
                     <span className="font-medium text-foreground">{emp.name}</span>
                   </div>

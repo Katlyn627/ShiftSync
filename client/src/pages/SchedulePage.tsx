@@ -537,8 +537,21 @@ export default function SchedulePage() {
                     title={isAtMaxHours ? `${employee.name} is at their weekly hours limit` : undefined}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-foreground truncate">{employee.name}</p>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-full overflow-hidden shrink-0">
+                          {employee.photo_url ? (
+                            <img src={employee.photo_url} alt={employee.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className={`w-full h-full flex items-center justify-center text-[10px] font-bold ${
+                              { Manager: 'bg-violet-100 text-violet-700', Server: 'bg-blue-100 text-blue-700', Kitchen: 'bg-orange-100 text-orange-700', Bar: 'bg-emerald-100 text-emerald-700', Host: 'bg-pink-100 text-pink-700' }[employee.role] ?? 'bg-muted text-muted-foreground'
+                            }`}>
+                              {employee.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-sm font-semibold text-foreground truncate">{employee.name}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
                         {isAtMaxHours && <span className="text-[9px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">MAX</span>}
                         <Badge variant={roleVariant(employee.role)}>{employee.role}</Badge>
                       </div>

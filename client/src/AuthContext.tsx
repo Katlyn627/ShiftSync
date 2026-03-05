@@ -7,6 +7,7 @@ export interface AuthUser {
   isManager: boolean;
   employeeName: string | null;
   employeeRole: string | null;
+  photoUrl: string | null;
 }
 
 interface AuthContextValue {

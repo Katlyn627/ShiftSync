@@ -9,29 +9,29 @@ export function seedDemoData(): void {
 
   // Seed employees
   const employees = [
-    { name: 'Alice Johnson', role: 'Manager', hourly_rate: 22.0, weekly_hours_max: 45 },
-    { name: 'Bob Smith', role: 'Server', hourly_rate: 14.0, weekly_hours_max: 40 },
-    { name: 'Carol White', role: 'Server', hourly_rate: 14.0, weekly_hours_max: 35 },
-    { name: 'David Brown', role: 'Server', hourly_rate: 15.0, weekly_hours_max: 40 },
-    { name: 'Eve Davis', role: 'Kitchen', hourly_rate: 17.0, weekly_hours_max: 40 },
-    { name: 'Frank Miller', role: 'Kitchen', hourly_rate: 16.0, weekly_hours_max: 40 },
-    { name: 'Grace Wilson', role: 'Kitchen', hourly_rate: 18.0, weekly_hours_max: 45 },
-    { name: 'Henry Moore', role: 'Bar', hourly_rate: 16.0, weekly_hours_max: 40 },
-    { name: 'Iris Taylor', role: 'Bar', hourly_rate: 15.0, weekly_hours_max: 35 },
-    { name: 'Jack Anderson', role: 'Host', hourly_rate: 13.0, weekly_hours_max: 30 },
-    { name: 'Karen Thomas', role: 'Server', hourly_rate: 14.5, weekly_hours_max: 40 },
-    { name: 'Liam Jackson', role: 'Kitchen', hourly_rate: 17.5, weekly_hours_max: 40 },
-    { name: 'Mia Robinson', role: 'Manager', hourly_rate: 21.0, weekly_hours_max: 45 },
-    { name: 'Noah Harris', role: 'Manager', hourly_rate: 20.5, weekly_hours_max: 40 },
-    { name: 'Olivia Martin', role: 'Bar', hourly_rate: 16.5, weekly_hours_max: 40 },
-    { name: 'Peter Clark', role: 'Host', hourly_rate: 13.5, weekly_hours_max: 35 },
-    { name: 'Quinn Lewis', role: 'Host', hourly_rate: 13.0, weekly_hours_max: 30 },
+    { name: 'Alice Johnson', role: 'Manager', hourly_rate: 22.0, weekly_hours_max: 45, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_alice' },
+    { name: 'Bob Smith', role: 'Server', hourly_rate: 14.0, weekly_hours_max: 40, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_bob' },
+    { name: 'Carol White', role: 'Server', hourly_rate: 14.0, weekly_hours_max: 35, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_carol' },
+    { name: 'David Brown', role: 'Server', hourly_rate: 15.0, weekly_hours_max: 40, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_david' },
+    { name: 'Eve Davis', role: 'Kitchen', hourly_rate: 17.0, weekly_hours_max: 40, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_eve' },
+    { name: 'Frank Miller', role: 'Kitchen', hourly_rate: 16.0, weekly_hours_max: 40, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_frank' },
+    { name: 'Grace Wilson', role: 'Kitchen', hourly_rate: 18.0, weekly_hours_max: 45, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_grace' },
+    { name: 'Henry Moore', role: 'Bar', hourly_rate: 16.0, weekly_hours_max: 40, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_henry' },
+    { name: 'Iris Taylor', role: 'Bar', hourly_rate: 15.0, weekly_hours_max: 35, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_iris' },
+    { name: 'Jack Anderson', role: 'Host', hourly_rate: 13.0, weekly_hours_max: 30, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_jack' },
+    { name: 'Karen Thomas', role: 'Server', hourly_rate: 14.5, weekly_hours_max: 40, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_karen' },
+    { name: 'Liam Jackson', role: 'Kitchen', hourly_rate: 17.5, weekly_hours_max: 40, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_liam' },
+    { name: 'Mia Robinson', role: 'Manager', hourly_rate: 21.0, weekly_hours_max: 45, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_mia' },
+    { name: 'Noah Harris', role: 'Manager', hourly_rate: 20.5, weekly_hours_max: 40, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_noah' },
+    { name: 'Olivia Martin', role: 'Bar', hourly_rate: 16.5, weekly_hours_max: 40, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_olivia' },
+    { name: 'Peter Clark', role: 'Host', hourly_rate: 13.5, weekly_hours_max: 35, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_peter' },
+    { name: 'Quinn Lewis', role: 'Host', hourly_rate: 13.0, weekly_hours_max: 30, photo_url: 'https://i.pravatar.cc/150?u=shiftsync_quinn' },
   ];
 
-  const insertEmp = db.prepare('INSERT INTO employees (name, role, hourly_rate, weekly_hours_max) VALUES (?, ?, ?, ?)');
+  const insertEmp = db.prepare('INSERT INTO employees (name, role, hourly_rate, weekly_hours_max, photo_url) VALUES (?, ?, ?, ?, ?)');
   
   for (const emp of employees) {
-    insertEmp.run(emp.name, emp.role, emp.hourly_rate, emp.weekly_hours_max);
+    insertEmp.run(emp.name, emp.role, emp.hourly_rate, emp.weekly_hours_max, emp.photo_url);
   }
 
   // Set availability for all employees (Mon-Sun, broad windows)
