@@ -306,7 +306,7 @@ export default function SchedulePage() {
   const weekDates = selectedSchedule
     ? Array.from({ length: 7 }, (_, i) => {
         const d = new Date(selectedSchedule.week_start);
-        d.setDate(d.getDate() + i);
+        d.setUTCDate(d.getUTCDate() + i);
         return d.toISOString().split('T')[0];
       })
     : [];

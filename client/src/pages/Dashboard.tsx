@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import {
   getSchedules, getLaborCost, getBurnoutRisks, getStaffingSuggestions,
-  getEmployees, getScheduleShifts, getAvailability,
-  Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee, Availability
+  getEmployees, getScheduleShifts, getAvailability, getEmployeeStats,
+  Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee, Availability, EmployeeStats
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Card, Badge, Modal, NATIVE_SELECT_CLASS } from '../components/ui';
@@ -144,6 +144,7 @@ export default function Dashboard() {
   const [scheduleShifts, setScheduleShifts]         = useState<ShiftWithEmployee[]>([]);
   const [selectedEmployee, setSelectedEmployee]     = useState<Employee | null>(null);
   const [employeeAvailability, setEmployeeAvailability] = useState<Availability[]>([]);
+  const [selectedEmployeeStats, setSelectedEmployeeStats] = useState<EmployeeStats | null>(null);
 
   useEffect(() => {
     getSchedules().then(s => {
@@ -155,9 +156,14 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!selectedEmployee) { setEmployeeAvailability([]); return; }
+    if (!selectedEmployee) { setEmployeeAvailability([]); setSelectedEmployeeStats(null); return; }
     getAvailability(selectedEmployee.id).then(setEmployeeAvailability).catch(() => setEmployeeAvailability([]));
-  }, [selectedEmployee]);
+    if (selectedId) {
+      getEmployeeStats(selectedEmployee.id, selectedId)
+        .then(setSelectedEmployeeStats)
+        .catch(() => setSelectedEmployeeStats(null));
+    }
+  }, [selectedEmployee, selectedId]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -312,10 +318,10 @@ export default function Dashboard() {
         const burnoutRisk  = burnout.find(b => b.employee_id === emp.id);
         const turnoverRisk = getTurnoverRisk(burnoutRisk);
         const empShifts    = scheduleShifts.filter(s => s.employee_id === emp.id).sort((a, b) => a.date.localeCompare(b.date));
-        const empCost      = calculateEmployeeLaborCost(empShifts);
-        const totalHours   = calculateTotalHours(empShifts);
-        const overtimeHours = Math.max(0, totalHours - 40);
-        const avgHoursPerShift = empShifts.length > 0 ? totalHours / empShifts.length : 0;
+        const empCost      = selectedEmployeeStats?.labor_cost ?? calculateEmployeeLaborCost(empShifts);
+        const totalHours   = selectedEmployeeStats?.total_hours ?? calculateTotalHours(empShifts);
+        const overtimeHours = selectedEmployeeStats?.overtime_hours ?? Math.max(0, totalHours - 40);
+        const avgHoursPerShift = selectedEmployeeStats?.avg_hours_per_shift ?? (empShifts.length > 0 ? totalHours / empShifts.length : 0);
         const costPct      = laborCost && laborCost.projected_cost > 0 ? (empCost / laborCost.projected_cost) * 100 : 0;
         return (
           <Modal
