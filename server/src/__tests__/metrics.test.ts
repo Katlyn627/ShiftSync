@@ -63,6 +63,8 @@ test('getProfitabilityMetrics returns correct structure', () => {
   expect(typeof metrics.avg_check_per_head).toBe('number');
   expect(Array.isArray(metrics.sales_by_daypart)).toBe(true);
   expect(metrics.sales_by_daypart.length).toBe(4);
+  expect(Array.isArray(metrics.sales_by_day)).toBe(true);
+  expect(metrics.sales_by_day.length).toBe(7);
 });
 
 test('prime_cost_pct is non-negative and reasonable', () => {
@@ -118,4 +120,47 @@ test('total_labor_cost matches shifts data', () => {
 
 test('throws for nonexistent schedule', () => {
   expect(() => getProfitabilityMetrics(9999)).toThrow();
+});
+
+test('sales_by_day contains 7 entries with correct structure', () => {
+  const metrics = getProfitabilityMetrics(1);
+  expect(metrics.sales_by_day.length).toBe(7);
+  for (const day of metrics.sales_by_day) {
+    expect(typeof day.date).toBe('string');
+    expect(typeof day.day_name).toBe('string');
+    expect(typeof day.expected_revenue).toBe('number');
+    expect(typeof day.expected_covers).toBe('number');
+    expect(typeof day.labor_cost).toBe('number');
+    expect(typeof day.revenue_pct).toBe('number');
+    expect(day.expected_revenue).toBeGreaterThanOrEqual(0);
+    expect(day.labor_cost).toBeGreaterThanOrEqual(0);
+  }
+});
+
+test('sales_by_day revenue values sum to total expected revenue', () => {
+  const metrics = getProfitabilityMetrics(1);
+  const totalRevenue = metrics.sales_by_day.reduce((sum, d) => sum + d.expected_revenue, 0);
+  expect(totalRevenue).toBeCloseTo(metrics.total_expected_revenue, 1);
+});
+
+test('sales_by_day revenue_pct values sum to approximately 1', () => {
+  const metrics = getProfitabilityMetrics(1);
+  const totalPct = metrics.sales_by_day.reduce((sum, d) => sum + d.revenue_pct, 0);
+  expect(totalPct).toBeCloseTo(1, 1);
+});
+
+test('sales_by_day labor_cost reflects actual shifts on each date', () => {
+  const metrics = getProfitabilityMetrics(1);
+  // Alice works 2025-01-06 (Monday): 8h × $20 = $160
+  const monday = metrics.sales_by_day.find(d => d.date === '2025-01-06');
+  expect(monday).toBeDefined();
+  expect(monday!.labor_cost).toBeCloseTo(160, 1);
+  // Bob works 2025-01-07 (Tuesday): 8h × $18 = $144
+  const tuesday = metrics.sales_by_day.find(d => d.date === '2025-01-07');
+  expect(tuesday).toBeDefined();
+  expect(tuesday!.labor_cost).toBeCloseTo(144, 1);
+  // A day with no shifts should have labor_cost = 0
+  const wednesday = metrics.sales_by_day.find(d => d.date === '2025-01-08');
+  expect(wednesday).toBeDefined();
+  expect(wednesday!.labor_cost).toBe(0);
 });

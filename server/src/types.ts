@@ -141,6 +141,15 @@ export interface DaypartRevenue {
   covers: number;
 }
 
+export interface DayRevenue {
+  date: string;          // YYYY-MM-DD
+  day_name: string;      // 'Mon', 'Tue', etc.
+  expected_revenue: number;
+  expected_covers: number;
+  labor_cost: number;
+  revenue_pct: number;   // this day's share of total weekly revenue (0–1)
+}
+
 export interface ProfitabilityMetrics {
   schedule_id: number;
   week_start: string;
@@ -165,7 +174,9 @@ export interface ProfitabilityMetrics {
   table_turnover_rate: number;    // covers / tables per service period
   // Average Check per Head
   avg_check_per_head: number;     // revenue / covers
-  // Sales by Daypart
+  // Sales by Day (actual per-day data from forecasts)
+  sales_by_day: DayRevenue[];
+  // Sales by Daypart (time-of-day distribution)
   sales_by_daypart: DaypartRevenue[];
   // Employee Turnover Risk
   high_turnover_risk_count: number;

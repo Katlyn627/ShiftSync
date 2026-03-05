@@ -1,5 +1,5 @@
 import { getDb } from './db';
-import { ProfitabilityMetrics, RestaurantSettings, DaypartRevenue } from './types';
+import { ProfitabilityMetrics, RestaurantSettings, DaypartRevenue, DayRevenue } from './types';
 import { getLaborCostSummary } from './laborCost';
 import { calculateBurnoutRisks } from './burnout';
 
@@ -115,14 +115,43 @@ export function getProfitabilityMetrics(scheduleId: number): ProfitabilityMetric
   // Average check per head
   const avgCheckPerHead = totalExpectedCovers > 0 ? totalExpectedRevenue / totalExpectedCovers : 0;
 
-  // Sales by Daypart — distribute labor cost proportionally across dayparts
+  // Shifts with date included for per-day calculations
   const shifts = db.prepare(`
-    SELECT s.start_time, s.end_time, s.role, e.hourly_rate
+    SELECT s.date, s.start_time, s.end_time, s.role, e.hourly_rate
     FROM shifts s
     JOIN employees e ON s.employee_id = e.id
     WHERE s.schedule_id = ? AND s.status != 'cancelled'
   `).all(scheduleId) as any[];
 
+  // Sales by Day — actual per-day revenue from forecasts with per-day labor cost
+  const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const forecastsByDate = new Map<string, { expected_revenue: number; expected_covers: number }>(
+    weekDates.map(date => {
+      const f = db.prepare('SELECT expected_revenue, expected_covers FROM forecasts WHERE date = ?').get(date) as any;
+      return [date, f ?? { expected_revenue: 0, expected_covers: 0 }];
+    })
+  );
+
+  const salesByDay: DayRevenue[] = weekDates.map(date => {
+    const forecast = forecastsByDate.get(date) ?? { expected_revenue: 0, expected_covers: 0 };
+    const dayShifts = shifts.filter((s: any) => s.date === date);
+    const dayLaborCost = dayShifts.reduce((sum: number, s: any) => sum + shiftHours(s.start_time, s.end_time) * s.hourly_rate, 0);
+    // Parse date in UTC to avoid timezone-induced day-of-week shifts
+    const [year, month, day] = date.split('-').map(Number);
+    const d = new Date(Date.UTC(year, month - 1, day));
+    return {
+      date,
+      day_name: DAY_ABBR[d.getUTCDay()],
+      expected_revenue: forecast.expected_revenue,
+      expected_covers:  forecast.expected_covers,
+      labor_cost:       Math.round(dayLaborCost * 100) / 100,
+      revenue_pct:      totalExpectedRevenue > 0
+        ? Math.round((forecast.expected_revenue / totalExpectedRevenue) * 1000) / 1000
+        : 0,
+    };
+  });
+
+  // Sales by Daypart — distribute labor cost proportionally across dayparts
   const salesByDaypart: DaypartRevenue[] = DAYPARTS.map(dp => {
     const dpStartMin = parseMinutes(dp.start);
     let dpEndMin = parseMinutes(dp.end);
@@ -181,6 +210,7 @@ export function getProfitabilityMetrics(scheduleId: number): ProfitabilityMetric
     revpash:                  Math.round(revpash * 100) / 100,
     table_turnover_rate:      Math.round(tableTurnoverRate * 10) / 10,
     avg_check_per_head:       Math.round(avgCheckPerHead * 100) / 100,
+    sales_by_day:             salesByDay,
     sales_by_daypart:         salesByDaypart,
     high_turnover_risk_count: highTurnoverCount,
     turnover_risk_pct:        Math.round(turnoverRiskPct * 10) / 10,
