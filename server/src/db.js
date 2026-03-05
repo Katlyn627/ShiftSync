@@ -1,9 +1,21 @@
+import { MongoClient, ServerApiVersion } from 'mongodb';
 import mongoose from 'mongoose';
 
 let connected = false;
+let mongoClient = null;
 
 export function isConnected() {
   return connected;
+}
+
+/**
+ * Returns the native MongoClient instance once connectDb() has succeeded,
+ * or null if called before a successful connection.
+ * Useful for operations that require the low-level driver (e.g. aggregations
+ * that use Atlas-specific commands or the Stable API).
+ */
+export function getMongoClient() {
+  return mongoClient;
 }
 
 /**
@@ -65,9 +77,34 @@ export async function connectDb({ retries = 5, retryDelayMs = 5000 } = {}) {
   if (connected) return;
   const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/shiftsync';
 
+  // Use the MongoDB Stable API (ServerApiVersion.v1) so that Atlas commands
+  // behave consistently across server upgrades.  The native MongoClient is
+  // created first; Mongoose then reuses the same URI and options.
+  const clientOptions = {
+    serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true,
+    },
+  };
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      await mongoose.connect(uri);
+      // Connect the native driver client.
+      const client = new MongoClient(uri, clientOptions);
+      await client.connect();
+
+      // Connect Mongoose using the same URI and serverApi options so that
+      // model-level operations also run under the Stable API.
+      // If Mongoose fails, close the native client to avoid a resource leak.
+      try {
+        await mongoose.connect(uri, clientOptions);
+      } catch (mongooseErr) {
+        await client.close();
+        throw mongooseErr;
+      }
+
+      mongoClient = client;
       connected = true;
       console.log('Connected to MongoDB:', uri.replace(/\/\/.*@/, '//***@'));
       return;
@@ -88,6 +125,10 @@ export async function connectDb({ retries = 5, retryDelayMs = 5000 } = {}) {
 export async function closeDb() {
   if (connected) {
     await mongoose.connection.close();
+    if (mongoClient) {
+      await mongoClient.close();
+      mongoClient = null;
+    }
     connected = false;
   }
 }
