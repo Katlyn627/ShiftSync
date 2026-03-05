@@ -157,6 +157,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!selectedEmployee) { setEmployeeAvailability([]); setSelectedEmployeeStats(null); return; }
+    setSelectedEmployeeStats(null);
     getAvailability(selectedEmployee.id).then(setEmployeeAvailability).catch(() => setEmployeeAvailability([]));
     if (selectedId) {
       getEmployeeStats(selectedEmployee.id, selectedId)
@@ -343,8 +344,8 @@ export default function Dashboard() {
                     <Badge variant={ROLE_BADGE_VARIANT[emp.role] ?? 'default'}>{emp.role}</Badge>
                   </div>
                   <div className="flex flex-wrap gap-4 mt-1 text-sm text-muted-foreground">
-                    <span>${emp.hourly_rate.toFixed(2)}/hr</span>
-                    <span>Max {emp.weekly_hours_max}h/wk</span>
+                    <span>${(emp.hourly_rate ?? 0).toFixed(2)}/hr</span>
+                    <span>Max {(emp.weekly_hours_max ?? 0)}h/wk</span>
                     {emp.email && <span>{emp.email}</span>}
                     {emp.phone && <span>{emp.phone}</span>}
                   </div>
@@ -360,7 +361,7 @@ export default function Dashboard() {
                 <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
                   <p className="text-xs text-muted-foreground mb-1">Total Hours</p>
                   <p className="text-xl font-bold text-foreground">{totalHours.toFixed(1)}</p>
-                  <p className="text-[10px] text-muted-foreground">of {emp.weekly_hours_max}h max</p>
+                  <p className="text-[10px] text-muted-foreground">of {(emp.weekly_hours_max ?? 0)}h max</p>
                 </div>
                 <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
                   <p className="text-xs text-muted-foreground mb-1">Labor Cost</p>
@@ -382,10 +383,10 @@ export default function Dashboard() {
                 </div>
                 <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
                   <p className="text-xs text-muted-foreground mb-1">Remaining Hrs</p>
-                  <p className={`text-xl font-bold ${emp.weekly_hours_max - totalHours < 0 ? 'text-red-500' : 'text-foreground'}`}>
-                    {Math.max(0, emp.weekly_hours_max - totalHours).toFixed(1)}
+                  <p className={`text-xl font-bold ${(emp.weekly_hours_max ?? 0) - totalHours < 0 ? 'text-red-500' : 'text-foreground'}`}>
+                    {Math.max(0, (emp.weekly_hours_max ?? 0) - totalHours).toFixed(1)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">of {emp.weekly_hours_max}h max</p>
+                  <p className="text-[10px] text-muted-foreground">of {(emp.weekly_hours_max ?? 0)}h max</p>
                 </div>
               </div>
 

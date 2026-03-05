@@ -184,8 +184,8 @@ export default function EmployeesPage() {
                 <td className="px-5 py-3">
                   <Badge variant={roleVariant(emp.role)}>{emp.role}</Badge>
                 </td>
-                <td className="px-5 py-3 text-right text-foreground font-medium">${emp.hourly_rate.toFixed(2)}</td>
-                <td className="px-5 py-3 text-right text-muted-foreground">{emp.weekly_hours_max}h</td>
+                <td className="px-5 py-3 text-right text-foreground font-medium">${(emp.hourly_rate ?? 0).toFixed(2)}</td>
+                <td className="px-5 py-3 text-right text-muted-foreground">{(emp.weekly_hours_max ?? 0)}h</td>
                 <td className="px-5 py-3 text-right">
                   <Button variant="ghost" size="sm" onClick={() => handleEdit(emp)} className="mr-1">
                     Edit
