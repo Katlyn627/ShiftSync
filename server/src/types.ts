@@ -140,3 +140,31 @@ export interface ProfitabilityMetrics {
   high_turnover_risk_count: number;
   turnover_risk_pct: number;       // high-risk employees / total scheduled
 }
+
+export interface StandbyAssignment {
+  id: number;
+  schedule_id: number;
+  employee_id: number;
+  employee_name: string;
+  date: string;
+  role: string;
+  created_at: string;
+}
+
+export interface DailyCoverageReport {
+  date: string;
+  day_of_week: number;
+  expected_revenue: number;
+  scheduled_count: number;
+  standby_count: number;
+  standbys: StandbyAssignment[];
+  coverage_status: 'good' | 'at_risk' | 'critical';
+}
+
+export interface ScheduleCoverageReport {
+  schedule_id: number;
+  week_start: string;
+  days: DailyCoverageReport[];
+  total_standby_count: number;
+  days_at_risk: number;
+}

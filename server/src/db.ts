@@ -106,6 +106,16 @@ function initSchema(db: Database.Database): void {
       target_labor_pct REAL NOT NULL DEFAULT 30.0,
       operating_hours_per_day REAL NOT NULL DEFAULT 12.0
     );
+
+    CREATE TABLE IF NOT EXISTS standby_assignments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      schedule_id INTEGER NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      date TEXT NOT NULL,           -- YYYY-MM-DD
+      role TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(schedule_id, employee_id, date)
+    );
   `);
 
   // Migrate existing databases: add google_id column if absent
