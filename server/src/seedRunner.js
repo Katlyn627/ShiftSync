@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-import { connectDb, closeDb } from './db.js';
+import { connectDb, closeDb, buildConnectionErrorMessage } from './db.js';
 import { seedDemoData } from './seed.js';
 
 console.log('Connecting to MongoDB...');
@@ -20,6 +20,6 @@ connectDb()
   })
   .then(() => process.exit(0))
   .catch(err => {
-    console.error('Seed failed:', err.message);
+    console.error(buildConnectionErrorMessage(err));
     process.exit(1);
   });
