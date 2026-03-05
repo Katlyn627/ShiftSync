@@ -3,6 +3,7 @@
     "build": "npm run build --prefix client",
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
     "start": "npm run start --prefix server",
+    "seed:mongodb": "npm run seed:mongodb --prefix server",
     "test": "npm run test --prefix server && npm run test --prefix client"
   },
   "devDependencies": {
