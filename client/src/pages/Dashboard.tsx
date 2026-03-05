@@ -273,7 +273,7 @@ export default function Dashboard() {
             <h2 className="text-sm font-semibold text-foreground">Employee Overview</h2>
             <p className="text-xs text-muted-foreground mt-0.5">Click an employee to view their stats, schedule, labor cost, burnout &amp; turnover risk.</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[clamp(200px,40vh,420px)] overflow-y-auto pr-1" tabIndex={0}>
             {employees.map(emp => {
               const burnoutRisk = burnout.find(b => b.employee_id === emp.id);
               const empShifts   = scheduleShifts.filter(s => s.employee_id === emp.id);
