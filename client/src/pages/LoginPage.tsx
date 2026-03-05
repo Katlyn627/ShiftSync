@@ -1,16 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
-import { Button, Input, Badge } from '../components/ui';
-import type { BadgeVariant } from '../components/ui';
-
-const DEMO_ACCOUNTS: { username: string; role: string; variant: BadgeVariant }[] = [
-  { username: 'alice',  role: 'Manager', variant: 'manager' },
-  { username: 'bob',    role: 'Server',  variant: 'server'  },
-  { username: 'carol',  role: 'Server',  variant: 'server'  },
-  { username: 'eve',    role: 'Kitchen', variant: 'kitchen' },
-  { username: 'henry',  role: 'Bar',     variant: 'bar'     },
-  { username: 'jack',   role: 'Host',    variant: 'host'    },
-];
+import { Button, Input } from '../components/ui';
 
 export default function LoginPage() {
   const { login, loginWithToken, register } = useAuth();
@@ -63,13 +53,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fillDemo = (u: string) => {
-    setUsername(u);
-    setPassword('password123');
-    setError('');
-    setTab('login');
   };
 
   const handleGoogleLogin = () => {
@@ -221,34 +204,6 @@ export default function LoginPage() {
             </>
           )}
         </div>
-
-        {/* ── Demo Credentials (only shown on login tab) ── */}
-        {tab === 'login' && (
-          <div className="bg-white rounded-2xl border border-border shadow-sm p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Demo Accounts</p>
-              <span className="text-xs text-muted-foreground">password: <code className="bg-muted px-1 py-0.5 rounded text-xs">password123</code></span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_ACCOUNTS.map(acc => (
-                <button
-                  key={acc.username}
-                  type="button"
-                  onClick={() => fillDemo(acc.username)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background hover:bg-muted/50 transition-colors text-left group"
-                >
-                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0 uppercase group-hover:bg-primary/20 transition-colors">
-                    {acc.username[0]}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium text-foreground truncate">{acc.username}</div>
-                    <Badge variant={acc.variant} className="text-[10px] px-1.5 py-0 mt-0.5">{acc.role}</Badge>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
       </div>
     </div>
