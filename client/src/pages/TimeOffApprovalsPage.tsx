@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   getTimeOffRequests, approveTimeOffRequest, rejectTimeOffRequest, cancelTimeOffRequest,
   TimeOffRequest,
@@ -20,6 +20,17 @@ export default function TimeOffApprovalsPage() {
   const [acting, setActing]     = useState<number | null>(null);
   const [filter, setFilter]     = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
 
+  const load = useCallback(async () => {
+    try {
+      const all = await getTimeOffRequests();
+      setRequests(all);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
   if (!user?.isManager) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-2 text-center">
@@ -28,18 +39,6 @@ export default function TimeOffApprovalsPage() {
       </div>
     );
   }
-
-  const load = async () => {
-    try {
-      const all = await getTimeOffRequests();
-      setRequests(all);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  useEffect(() => { load(); }, []);
 
   const handleApprove = async (id: number) => {
     setActing(id);

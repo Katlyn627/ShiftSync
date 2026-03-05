@@ -107,7 +107,10 @@ export default function ProfilePage() {
           setAvailabilityList(avail);
           const newDayState = defaultDayAvailState();
           for (const a of avail) {
-            const type = (a.availability_type as DayAvailType) || 'specific';
+            const validTypes: DayAvailType[] = ['specific', 'open', 'unavailable'];
+            const type: DayAvailType = validTypes.includes(a.availability_type as DayAvailType)
+              ? (a.availability_type as DayAvailType)
+              : 'specific';
             newDayState[a.day_of_week] = {
               type,
               start_time: a.start_time,
