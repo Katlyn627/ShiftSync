@@ -55,7 +55,7 @@ const ROLE_BADGE_VARIANT: Record<string, BadgeVariant> = {
 
 /* ── Employee shift cost / hours helpers ── */
 function calculateEmployeeLaborCost(shifts: ShiftWithEmployee[]): number {
-  return shifts.reduce((sum, s) => sum + shiftHours(s.start_time, s.end_time) * s.hourly_rate, 0);
+  return shifts.reduce((sum, s) => sum + shiftHours(s.start_time, s.end_time) * (s.hourly_rate ?? 0), 0);
 }
 
 function calculateTotalHours(shifts: ShiftWithEmployee[]): number {
@@ -98,6 +98,203 @@ function KpiCard({
         )}
       </div>
     </Card>
+  );
+}
+
+/* ── Employee Detail Modal ── */
+function EmployeeDetailModal({
+  emp, empShifts, selectedEmployeeStats, burnout, laborCost, employeeAvailability, onClose,
+}: {
+  emp: Employee;
+  empShifts: ShiftWithEmployee[];
+  selectedEmployeeStats: EmployeeStats | null;
+  burnout: BurnoutRisk[];
+  laborCost: LaborCostSummary | null;
+  employeeAvailability: Availability[];
+  onClose: () => void;
+}) {
+  const burnoutRisk    = burnout.find(b => b.employee_id === emp.id);
+  const turnoverRisk   = getTurnoverRisk(burnoutRisk);
+  const empCost        = Number(selectedEmployeeStats?.labor_cost ?? calculateEmployeeLaborCost(empShifts)) || 0;
+  const totalHours     = Number(selectedEmployeeStats?.total_hours ?? calculateTotalHours(empShifts)) || 0;
+  const overtimeHours  = Number(selectedEmployeeStats?.overtime_hours ?? Math.max(0, totalHours - 40)) || 0;
+  const avgHoursPerShift = Number(selectedEmployeeStats?.avg_hours_per_shift ?? (empShifts.length > 0 ? totalHours / empShifts.length : 0)) || 0;
+  const costPct        = laborCost && laborCost.projected_cost > 0 ? (empCost / laborCost.projected_cost) * 100 : 0;
+  const hourlyRate     = Number(emp.hourly_rate) || 0;
+  const weeklyHoursMax = Number(emp.weekly_hours_max) || 0;
+  return (
+    <Modal open onClose={onClose} title={emp.name} className="sm:max-w-2xl">
+      <div className="space-y-5 text-foreground">
+
+        {/* Profile */}
+        <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border border-border">
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0 ${AVATAR_BG[emp.role] ?? 'bg-muted text-muted-foreground'}`}>
+            {initials(emp.name)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-base">{emp.name}</span>
+              <Badge variant={ROLE_BADGE_VARIANT[emp.role] ?? 'default'}>{emp.role}</Badge>
+            </div>
+            <div className="flex flex-wrap gap-4 mt-1 text-sm text-muted-foreground">
+              <span>${hourlyRate.toFixed(2)}/hr</span>
+              <span>Max {weeklyHoursMax}h/wk</span>
+              {emp.email && <span>{emp.email}</span>}
+              {emp.phone && <span>{emp.phone}</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* This Week's Stats */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
+            <p className="text-xs text-muted-foreground mb-1">Shifts</p>
+            <p className="text-xl font-bold text-foreground">{empShifts.length}</p>
+          </div>
+          <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
+            <p className="text-xs text-muted-foreground mb-1">Total Hours</p>
+            <p className="text-xl font-bold text-foreground">{totalHours.toFixed(1)}</p>
+            <p className="text-[10px] text-muted-foreground">of {weeklyHoursMax}h max</p>
+          </div>
+          <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
+            <p className="text-xs text-muted-foreground mb-1">Labor Cost</p>
+            <p className="text-xl font-bold text-foreground">${empCost.toFixed(0)}</p>
+            {costPct > 0 && <p className="text-[10px] text-muted-foreground">{costPct.toFixed(1)}% of total</p>}
+          </div>
+          <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
+            <p className="text-xs text-muted-foreground mb-1">Overtime Hrs</p>
+            <p className={`text-xl font-bold ${overtimeHours > 0 ? 'text-red-500' : 'text-foreground'}`}>
+              {overtimeHours.toFixed(1)}
+            </p>
+            {overtimeHours > 0 && <p className="text-[10px] text-red-400">over 40h</p>}
+          </div>
+          <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
+            <p className="text-xs text-muted-foreground mb-1">Avg Hrs/Shift</p>
+            <p className="text-xl font-bold text-foreground">
+              {avgHoursPerShift > 0 ? avgHoursPerShift.toFixed(1) : '—'}
+            </p>
+          </div>
+          <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
+            <p className="text-xs text-muted-foreground mb-1">Remaining Hrs</p>
+            <p className={`text-xl font-bold ${weeklyHoursMax - totalHours < 0 ? 'text-red-500' : 'text-foreground'}`}>
+              {Math.max(0, weeklyHoursMax - totalHours).toFixed(1)}
+            </p>
+            <p className="text-[10px] text-muted-foreground">of {weeklyHoursMax}h max</p>
+          </div>
+        </div>
+
+        {/* Schedule */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2">This Week's Schedule</h3>
+          {empShifts.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-3 text-center bg-muted/20 rounded-xl border border-border">No shifts scheduled this week.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {empShifts.map(s => {
+                const d = new Date(s.date + 'T00:00:00');
+                const dayName = DAY_NAMES[d.getDay()];
+                const hrs = shiftHours(s.start_time, s.end_time);
+                const rate = Number(s.hourly_rate) || 0;
+                return (
+                  <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-muted/30 border border-border text-sm">
+                    <span className="w-10 text-xs font-semibold text-muted-foreground shrink-0">{dayName}</span>
+                    <span className="text-muted-foreground text-xs shrink-0">{s.date.slice(5)}</span>
+                    <span className="font-medium text-foreground">{s.start_time} – {s.end_time}</span>
+                    <span className="text-xs text-muted-foreground ml-auto shrink-0">{hrs.toFixed(1)}h</span>
+                    <span className="text-xs text-muted-foreground shrink-0">${(hrs * rate).toFixed(2)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Burnout Risk */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2">Burnout Risk</h3>
+          {!burnoutRisk ? (
+            <p className="text-sm text-muted-foreground py-3 text-center bg-muted/20 rounded-xl border border-border">No burnout data for this schedule.</p>
+          ) : (
+            <div className="p-3 rounded-xl bg-muted/30 border border-border space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Risk Level</span>
+                <Badge variant={riskVariant(burnoutRisk.risk_level)}>{burnoutRisk.risk_level}</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Score:</span>
+                <div className="flex-1 bg-muted/50 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="h-1.5 rounded-full transition-all"
+                    style={{ width: `${burnoutRisk.risk_score}%`, backgroundColor: RISK_COLORS[burnoutRisk.risk_level] }}
+                  />
+                </div>
+                <span className="text-xs font-semibold text-foreground">{burnoutRisk.risk_score}/100</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                <span>Consecutive days: {burnoutRisk.consecutive_days}</span>
+                <span>Clopens: {burnoutRisk.clopens}</span>
+                <span>Doubles: {burnoutRisk.doubles}</span>
+                <span>Late-night shifts: {burnoutRisk.late_night_shifts}</span>
+              </div>
+              {burnoutRisk.factors.length > 0 && (
+                <p className="text-xs text-muted-foreground">{burnoutRisk.factors.join(' · ')}</p>
+              )}
+              {burnoutRisk.rest_days_recommended > 0 && (
+                <p className="text-xs font-medium text-amber-600">
+                  {burnoutRisk.rest_days_recommended} rest day{burnoutRisk.rest_days_recommended > 1 ? 's' : ''} recommended
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Turnover Risk */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2">Turnover Risk</h3>
+          <div className="p-3 rounded-xl bg-muted/30 border border-border flex items-start gap-3">
+            <span
+              className="mt-1 w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: RISK_COLORS[turnoverRisk.level] }}
+            />
+            <div>
+              <span className="text-sm font-medium capitalize">{turnoverRisk.level} risk</span>
+              <p className="text-xs text-muted-foreground mt-0.5">{turnoverRisk.reason}</p>
+            </div>
+            <Badge variant={riskVariant(turnoverRisk.level)} className="ml-auto shrink-0">{turnoverRisk.level}</Badge>
+          </div>
+        </div>
+
+        {/* Availability */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2">Availability</h3>
+          {employeeAvailability.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-3 text-center bg-muted/20 rounded-xl border border-border">No availability set for this employee.</p>
+          ) : (
+            <div className="grid grid-cols-7 gap-1.5">
+              {DAY_NAMES.map((dayName, i) => {
+                const avail = employeeAvailability.find(a => a.day_of_week === i);
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-lg p-2 text-center border ${avail ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800' : 'bg-muted/20 border-border'}`}
+                  >
+                    <p className="text-[10px] font-semibold text-muted-foreground mb-1">{dayName}</p>
+                    {avail ? (
+                      <p className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 leading-tight">
+                        {avail.start_time.slice(0, 5)}<br />–<br />{avail.end_time.slice(0, 5)}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground/60">Off</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+      </div>
+    </Modal>
   );
 }
 
@@ -314,195 +511,17 @@ export default function Dashboard() {
       )}
 
       {/* ── Employee Detail Modal ── */}
-      {selectedEmployee && (() => {
-        const emp          = selectedEmployee;
-        const burnoutRisk  = burnout.find(b => b.employee_id === emp.id);
-        const turnoverRisk = getTurnoverRisk(burnoutRisk);
-        const empShifts    = scheduleShifts.filter(s => s.employee_id === emp.id).sort((a, b) => a.date.localeCompare(b.date));
-        const empCost      = (selectedEmployeeStats?.labor_cost ?? calculateEmployeeLaborCost(empShifts)) ?? 0;
-        const totalHours   = (selectedEmployeeStats?.total_hours ?? calculateTotalHours(empShifts)) ?? 0;
-        const overtimeHours = (selectedEmployeeStats?.overtime_hours ?? Math.max(0, totalHours - 40)) ?? 0;
-        const avgHoursPerShift = (selectedEmployeeStats?.avg_hours_per_shift ?? (empShifts.length > 0 ? totalHours / empShifts.length : 0)) ?? 0;
-        const costPct      = laborCost && laborCost.projected_cost > 0 ? (empCost / laborCost.projected_cost) * 100 : 0;
-        return (
-          <Modal
-            open={!!selectedEmployee}
-            onClose={() => setSelectedEmployee(null)}
-            title={emp.name}
-            className="sm:max-w-2xl"
-          >
-            <div className="space-y-5 text-foreground">
-
-              {/* Profile */}
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border border-border">
-                <div className={`w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0 ${AVATAR_BG[emp.role] ?? 'bg-muted text-muted-foreground'}`}>
-                  {initials(emp.name)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-base">{emp.name}</span>
-                    <Badge variant={ROLE_BADGE_VARIANT[emp.role] ?? 'default'}>{emp.role}</Badge>
-                  </div>
-                  <div className="flex flex-wrap gap-4 mt-1 text-sm text-muted-foreground">
-                    <span>${(emp.hourly_rate ?? 0).toFixed(2)}/hr</span>
-                    <span>Max {(emp.weekly_hours_max ?? 0)}h/wk</span>
-                    {emp.email && <span>{emp.email}</span>}
-                    {emp.phone && <span>{emp.phone}</span>}
-                  </div>
-                </div>
-              </div>
-
-              {/* This Week's Stats */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
-                  <p className="text-xs text-muted-foreground mb-1">Shifts</p>
-                  <p className="text-xl font-bold text-foreground">{empShifts.length}</p>
-                </div>
-                <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
-                  <p className="text-xs text-muted-foreground mb-1">Total Hours</p>
-                  <p className="text-xl font-bold text-foreground">{totalHours.toFixed(1)}</p>
-                  <p className="text-[10px] text-muted-foreground">of {(emp.weekly_hours_max ?? 0)}h max</p>
-                </div>
-                <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
-                  <p className="text-xs text-muted-foreground mb-1">Labor Cost</p>
-                  <p className="text-xl font-bold text-foreground">${empCost.toFixed(0)}</p>
-                  {costPct > 0 && <p className="text-[10px] text-muted-foreground">{costPct.toFixed(1)}% of total</p>}
-                </div>
-                <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
-                  <p className="text-xs text-muted-foreground mb-1">Overtime Hrs</p>
-                  <p className={`text-xl font-bold ${overtimeHours > 0 ? 'text-red-500' : 'text-foreground'}`}>
-                    {overtimeHours.toFixed(1)}
-                  </p>
-                  {overtimeHours > 0 && <p className="text-[10px] text-red-400">over 40h</p>}
-                </div>
-                <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
-                  <p className="text-xs text-muted-foreground mb-1">Avg Hrs/Shift</p>
-                  <p className="text-xl font-bold text-foreground">
-                    {avgHoursPerShift > 0 ? avgHoursPerShift.toFixed(1) : '—'}
-                  </p>
-                </div>
-                <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
-                  <p className="text-xs text-muted-foreground mb-1">Remaining Hrs</p>
-                  <p className={`text-xl font-bold ${(emp.weekly_hours_max ?? 0) - totalHours < 0 ? 'text-red-500' : 'text-foreground'}`}>
-                    {Math.max(0, (emp.weekly_hours_max ?? 0) - totalHours).toFixed(1)}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">of {(emp.weekly_hours_max ?? 0)}h max</p>
-                </div>
-              </div>
-
-              {/* Schedule */}
-              <div>
-                <h3 className="text-sm font-semibold text-foreground mb-2">This Week's Schedule</h3>
-                {empShifts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-3 text-center bg-muted/20 rounded-xl border border-border">No shifts scheduled this week.</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {empShifts.map(s => {
-                      const d = new Date(s.date + 'T00:00:00');
-                      const dayName = DAY_NAMES[d.getDay()];
-                      const hrs = shiftHours(s.start_time, s.end_time);
-                      return (
-                        <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-muted/30 border border-border text-sm">
-                          <span className="w-10 text-xs font-semibold text-muted-foreground shrink-0">{dayName}</span>
-                          <span className="text-muted-foreground text-xs shrink-0">{s.date.slice(5)}</span>
-                          <span className="font-medium text-foreground">{s.start_time} – {s.end_time}</span>
-                          <span className="text-xs text-muted-foreground ml-auto shrink-0">{hrs.toFixed(1)}h</span>
-                          <span className="text-xs text-muted-foreground shrink-0">${(hrs * s.hourly_rate).toFixed(2)}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Burnout Risk */}
-              <div>
-                <h3 className="text-sm font-semibold text-foreground mb-2">Burnout Risk</h3>
-                {!burnoutRisk ? (
-                  <p className="text-sm text-muted-foreground py-3 text-center bg-muted/20 rounded-xl border border-border">No burnout data for this schedule.</p>
-                ) : (
-                  <div className="p-3 rounded-xl bg-muted/30 border border-border space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Risk Level</span>
-                      <Badge variant={riskVariant(burnoutRisk.risk_level)}>{burnoutRisk.risk_level}</Badge>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Score:</span>
-                      <div className="flex-1 bg-muted/50 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="h-1.5 rounded-full transition-all"
-                          style={{ width: `${burnoutRisk.risk_score}%`, backgroundColor: RISK_COLORS[burnoutRisk.risk_level] }}
-                        />
-                      </div>
-                      <span className="text-xs font-semibold text-foreground">{burnoutRisk.risk_score}/100</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
-                      <span>Consecutive days: {burnoutRisk.consecutive_days}</span>
-                      <span>Clopens: {burnoutRisk.clopens}</span>
-                      <span>Doubles: {burnoutRisk.doubles}</span>
-                      <span>Late-night shifts: {burnoutRisk.late_night_shifts}</span>
-                    </div>
-                    {burnoutRisk.factors.length > 0 && (
-                      <p className="text-xs text-muted-foreground">{burnoutRisk.factors.join(' · ')}</p>
-                    )}
-                    {burnoutRisk.rest_days_recommended > 0 && (
-                      <p className="text-xs font-medium text-amber-600">
-                        {burnoutRisk.rest_days_recommended} rest day{burnoutRisk.rest_days_recommended > 1 ? 's' : ''} recommended
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Turnover Risk */}
-              <div>
-                <h3 className="text-sm font-semibold text-foreground mb-2">Turnover Risk</h3>
-                <div className="p-3 rounded-xl bg-muted/30 border border-border flex items-start gap-3">
-                  <span
-                    className="mt-1 w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: RISK_COLORS[turnoverRisk.level] }}
-                  />
-                  <div>
-                    <span className="text-sm font-medium capitalize">{turnoverRisk.level} risk</span>
-                    <p className="text-xs text-muted-foreground mt-0.5">{turnoverRisk.reason}</p>
-                  </div>
-                  <Badge variant={riskVariant(turnoverRisk.level)} className="ml-auto shrink-0">{turnoverRisk.level}</Badge>
-                </div>
-              </div>
-
-              {/* Availability */}
-              <div>
-                <h3 className="text-sm font-semibold text-foreground mb-2">Availability</h3>
-                {employeeAvailability.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-3 text-center bg-muted/20 rounded-xl border border-border">No availability set for this employee.</p>
-                ) : (
-                  <div className="grid grid-cols-7 gap-1.5">
-                    {DAY_NAMES.map((dayName, i) => {
-                      const avail = employeeAvailability.find(a => a.day_of_week === i);
-                      return (
-                        <div
-                          key={i}
-                          className={`rounded-lg p-2 text-center border ${avail ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800' : 'bg-muted/20 border-border'}`}
-                        >
-                          <p className="text-[10px] font-semibold text-muted-foreground mb-1">{dayName}</p>
-                          {avail ? (
-                            <p className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 leading-tight">
-                              {avail.start_time.slice(0, 5)}<br />–<br />{avail.end_time.slice(0, 5)}
-                            </p>
-                          ) : (
-                            <p className="text-[10px] text-muted-foreground/60">Off</p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-            </div>
-          </Modal>
-        );
-      })()}
+      {selectedEmployee && (
+        <EmployeeDetailModal
+          emp={selectedEmployee}
+          empShifts={scheduleShifts.filter(s => s.employee_id === selectedEmployee.id).sort((a, b) => a.date.localeCompare(b.date))}
+          selectedEmployeeStats={selectedEmployeeStats}
+          burnout={burnout}
+          laborCost={laborCost}
+          employeeAvailability={employeeAvailability}
+          onClose={() => setSelectedEmployee(null)}
+        />
+      )}
 
       {/* ── Staffing Suggestions ── */}
       {isManager && staffingSuggestions.length > 0 && (
