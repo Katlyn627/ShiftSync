@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import {
   getSchedules, getLaborCost, getBurnoutRisks, getStaffingSuggestions,
-  getEmployees, getScheduleShifts,
-  Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee
+  getEmployees, getScheduleShifts, getAvailability,
+  Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee, Availability
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Card, Badge, Modal, NATIVE_SELECT_CLASS } from '../components/ui';
@@ -143,6 +143,7 @@ export default function Dashboard() {
   const [employees, setEmployees]                   = useState<Employee[]>([]);
   const [scheduleShifts, setScheduleShifts]         = useState<ShiftWithEmployee[]>([]);
   const [selectedEmployee, setSelectedEmployee]     = useState<Employee | null>(null);
+  const [employeeAvailability, setEmployeeAvailability] = useState<Availability[]>([]);
 
   useEffect(() => {
     getSchedules().then(s => {
@@ -152,6 +153,11 @@ export default function Dashboard() {
     }).catch(() => setLoading(false));
     getEmployees().then(setEmployees).catch(() => setEmployees([]));
   }, []);
+
+  useEffect(() => {
+    if (!selectedEmployee) { setEmployeeAvailability([]); return; }
+    getAvailability(selectedEmployee.id).then(setEmployeeAvailability).catch(() => setEmployeeAvailability([]));
+  }, [selectedEmployee]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -308,6 +314,8 @@ export default function Dashboard() {
         const empShifts    = scheduleShifts.filter(s => s.employee_id === emp.id).sort((a, b) => a.date.localeCompare(b.date));
         const empCost      = calculateEmployeeLaborCost(empShifts);
         const totalHours   = calculateTotalHours(empShifts);
+        const overtimeHours = Math.max(0, totalHours - 40);
+        const avgHoursPerShift = empShifts.length > 0 ? totalHours / empShifts.length : 0;
         const costPct      = laborCost && laborCost.projected_cost > 0 ? (empCost / laborCost.projected_cost) * 100 : 0;
         return (
           <Modal
@@ -344,13 +352,34 @@ export default function Dashboard() {
                   <p className="text-xl font-bold text-foreground">{empShifts.length}</p>
                 </div>
                 <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
-                  <p className="text-xs text-muted-foreground mb-1">Hours</p>
+                  <p className="text-xs text-muted-foreground mb-1">Total Hours</p>
                   <p className="text-xl font-bold text-foreground">{totalHours.toFixed(1)}</p>
+                  <p className="text-[10px] text-muted-foreground">of {emp.weekly_hours_max}h max</p>
                 </div>
                 <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
                   <p className="text-xs text-muted-foreground mb-1">Labor Cost</p>
                   <p className="text-xl font-bold text-foreground">${empCost.toFixed(0)}</p>
                   {costPct > 0 && <p className="text-[10px] text-muted-foreground">{costPct.toFixed(1)}% of total</p>}
+                </div>
+                <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
+                  <p className="text-xs text-muted-foreground mb-1">Overtime Hrs</p>
+                  <p className={`text-xl font-bold ${overtimeHours > 0 ? 'text-red-500' : 'text-foreground'}`}>
+                    {overtimeHours.toFixed(1)}
+                  </p>
+                  {overtimeHours > 0 && <p className="text-[10px] text-red-400">over 40h</p>}
+                </div>
+                <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
+                  <p className="text-xs text-muted-foreground mb-1">Avg Hrs/Shift</p>
+                  <p className="text-xl font-bold text-foreground">
+                    {avgHoursPerShift > 0 ? avgHoursPerShift.toFixed(1) : '—'}
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-muted/30 border border-border text-center">
+                  <p className="text-xs text-muted-foreground mb-1">Remaining Hrs</p>
+                  <p className={`text-xl font-bold ${emp.weekly_hours_max - totalHours < 0 ? 'text-red-500' : 'text-foreground'}`}>
+                    {Math.max(0, emp.weekly_hours_max - totalHours).toFixed(1)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">of {emp.weekly_hours_max}h max</p>
                 </div>
               </div>
 
@@ -432,6 +461,35 @@ export default function Dashboard() {
                   </div>
                   <Badge variant={riskVariant(turnoverRisk.level)} className="ml-auto shrink-0">{turnoverRisk.level}</Badge>
                 </div>
+              </div>
+
+              {/* Availability */}
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-2">Availability</h3>
+                {employeeAvailability.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-3 text-center bg-muted/20 rounded-xl border border-border">No availability set for this employee.</p>
+                ) : (
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {DAY_NAMES.map((dayName, i) => {
+                      const avail = employeeAvailability.find(a => a.day_of_week === i);
+                      return (
+                        <div
+                          key={i}
+                          className={`rounded-lg p-2 text-center border ${avail ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800' : 'bg-muted/20 border-border'}`}
+                        >
+                          <p className="text-[10px] font-semibold text-muted-foreground mb-1">{dayName}</p>
+                          {avail ? (
+                            <p className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 leading-tight">
+                              {avail.start_time.slice(0, 5)}<br />–<br />{avail.end_time.slice(0, 5)}
+                            </p>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground/60">Off</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
             </div>
