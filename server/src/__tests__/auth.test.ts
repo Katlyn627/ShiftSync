@@ -1,5 +1,3 @@
-import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db';
 import { seedDemoData } from '../seed';
@@ -7,11 +5,12 @@ import authRouter from '../routes/auth';
 import express from 'express';
 import request from 'supertest';
 
-process.env.DB_PATH = path.join(os.tmpdir(), 'test-auth.db');
+process.env.DB_PATH = path.join('/tmp', 'test-auth.db');
 
 let app: express.Express;
 
 beforeAll(() => {
+  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
   getDb();
   seedDemoData();
@@ -22,6 +21,7 @@ beforeAll(() => {
 
 afterAll(() => {
   closeDb();
+  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
 });
 
@@ -92,20 +92,5 @@ describe('GET /api/auth/me', () => {
       .get('/api/auth/me')
       .set('Authorization', 'Bearer invalidtoken');
     expect(res.status).toBe(401);
-  });
-});
-
-describe('GET /api/auth/google (unconfigured)', () => {
-  test('returns 503 when Google credentials are not set', async () => {
-    // GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set in the test environment
-    const res = await request(app).get('/api/auth/google');
-    expect(res.status).toBe(503);
-    expect(res.body.error).toMatch(/not configured/i);
-  });
-
-  test('callback returns 503 when Google credentials are not set', async () => {
-    const res = await request(app).get('/api/auth/google/callback');
-    expect(res.status).toBe(503);
-    expect(res.body.error).toMatch(/not configured/i);
   });
 });

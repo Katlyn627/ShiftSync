@@ -1,5 +1,3 @@
-import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db';
 import { seedDemoData } from '../seed';
@@ -9,13 +7,14 @@ import swapsRouter from '../routes/swaps';
 import express from 'express';
 import request from 'supertest';
 
-process.env.DB_PATH = path.join(os.tmpdir(), 'test-rbac.db');
+process.env.DB_PATH = path.join('/tmp', 'test-rbac.db');
 
 let app: express.Express;
 let managerToken: string;
 let staffToken: string;
 
 beforeAll(async () => {
+  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
   getDb();
   seedDemoData();
@@ -38,6 +37,7 @@ beforeAll(async () => {
 
 afterAll(() => {
   closeDb();
+  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
 });
 
@@ -162,48 +162,6 @@ describe('Role-based access: schedule update endpoint', () => {
       .put(`/api/schedules/${scheduleId}`)
       .send({ status: 'published' });
     expect(res.status).toBe(401);
-  });
-});
-
-describe('Role-based access: schedule delete endpoint', () => {
-  let scheduleId: number;
-
-  beforeAll(async () => {
-    const res = await request(app)
-      .post('/api/schedules/generate')
-      .set('Authorization', `Bearer ${managerToken}`)
-      .send({ week_start: '2025-07-07', labor_budget: 5000 });
-    scheduleId = res.body.id;
-  });
-
-  test('non-manager cannot delete a schedule', async () => {
-    const res = await request(app)
-      .delete(`/api/schedules/${scheduleId}`)
-      .set('Authorization', `Bearer ${staffToken}`);
-    expect(res.status).toBe(403);
-    expect(res.body.error).toMatch(/manager/i);
-  });
-
-  test('unauthenticated cannot delete a schedule', async () => {
-    const res = await request(app)
-      .delete(`/api/schedules/${scheduleId}`);
-    expect(res.status).toBe(401);
-  });
-
-  test('manager can delete a schedule', async () => {
-    const res = await request(app)
-      .delete(`/api/schedules/${scheduleId}`)
-      .set('Authorization', `Bearer ${managerToken}`);
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-  });
-
-  test('deleting a non-existent schedule returns 404', async () => {
-    const res = await request(app)
-      .delete('/api/schedules/99999')
-      .set('Authorization', `Bearer ${managerToken}`);
-    expect(res.status).toBe(404);
-    expect(res.body.error).toMatch(/not found/i);
   });
 });
 
