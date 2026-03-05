@@ -11,7 +11,7 @@ A smart scheduling + shift swap platform for restaurants/hotels.
 
 ## Tech Stack
 
-- **Backend**: Node.js + Express + TypeScript + SQLite (better-sqlite3)
+- **Backend**: Node.js + Express + TypeScript + MongoDB (Mongoose)
 - **Frontend**: React + TypeScript + Vite + Tailwind CSS + Recharts
 
 ## Getting Started
@@ -32,8 +32,47 @@ The most important ones to set before first run:
 | `PORT` | Port the Express server listens on (default `3001`) |
 | `JWT_SECRET` | Secret used to sign JWTs — **must** be set in production |
 | `SESSION_SECRET` | Secret for the OAuth session cookie — **must** be set in production |
-| `DB_PATH` | Path to the SQLite database file (default `./shiftsync.db` inside `server/`) |
+| `MONGODB_URI` | MongoDB connection string — **required** for the database to work (see below) |
 | `CLIENT_URL` | Origin of the React frontend — used for the post-OAuth redirect |
+
+### 2. Connect to MongoDB
+
+ShiftSync stores all data in MongoDB. You can use either **MongoDB Atlas** (free cloud tier) or a **local MongoDB** instance.
+
+#### Option A — MongoDB Atlas (recommended for new setups)
+
+1. Sign up or log in at [https://cloud.mongodb.com](https://cloud.mongodb.com).
+2. Create a free **Shared** (M0) cluster (any cloud region).
+3. Under **Database Access**, create a database user with *Read and write to any database* privileges. Note the username and password.
+4. Under **Network Access**, add your IP address (or `0.0.0.0/0` to allow all IPs during development).
+5. On the cluster overview page click **Connect → Drivers**, select **Node.js**, and copy the connection string. It looks like:
+   ```
+   mongodb+srv://<username>:<password>@<cluster-name>.mongodb.net/?retryWrites=true&w=majority
+   ```
+6. Paste the URI into `server/.env`, appending the database name `shiftsync`:
+   ```
+   MONGODB_URI=mongodb+srv://<username>:<password>@<cluster-name>.mongodb.net/shiftsync?retryWrites=true&w=majority
+   ```
+
+#### Option B — Local MongoDB
+
+If you have MongoDB installed locally (e.g. via [MongoDB Community Server](https://www.mongodb.com/try/download/community)):
+
+```
+MONGODB_URI=mongodb://localhost:27017/shiftsync
+```
+
+The database and collection are created automatically on first run — no manual setup required.
+
+#### Auto-seeding demo data
+
+When the server starts and the database is **empty**, it automatically seeds demo employees, availability, forecasts, and user accounts. The default demo login credentials are `<first-name-lowercase>` / `password123` (e.g. `alice` / `password123`).
+
+To seed (or re-seed) the database without starting the full server:
+
+```bash
+cd server && npm run seed:mongodb
+```
 
 #### Enabling Google OAuth
 
@@ -76,13 +115,13 @@ This error means the `redirect_uri` sent to Google does not match any URI regist
 
 When the server starts with Google OAuth configured it prints the effective callback URL to the console — use that value as a reference for what to register.
 
-### 2. Install dependencies
+### 3. Install dependencies
 ```bash
 cd server && npm install
 cd ../client && npm install
 ```
 
-### 3. Run development servers
+### 4. Run development servers
 ```bash
 # Terminal 1 – backend (port 3001)
 cd server && npm run dev
