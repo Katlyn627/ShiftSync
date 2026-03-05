@@ -17,6 +17,7 @@ import shiftsRouter from './routes/shifts';
 import swapsRouter from './routes/swaps';
 import forecastsRouter from './routes/forecasts';
 import timeOffRouter from './routes/time-off';
+import settingsRouter from './routes/settings';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -60,6 +61,7 @@ app.use('/api/shifts', shiftsRouter);
 app.use('/api/swaps', swapsRouter);
 app.use('/api/forecasts', forecastsRouter);
 app.use('/api/time-off', timeOffRouter);
+app.use('/api/settings', settingsRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

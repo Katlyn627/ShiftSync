@@ -92,3 +92,51 @@ export interface LaborCostSummary {
   by_day: { date: string; cost: number }[];
   by_role: { role: string; cost: number }[];
 }
+
+export interface RestaurantSettings {
+  seats: number;
+  tables: number;
+  cogs_pct: number;           // Food/beverage cost as % of revenue (e.g. 30)
+  target_labor_pct: number;   // Target labor cost % of revenue (e.g. 30)
+  operating_hours_per_day: number; // Average hours open per day
+}
+
+export interface DaypartRevenue {
+  daypart: string;   // e.g. 'Breakfast', 'Lunch', 'Dinner', 'Late Night'
+  start: string;     // HH:MM
+  end: string;       // HH:MM
+  revenue_pct: number; // estimated % of daily revenue
+  labor_cost: number;
+  covers: number;
+}
+
+export interface ProfitabilityMetrics {
+  schedule_id: number;
+  week_start: string;
+  // Prime Cost
+  prime_cost: number;
+  prime_cost_pct: number;         // (labor + COGS) / revenue × 100
+  prime_cost_target_pct: number;  // target ≤ 65
+  prime_cost_status: 'good' | 'warning' | 'over';
+  // Labor Cost
+  total_labor_cost: number;
+  labor_cost_pct: number;         // labor / revenue × 100
+  labor_cost_target_pct: number;
+  // Revenue
+  total_expected_revenue: number;
+  total_expected_covers: number;
+  // COGS
+  estimated_cogs: number;
+  cogs_pct: number;
+  // RevPASH
+  revpash: number;                // revenue / (seats × operating_hours)
+  // Table Turnover Rate
+  table_turnover_rate: number;    // covers / tables per service period
+  // Average Check per Head
+  avg_check_per_head: number;     // revenue / covers
+  // Sales by Daypart
+  sales_by_daypart: DaypartRevenue[];
+  // Employee Turnover Risk
+  high_turnover_risk_count: number;
+  turnover_risk_pct: number;       // high-risk employees / total scheduled
+}

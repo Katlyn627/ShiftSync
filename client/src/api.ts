@@ -88,6 +88,15 @@ export const rejectTimeOffRequest = (id: number, manager_notes?: string) =>
 export const cancelTimeOffRequest = (id: number) =>
   request<{ success: boolean }>(`/time-off/${id}`, { method: 'DELETE' });
 
+// Settings
+export const getRestaurantSettings = () => request<RestaurantSettings>('/settings');
+export const updateRestaurantSettings = (data: Partial<RestaurantSettings>) =>
+  request<RestaurantSettings>('/settings', { method: 'PUT', body: JSON.stringify(data) });
+
+// Profitability Metrics
+export const getProfitabilityMetrics = (scheduleId: number) =>
+  request<ProfitabilityMetrics>(`/schedules/${scheduleId}/profitability-metrics`);
+
 // Types
 export interface Employee {
   id: number;
@@ -211,4 +220,43 @@ export interface TimeOffRequest {
   status: 'pending' | 'approved' | 'rejected';
   manager_notes: string | null;
   created_at: string;
+}
+
+export interface RestaurantSettings {
+  seats: number;
+  tables: number;
+  cogs_pct: number;
+  target_labor_pct: number;
+  operating_hours_per_day: number;
+}
+
+export interface DaypartRevenue {
+  daypart: string;
+  start: string;
+  end: string;
+  revenue_pct: number;
+  labor_cost: number;
+  covers: number;
+}
+
+export interface ProfitabilityMetrics {
+  schedule_id: number;
+  week_start: string;
+  prime_cost: number;
+  prime_cost_pct: number;
+  prime_cost_target_pct: number;
+  prime_cost_status: 'good' | 'warning' | 'over';
+  total_labor_cost: number;
+  labor_cost_pct: number;
+  labor_cost_target_pct: number;
+  total_expected_revenue: number;
+  total_expected_covers: number;
+  estimated_cogs: number;
+  cogs_pct: number;
+  revpash: number;
+  table_turnover_rate: number;
+  avg_check_per_head: number;
+  sales_by_daypart: DaypartRevenue[];
+  high_turnover_risk_count: number;
+  turnover_risk_pct: number;
 }
