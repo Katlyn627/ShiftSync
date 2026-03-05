@@ -1,25 +1,11 @@
 {
-  "name": "shiftsync",
-  "version": "1.0.0",
-  "private": true,
   "scripts": {
-    "dev": "concurrently --names server,client --prefix-colors cyan,magenta --kill-others-on-fail \"npm run dev:server\" \"wait-on http://127.0.0.1:3001/api/health && npm run dev:client\"",
-    "dev:server": "cd server && npm run dev",
-    "dev:client": "cd client && npm run dev",
-    "build": "npm run build:client && npm run build:server",
-    "build:server": "cd server && npm run build",
-    "build:client": "cd client && npm run build",
-    "start": "cd server && npm run start",
-    "test:server": "cd server && npm test",
-    "test:client": "cd client && npm test",
-    "test": "npm run test:server && npm run test:client",
-    "install:all": "cd server && npm install && cd ../client && npm install"
+    "build": "npm run build --prefix server && npm run build --prefix client",
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "start": "npm run start --prefix server",
+    "test": "npm run test --prefix server && npm run test --prefix client"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "wait-on": "^9.0.4"
-  },
-  "dependencies": {
-    "dependencies": "^0.0.1"
+    "concurrently": "^9.2.1"
   }
 }

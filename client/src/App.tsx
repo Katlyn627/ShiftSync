@@ -1,10 +1,11 @@
-import { Routes, Route, NavLink } from 'react-router-dom';
+import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import SchedulePage from './pages/SchedulePage';
 import EmployeesPage from './pages/EmployeesPage';
 import SwapsPage from './pages/SwapsPage';
+import ProfilePage from './pages/ProfilePage';
 import { Badge } from './components/ui';
 import type { BadgeVariant } from './components/ui';
 
@@ -57,8 +58,18 @@ function SwapIcon() {
   );
 }
 
+function ProfileIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="10" cy="7" r="3" />
+      <path d="M4 18c0-3.314 2.686-6 6-6s6 2.686 6 6" />
+    </svg>
+  );
+}
+
 export default function App() {
   const { user, logout, loading } = useAuth();
+  const navigate = useNavigate();
 
   if (loading) {
     return (
@@ -82,6 +93,7 @@ export default function App() {
     { to: '/schedule',  label: 'Schedule',  icon: <ScheduleIcon /> },
     ...(user.isManager ? [{ to: '/employees', label: 'Employees', icon: <EmployeesIcon /> }] : []),
     { to: '/swaps',      label: 'Shift Swaps', icon: <SwapIcon /> },
+    { to: '/profile',   label: 'My Profile',  icon: <ProfileIcon /> },
   ];
 
   const initials = (user.employeeName || user.username)
@@ -137,9 +149,13 @@ export default function App() {
               )}
               <span className="text-sm font-medium text-foreground">{user.employeeName || user.username}</span>
             </div>
-            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center border border-primary/20">
+            <button
+              onClick={() => navigate('/profile')}
+              className="w-8 h-8 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center border border-primary/20 hover:bg-primary/20 transition-colors"
+              title="View profile"
+            >
               {initials}
-            </div>
+            </button>
             <button
               onClick={logout}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/60"
@@ -159,6 +175,7 @@ export default function App() {
           <Route path="/schedule"   element={<SchedulePage />} />
           {user.isManager && <Route path="/employees" element={<EmployeesPage />} />}
           <Route path="/swaps"      element={<SwapsPage />} />
+          <Route path="/profile"    element={<ProfilePage />} />
         </Routes>
       </main>
 

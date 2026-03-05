@@ -29,7 +29,7 @@ export default function EmployeesPage() {
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm]           = useState({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40 });
+  const [form, setForm]           = useState({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
 
   const load = () => getEmployees().then(e => { setEmployees(e); setLoading(false); });
   useEffect(() => { load(); }, []);
@@ -40,12 +40,12 @@ export default function EmployeesPage() {
     else           { await createEmployee(form); }
     setShowForm(false);
     setEditingId(null);
-    setForm({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40 });
+    setForm({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
     load();
   };
 
   const handleEdit = (emp: Employee) => {
-    setForm({ name: emp.name, role: emp.role, hourly_rate: emp.hourly_rate, weekly_hours_max: emp.weekly_hours_max });
+    setForm({ name: emp.name, role: emp.role, hourly_rate: emp.hourly_rate, weekly_hours_max: emp.weekly_hours_max, email: emp.email ?? '', phone: emp.phone ?? '' });
     setEditingId(emp.id);
     setShowForm(true);
   };
@@ -83,7 +83,7 @@ export default function EmployeesPage() {
           onClick={() => {
             setShowForm(true);
             setEditingId(null);
-            setForm({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40 });
+            setForm({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
           }}
         >
           + Add Employee
@@ -131,6 +131,20 @@ export default function EmployeesPage() {
               max={80}
               value={form.weekly_hours_max}
               onChange={e => setForm(f => ({ ...f, weekly_hours_max: Number(e.target.value) }))}
+            />
+            <Input
+              label="Email (optional)"
+              type="email"
+              placeholder="employee@example.com"
+              value={form.email}
+              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            />
+            <Input
+              label="Phone (optional)"
+              type="tel"
+              placeholder="+1 (555) 000-0000"
+              value={form.phone}
+              onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
             />
             <div className="col-span-2 md:col-span-4 flex gap-2 pt-1 border-t border-border mt-1">
               <Button type="submit" variant="default" size="sm">

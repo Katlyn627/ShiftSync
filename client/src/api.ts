@@ -21,6 +21,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// Auth
+export const registerEmployee = (data: { employeeName: string; username: string; password: string }) =>
+  request<{ token: string; user: any }>('/auth/register', { method: 'POST', body: JSON.stringify(data) });
+
 // Employees
 export const getEmployees = () => request<Employee[]>('/employees');
 export const createEmployee = (data: Omit<Employee, 'id' | 'created_at'>) =>
@@ -34,6 +38,8 @@ export const getAvailability = (empId: number) =>
   request<Availability[]>(`/employees/${empId}/availability`);
 export const setAvailability = (empId: number, data: Omit<Availability, 'id' | 'employee_id'>) =>
   request<Availability>(`/employees/${empId}/availability`, { method: 'POST', body: JSON.stringify(data) });
+export const deleteAvailability = (empId: number, dayOfWeek: number) =>
+  request<{ success: boolean }>(`/employees/${empId}/availability/${dayOfWeek}`, { method: 'DELETE' });
 
 // Schedules
 export const getSchedules = () => request<Schedule[]>('/schedules');
@@ -44,10 +50,16 @@ export const getLaborCost = (id: number) => request<LaborCostSummary>(`/schedule
 export const getBurnoutRisks = (id: number) => request<BurnoutRisk[]>(`/schedules/${id}/burnout-risks`);
 export const updateSchedule = (id: number, data: { status: string }) =>
   request<Schedule>(`/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteSchedule = (id: number) =>
+  request<{ success: boolean }>(`/schedules/${id}`, { method: 'DELETE' });
 
 // Shifts
-export const updateShift = (id: number, data: Partial<Shift>) =>
-  request<Shift>(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const updateShift = (id: number, data: Partial<Shift> & { employee_id?: number }) =>
+  request<ShiftWithEmployee>(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const createShift = (data: { schedule_id: number; employee_id?: number; date: string; start_time: string; end_time: string; role: string }) =>
+  request<ShiftWithEmployee>('/shifts', { method: 'POST', body: JSON.stringify(data) });
+export const deleteShift = (id: number) =>
+  request<{ success: boolean }>(`/shifts/${id}`, { method: 'DELETE' });
 
 // Swaps
 export const getSwaps = () => request<SwapWithDetails[]>('/swaps');
@@ -65,6 +77,17 @@ export const upsertForecast = (data: Omit<Forecast, 'id'>) =>
 export const getStaffingSuggestions = (week_start: string) =>
   request<DailyStaffingSuggestion[]>(`/schedules/staffing-suggestions?week_start=${week_start}`);
 
+// Time-off requests
+export const getTimeOffRequests = () => request<TimeOffRequest[]>('/time-off');
+export const createTimeOffRequest = (data: { start_date: string; end_date: string; reason?: string }) =>
+  request<TimeOffRequest>('/time-off', { method: 'POST', body: JSON.stringify(data) });
+export const approveTimeOffRequest = (id: number, manager_notes?: string) =>
+  request<TimeOffRequest>(`/time-off/${id}/approve`, { method: 'PUT', body: JSON.stringify({ manager_notes }) });
+export const rejectTimeOffRequest = (id: number, manager_notes?: string) =>
+  request<TimeOffRequest>(`/time-off/${id}/reject`, { method: 'PUT', body: JSON.stringify({ manager_notes }) });
+export const cancelTimeOffRequest = (id: number) =>
+  request<{ success: boolean }>(`/time-off/${id}`, { method: 'DELETE' });
+
 // Types
 export interface Employee {
   id: number;
@@ -72,6 +95,9 @@ export interface Employee {
   role: string;
   hourly_rate: number;
   weekly_hours_max: number;
+  email?: string;
+  phone?: string;
+  photo_url?: string | null;
   created_at: string;
 }
 
@@ -173,4 +199,16 @@ export interface DailyStaffingSuggestion {
   expected_revenue: number;
   expected_covers: number;
   staffing: StaffingNeed[];
+}
+
+export interface TimeOffRequest {
+  id: number;
+  employee_id: number;
+  employee_name: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  manager_notes: string | null;
+  created_at: string;
 }
