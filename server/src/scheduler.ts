@@ -1,5 +1,6 @@
 import { getDb } from './db';
-import { Employee, Availability, Forecast, Shift, DailyStaffingSuggestion } from './types';
+import { Employee, Availability, Forecast, DailyStaffingSuggestion } from './types';
+import { getRestaurantSettings } from './metrics';
 
 interface GenerateOptions {
   weekStart: string; // YYYY-MM-DD (Monday)
@@ -12,8 +13,13 @@ interface DayNeed {
   shiftsNeeded: { role: string; start: string; end: string; count: number }[];
 }
 
-// Determine staffing needs based on forecast
-function computeDayNeeds(forecast: Forecast | undefined, date: string, dayOfWeek: number): DayNeed {
+// Determine staffing needs based on forecast and target labor cost %
+function computeDayNeeds(
+  forecast: Forecast | undefined,
+  date: string,
+  dayOfWeek: number,
+  targetLaborPct: number,
+): DayNeed {
   const revenue = forecast?.expected_revenue ?? 3000;
 
   // Base staffing tiers by revenue
@@ -36,16 +42,25 @@ function computeDayNeeds(forecast: Forecast | undefined, date: string, dayOfWeek
     kitchenCount = Math.ceil(kitchenCount * 1.2);
   }
 
+  // Scale back staffing if target labor % is aggressive (< 28%), scale up if generous (> 35%)
+  if (targetLaborPct < 28) {
+    serverCount  = Math.max(1, serverCount  - 1);
+    kitchenCount = Math.max(1, kitchenCount - 1);
+  } else if (targetLaborPct > 35) {
+    serverCount  = serverCount  + 1;
+    kitchenCount = kitchenCount + 1;
+  }
+
   return {
     date,
     dayOfWeek,
     shiftsNeeded: [
-      { role: 'Server', start: '11:00', end: '19:00', count: Math.ceil(serverCount / 2) },
-      { role: 'Server', start: '15:00', end: '23:00', count: Math.floor(serverCount / 2) },
+      { role: 'Server',  start: '11:00', end: '19:00', count: Math.ceil(serverCount  / 2) },
+      { role: 'Server',  start: '15:00', end: '23:00', count: Math.floor(serverCount  / 2) },
       { role: 'Kitchen', start: '10:00', end: '18:00', count: Math.ceil(kitchenCount / 2) },
       { role: 'Kitchen', start: '14:00', end: '22:00', count: Math.floor(kitchenCount / 2) },
-      { role: 'Bar', start: '16:00', end: '00:00', count: barCount },
-      { role: 'Host', start: '11:00', end: '19:00', count: hostCount },
+      { role: 'Bar',     start: '16:00', end: '00:00', count: barCount },
+      { role: 'Host',    start: '11:00', end: '19:00', count: hostCount },
       { role: 'Manager', start: '09:00', end: '17:00', count: 1 },
     ],
   };
@@ -71,6 +86,9 @@ export function generateSchedule(options: GenerateOptions): number {
   const db = getDb();
   const { weekStart, laborBudget } = options;
 
+  // Load restaurant settings to drive prime-cost-aware scheduling
+  const settings = getRestaurantSettings();
+
   // Create schedule record
   const scheduleResult = db.prepare(
     'INSERT INTO schedules (week_start, labor_budget, status) VALUES (?, ?, ?)'
@@ -94,6 +112,16 @@ export function generateSchedule(options: GenerateOptions): number {
     weekDates.push(d.toISOString().split('T')[0]);
   }
 
+  // Calculate total projected week revenue for labor % guardrail
+  const weekForecasts = weekDates.map(date =>
+    db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined
+  );
+  const totalWeekRevenue = weekForecasts.reduce((s, f) => s + (f?.expected_revenue ?? 3000), 0);
+  // Allow 10% flex over the tighter of budget vs. target-labor-pct-of-revenue
+  const LABOR_BUFFER_MULTIPLIER = 1.1;
+  const laborPctCeiling = totalWeekRevenue * (settings.target_labor_pct / 100);
+  const effectiveLaborCeiling = Math.min(laborBudget, laborPctCeiling) * LABOR_BUFFER_MULTIPLIER;
+
   let totalCost = 0;
 
   const insertShift = db.prepare(
@@ -105,7 +133,7 @@ export function generateSchedule(options: GenerateOptions): number {
     const dayOfWeek = dateObj.getDay();
 
     const forecast = db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined;
-    const dayNeeds = computeDayNeeds(forecast, date, dayOfWeek);
+    const dayNeeds = computeDayNeeds(forecast, date, dayOfWeek, settings.target_labor_pct);
 
     // Sort employees by fewest assigned hours this week first (fairness algorithm)
     const sorted = [...employees].sort(
@@ -114,7 +142,7 @@ export function generateSchedule(options: GenerateOptions): number {
 
     for (const need of dayNeeds.shiftsNeeded) {
       let assigned = 0;
-      const shiftHours = (() => {
+      const shiftHrs = (() => {
         const s = parseMinutes(need.start);
         let e = parseMinutes(need.end);
         if (e < s) e += 24 * 60;
@@ -132,10 +160,11 @@ export function generateSchedule(options: GenerateOptions): number {
         if (!isAvailable(avail, need.start, need.end)) continue;
 
         const currentHours = employeeWeeklyHours[emp.id] ?? 0;
-        if (currentHours + shiftHours > emp.weekly_hours_max) continue;
+        if (currentHours + shiftHrs > emp.weekly_hours_max) continue;
 
-        const shiftCost = emp.hourly_rate * shiftHours;
-        if (totalCost + shiftCost > laborBudget * 1.1) continue; // allow 10% over budget
+        const shiftCost = emp.hourly_rate * shiftHrs;
+        // Enforce effective labor cost ceiling (prime-cost-aware)
+        if (totalCost + shiftCost > effectiveLaborCeiling) continue;
 
         // Avoid clopens: check if last shift ended less than 9 hours before this one
         const last = employeeLastShiftEnd[emp.id];
@@ -152,7 +181,7 @@ export function generateSchedule(options: GenerateOptions): number {
         }
 
         insertShift.run(scheduleId, emp.id, date, need.start, need.end, need.role, 'scheduled');
-        employeeWeeklyHours[emp.id] = currentHours + shiftHours;
+        employeeWeeklyHours[emp.id] = currentHours + shiftHrs;
         employeeLastShiftEnd[emp.id] = { date, endTime: need.end };
         totalCost += shiftCost;
         assigned++;
@@ -166,6 +195,7 @@ export function generateSchedule(options: GenerateOptions): number {
 // Returns demand-based staffing suggestions for a week without creating a schedule
 export function computeWeeklyStaffingNeeds(weekStart: string): DailyStaffingSuggestion[] {
   const db = getDb();
+  const settings = getRestaurantSettings();
   const suggestions: DailyStaffingSuggestion[] = [];
 
   const startDate = new Date(weekStart);
@@ -176,7 +206,7 @@ export function computeWeeklyStaffingNeeds(weekStart: string): DailyStaffingSugg
     const dayOfWeek = d.getDay();
 
     const forecast = db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined;
-    const dayNeed = computeDayNeeds(forecast, date, dayOfWeek);
+    const dayNeed = computeDayNeeds(forecast, date, dayOfWeek, settings.target_labor_pct);
 
     suggestions.push({
       date,

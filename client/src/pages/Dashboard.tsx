@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import {
   getSchedules, getLaborCost, getBurnoutRisks, getStaffingSuggestions,
   getEmployees, getScheduleShifts, getAvailability,
-  Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee, Availability
+  getProfitabilityMetrics, getRestaurantSettings, updateRestaurantSettings,
+  Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee, Availability,
+  ProfitabilityMetrics, RestaurantSettings,
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Card, Badge, Modal, NATIVE_SELECT_CLASS } from '../components/ui';
@@ -144,6 +146,13 @@ export default function Dashboard() {
   const [scheduleShifts, setScheduleShifts]         = useState<ShiftWithEmployee[]>([]);
   const [selectedEmployee, setSelectedEmployee]     = useState<Employee | null>(null);
   const [employeeAvailability, setEmployeeAvailability] = useState<Availability[]>([]);
+  const [profitabilityMetrics, setProfitabilityMetrics] = useState<ProfitabilityMetrics | null>(null);
+  const [restaurantSettings, setRestaurantSettings] = useState<RestaurantSettings | null>(null);
+  const [showSettingsModal, setShowSettingsModal]   = useState(false);
+  const [settingsForm, setSettingsForm]             = useState<RestaurantSettings>({
+    seats: 60, tables: 15, cogs_pct: 30, target_labor_pct: 30, operating_hours_per_day: 12,
+  });
+  const [settingsSaving, setSettingsSaving]         = useState(false);
 
   useEffect(() => {
     getSchedules().then(s => {
@@ -152,7 +161,13 @@ export default function Dashboard() {
       setLoading(false);
     }).catch(() => setLoading(false));
     getEmployees().then(setEmployees).catch(() => setEmployees([]));
-  }, []);
+    if (isManager) {
+      getRestaurantSettings().then(s => {
+        setRestaurantSettings(s);
+        setSettingsForm(s);
+      }).catch(() => {});
+    }
+  }, [isManager]);
 
   useEffect(() => {
     if (!selectedEmployee) { setEmployeeAvailability([]); return; }
@@ -162,6 +177,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!selectedId) return;
     if (isManager) getLaborCost(selectedId).then(setLaborCost).catch(() => setLaborCost(null));
+    if (isManager) getProfitabilityMetrics(selectedId).then(setProfitabilityMetrics).catch(() => setProfitabilityMetrics(null));
     getBurnoutRisks(selectedId).then(setBurnout).catch(() => setBurnout([]));
     getScheduleShifts(selectedId).then(setScheduleShifts).catch(() => setScheduleShifts([]));
   }, [selectedId, isManager]);
@@ -174,6 +190,21 @@ export default function Dashboard() {
       .then(setStaffingSuggestions)
       .catch(() => setStaffingSuggestions([]));
   }, [selectedId, schedules, isManager]);
+
+  function handleSaveSettings(e: React.FormEvent) {
+    e.preventDefault();
+    setSettingsSaving(true);
+    updateRestaurantSettings(settingsForm)
+      .then(s => {
+        setRestaurantSettings(s);
+        setSettingsForm(s);
+        setShowSettingsModal(false);
+        // Refresh metrics after settings change
+        if (selectedId) getProfitabilityMetrics(selectedId).then(setProfitabilityMetrics).catch(() => {});
+      })
+      .catch(() => {})
+      .finally(() => setSettingsSaving(false));
+  }
 
   if (loading) {
     return (
@@ -206,26 +237,43 @@ export default function Dashboard() {
   const budgetPct  = laborCost ? (laborCost.projected_cost / laborCost.labor_budget) * 100 : 0;
   const overBudget = laborCost && laborCost.variance > 0;
 
+  const primeCostColor =
+    profitabilityMetrics?.prime_cost_status === 'good'    ? 'text-emerald-600' :
+    profitabilityMetrics?.prime_cost_status === 'warning' ? 'text-amber-500'   : 'text-red-500';
+
   return (
     <div className="space-y-6">
 
       {/* ── Page header ── */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Weekly overview and insights</p>
         </div>
-        <select
-          className={NATIVE_SELECT_CLASS}
-          value={selectedId ?? ''}
-          onChange={e => setSelectedId(Number(e.target.value))}
-        >
-          {schedules.map(s => (
-            <option key={s.id} value={s.id}>
-              Week of {s.week_start} ({s.status})
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          {isManager && (
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted border border-border hover:bg-muted/80 transition-colors text-foreground"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+              </svg>
+              Settings
+            </button>
+          )}
+          <select
+            className={NATIVE_SELECT_CLASS}
+            value={selectedId ?? ''}
+            onChange={e => setSelectedId(Number(e.target.value))}
+          >
+            {schedules.map(s => (
+              <option key={s.id} value={s.id}>
+                Week of {s.week_start} ({s.status})
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* ── KPI Cards ── */}
@@ -265,6 +313,170 @@ export default function Dashboard() {
           icon={<UsersIcon />}
         />
       </div>
+
+      {/* ── Profitability Metrics ── */}
+      {isManager && profitabilityMetrics && (
+        <>
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Profitability Metrics</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Key metrics for profitable scheduling (target: Prime Cost ≤ 65%)</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  profitabilityMetrics.prime_cost_status === 'good'    ? 'bg-emerald-100 text-emerald-700' :
+                  profitabilityMetrics.prime_cost_status === 'warning' ? 'bg-amber-100 text-amber-700'    :
+                  'bg-red-100 text-red-700'
+                }`}>
+                  Prime Cost {profitabilityMetrics.prime_cost_pct.toFixed(1)}%
+                  {profitabilityMetrics.prime_cost_status === 'good' ? ' ✓' : profitabilityMetrics.prime_cost_status === 'over' ? ' !' : ''}
+                </span>
+              </div>
+            </div>
+
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {/* Prime Cost */}
+              <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Prime Cost %</p>
+                <p className={`text-xl font-bold ${primeCostColor}`}>{profitabilityMetrics.prime_cost_pct.toFixed(1)}%</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Target ≤ {profitabilityMetrics.prime_cost_target_pct}% · ${profitabilityMetrics.prime_cost.toLocaleString()}
+                </p>
+                <div className="mt-1.5 bg-muted/50 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="h-1.5 rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(100, (profitabilityMetrics.prime_cost_pct / 80) * 100)}%`,
+                      backgroundColor:
+                        profitabilityMetrics.prime_cost_status === 'good' ? '#10b981' :
+                        profitabilityMetrics.prime_cost_status === 'warning' ? '#f59e0b' : '#ef4444',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Labor Cost % */}
+              <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Labor Cost %</p>
+                <p className={`text-xl font-bold ${profitabilityMetrics.labor_cost_pct > profitabilityMetrics.labor_cost_target_pct ? 'text-red-500' : 'text-foreground'}`}>
+                  {profitabilityMetrics.labor_cost_pct.toFixed(1)}%
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Target ≤ {profitabilityMetrics.labor_cost_target_pct}% · ${profitabilityMetrics.total_labor_cost.toLocaleString()}
+                </p>
+              </div>
+
+              {/* RevPASH */}
+              <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">RevPASH</p>
+                <p className="text-xl font-bold text-foreground">${profitabilityMetrics.revpash.toFixed(2)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Revenue per seat per hour</p>
+              </div>
+
+              {/* Table Turnover */}
+              <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Table Turnover</p>
+                <p className="text-xl font-bold text-foreground">{profitabilityMetrics.table_turnover_rate.toFixed(1)}x</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Covers per service period</p>
+              </div>
+
+              {/* Avg Check per Head */}
+              <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Avg Check / Head</p>
+                <p className="text-xl font-bold text-foreground">${profitabilityMetrics.avg_check_per_head.toFixed(2)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{profitabilityMetrics.total_expected_covers.toLocaleString()} covers</p>
+              </div>
+
+              {/* COGS */}
+              <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Est. COGS</p>
+                <p className="text-xl font-bold text-foreground">${profitabilityMetrics.estimated_cogs.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{profitabilityMetrics.cogs_pct}% of revenue</p>
+              </div>
+
+              {/* Revenue */}
+              <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Expected Revenue</p>
+                <p className="text-xl font-bold text-foreground">${profitabilityMetrics.total_expected_revenue.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Projected for the week</p>
+              </div>
+
+              {/* Employee Turnover Risk */}
+              <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Turnover Risk</p>
+                <p className={`text-xl font-bold ${profitabilityMetrics.turnover_risk_pct > 30 ? 'text-red-500' : profitabilityMetrics.turnover_risk_pct > 10 ? 'text-amber-500' : 'text-foreground'}`}>
+                  {profitabilityMetrics.turnover_risk_pct.toFixed(0)}%
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {profitabilityMetrics.high_turnover_risk_count} high-risk employee{profitabilityMetrics.high_turnover_risk_count !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* ── Sales by Daypart ── */}
+          {profitabilityMetrics.sales_by_daypart.length > 0 && (
+            <div className="grid md:grid-cols-2 gap-4">
+              <Card className="p-5">
+                <h2 className="text-sm font-semibold text-foreground mb-4">Sales by Daypart</h2>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={profitabilityMetrics.sales_by_daypart} barSize={32}>
+                    <XAxis dataKey="daypart" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={v => `$${v}`} axisLine={false} tickLine={false} width={52} />
+                    <Tooltip
+                      formatter={(v: number, name: string) => [
+                        name === 'labor_cost' ? `$${v.toFixed(2)}` : v.toString(),
+                        name === 'labor_cost' ? 'Labor Cost' : 'Covers',
+                      ]}
+                      contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 12 }}
+                    />
+                    <Bar dataKey="labor_cost" radius={[6, 6, 0, 0]}>
+                      {profitabilityMetrics.sales_by_daypart.map((_, i) => (
+                        <Cell key={i} fill={['#6366f1','#8b5cf6','#ec4899','#f97316'][i % 4]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="mt-3 grid grid-cols-4 gap-2">
+                  {profitabilityMetrics.sales_by_daypart.map(dp => (
+                    <div key={dp.daypart} className="text-center">
+                      <p className="text-[10px] font-semibold text-muted-foreground">{dp.daypart}</p>
+                      <p className="text-xs font-bold text-foreground">{(dp.revenue_pct * 100).toFixed(0)}%</p>
+                      <p className="text-[10px] text-muted-foreground">{dp.covers} covers</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card className="p-5">
+                <h2 className="text-sm font-semibold text-foreground mb-4">Revenue Distribution</h2>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={profitabilityMetrics.sales_by_daypart}
+                      dataKey="revenue_pct"
+                      nameKey="daypart"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={75}
+                      label={({ daypart, revenue_pct }: any) => `${daypart} ${(revenue_pct * 100).toFixed(0)}%`}
+                      labelLine={false}
+                    >
+                      {profitabilityMetrics.sales_by_daypart.map((_, i) => (
+                        <Cell key={i} fill={['#6366f1','#8b5cf6','#ec4899','#f97316'][i % 4]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v: number) => `${(v * 100).toFixed(0)}%`} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Card>
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── Employee Overview ── */}
       {isManager && employees.length > 0 && (
@@ -613,6 +825,99 @@ export default function Dashboard() {
           )}
         </Card>
       </div>
+
+      {/* ── Restaurant Settings Modal ── */}
+      {isManager && (
+        <Modal
+          open={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+          title="Restaurant Settings"
+          className="sm:max-w-md"
+        >
+          <form onSubmit={handleSaveSettings} className="space-y-4 text-foreground">
+            <p className="text-xs text-muted-foreground">
+              These settings are used to calculate profitability metrics and optimize schedule generation.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">Seats</label>
+                <input
+                  type="number" min={1} required
+                  value={settingsForm.seats}
+                  onChange={e => setSettingsForm(f => ({ ...f, seats: Number(e.target.value) }))}
+                  className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <p className="text-[10px] text-muted-foreground mt-0.5">Total dining seats</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">Tables</label>
+                <input
+                  type="number" min={1} required
+                  value={settingsForm.tables}
+                  onChange={e => setSettingsForm(f => ({ ...f, tables: Number(e.target.value) }))}
+                  className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <p className="text-[10px] text-muted-foreground mt-0.5">For table turnover calc</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">COGS % of Revenue</label>
+                <input
+                  type="number" min={0} max={100} step={0.1} required
+                  value={settingsForm.cogs_pct}
+                  onChange={e => setSettingsForm(f => ({ ...f, cogs_pct: Number(e.target.value) }))}
+                  className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <p className="text-[10px] text-muted-foreground mt-0.5">Food &amp; beverage cost % (typ. 28–35%)</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">Target Labor % of Revenue</label>
+                <input
+                  type="number" min={0} max={100} step={0.1} required
+                  value={settingsForm.target_labor_pct}
+                  onChange={e => setSettingsForm(f => ({ ...f, target_labor_pct: Number(e.target.value) }))}
+                  className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <p className="text-[10px] text-muted-foreground mt-0.5">Drives schedule optimization</p>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-semibold text-foreground mb-1">Operating Hours per Day</label>
+                <input
+                  type="number" min={1} max={24} step={0.5} required
+                  value={settingsForm.operating_hours_per_day}
+                  onChange={e => setSettingsForm(f => ({ ...f, operating_hours_per_day: Number(e.target.value) }))}
+                  className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <p className="text-[10px] text-muted-foreground mt-0.5">Used for RevPASH calculation</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <div className="flex-1 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
+                <p className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">Prime Cost Target</p>
+                <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                  {(settingsForm.cogs_pct + settingsForm.target_labor_pct).toFixed(1)}%
+                  <span className="text-[10px] font-normal ml-1">(target ≤ 65%)</span>
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSettingsModal(false)}
+                  className="px-4 py-2 rounded-lg border border-border text-sm font-medium bg-muted hover:bg-muted/80 text-foreground"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={settingsSaving}
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {settingsSaving ? 'Saving…' : 'Save Settings'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </Modal>
+      )}
 
     </div>
   );

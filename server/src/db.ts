@@ -97,6 +97,15 @@ function initSchema(db: Database.Database): void {
       manager_notes TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS restaurant_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1), -- singleton row
+      seats INTEGER NOT NULL DEFAULT 60,
+      tables INTEGER NOT NULL DEFAULT 15,
+      cogs_pct REAL NOT NULL DEFAULT 30.0,
+      target_labor_pct REAL NOT NULL DEFAULT 30.0,
+      operating_hours_per_day REAL NOT NULL DEFAULT 12.0
+    );
   `);
 
   // Migrate existing databases: add google_id column if absent
