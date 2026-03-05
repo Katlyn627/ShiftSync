@@ -420,23 +420,20 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          {/* ── Sales by Daypart ── */}
+          {/* ── Sales by Day ── */}
           {profitabilityMetrics.sales_by_daypart.length > 0 && (
             <div className="grid md:grid-cols-2 gap-4">
               <Card className="p-5">
-                <h2 className="text-sm font-semibold text-foreground mb-4">Sales by Daypart</h2>
+                <h2 className="text-sm font-semibold text-foreground mb-4">Sales by Day</h2>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={profitabilityMetrics.sales_by_daypart} barSize={32}>
                     <XAxis dataKey="daypart" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={v => `$${v}`} axisLine={false} tickLine={false} width={52} />
                     <Tooltip
-                      formatter={(v: number, name: string) => [
-                        name === 'labor_cost' ? `$${v.toFixed(2)}` : v.toString(),
-                        name === 'labor_cost' ? 'Labor Cost' : 'Covers',
-                      ]}
+                      formatter={(v: number) => [`$${v.toFixed(2)}`, 'Revenue']}
                       contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 12 }}
                     />
-                    <Bar dataKey="labor_cost" radius={[6, 6, 0, 0]}>
+                    <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
                       {profitabilityMetrics.sales_by_daypart.map((_, i) => (
                         <Cell key={i} fill={['#6366f1','#8b5cf6','#ec4899','#f97316'][i % 4]} />
                       ))}
@@ -447,7 +444,7 @@ export default function Dashboard() {
                   {profitabilityMetrics.sales_by_daypart.map(dp => (
                     <div key={dp.daypart} className="text-center">
                       <p className="text-[10px] font-semibold text-muted-foreground">{dp.daypart}</p>
-                      <p className="text-xs font-bold text-foreground">{(dp.revenue_pct * 100).toFixed(0)}%</p>
+                      <p className="text-xs font-bold text-foreground">${dp.revenue.toLocaleString()}</p>
                       <p className="text-[10px] text-muted-foreground">{dp.covers} covers</p>
                     </div>
                   ))}

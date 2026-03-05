@@ -26,6 +26,7 @@
 | 🔄 | **Intelligent Shift Swaps** | Employee-driven swap requests with automatic role-match, overtime, and availability checks |
 | 💰 | **Real-Time Labor Cost Tracking** | Live budget vs. actual comparisons with daily and per-role breakdowns |
 | 📊 | **Demand-Based Staffing** | Recommends staffing levels per day based on revenue forecasts |
+| 📈 | **Profitability Metrics** | Prime cost, RevPASH, table turnover rate, sales by day, and turnover risk on the manager dashboard |
 | 🔐 | **Role-Based Access** | Manager and employee views with Google OAuth or username/password login |
 
 ---
@@ -44,7 +45,7 @@
 
 <img src="https://github.com/user-attachments/assets/9225ec7f-d14c-4558-a204-fafdac3a3eba" alt="Manager Dashboard" width="700" />
 
-> Weekly KPIs at a glance: projected cost vs. budget, burnout-risk counts, an employee overview grid, demand-based staffing forecast, daily labor cost chart, and a burnout risk monitor.
+> Weekly KPIs at a glance: projected cost vs. budget, burnout-risk counts, profitability metrics (prime cost, RevPASH, table turnover, sales by day), an employee overview grid, demand-based staffing forecast, daily labor cost chart, and a burnout risk monitor.
 
 ---
 
@@ -238,6 +239,7 @@ cd client && npm test
 | `GET` | `/api/schedules/:id/shifts` | Get shifts for a schedule |
 | `GET` | `/api/schedules/:id/labor-cost` | Labor cost summary |
 | `GET` | `/api/schedules/:id/burnout-risks` | Burnout risk analysis |
+| `GET` | `/api/schedules/:id/profitability-metrics` | Profitability metrics (prime cost, RevPASH, sales by day, etc.) |
 | `PUT` | `/api/schedules/:id` | Update schedule (publish / draft) |
 | `PUT` | `/api/shifts/:id` | Update a single shift |
 

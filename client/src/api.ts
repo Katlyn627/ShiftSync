@@ -282,6 +282,7 @@ export interface DaypartRevenue {
   start: string;
   end: string;
   revenue_pct: number;
+  revenue: number;
   labor_cost: number;
   covers: number;
 }

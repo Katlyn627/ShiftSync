@@ -97,6 +97,19 @@ test('sales_by_daypart covers all required dayparts', () => {
   expect(dayparts).toContain('Late Night');
 });
 
+test('sales_by_daypart revenue values sum to total expected revenue', () => {
+  const metrics = getProfitabilityMetrics(1);
+  const totalRevenue = metrics.sales_by_daypart.reduce((sum, dp) => sum + dp.revenue, 0);
+  expect(totalRevenue).toBeCloseTo(metrics.total_expected_revenue, 1);
+});
+
+test('sales_by_daypart each item has a non-negative revenue', () => {
+  const metrics = getProfitabilityMetrics(1);
+  for (const dp of metrics.sales_by_daypart) {
+    expect(dp.revenue).toBeGreaterThanOrEqual(0);
+  }
+});
+
 test('total_labor_cost matches shifts data', () => {
   const metrics = getProfitabilityMetrics(1);
   // Alice: 8h × $20 = $160, Bob: 8h × $18 = $144. Total = $304

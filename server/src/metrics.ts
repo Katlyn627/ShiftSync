@@ -147,6 +147,7 @@ export function getProfitabilityMetrics(scheduleId: number): ProfitabilityMetric
       start:        dp.start,
       end:          dp.end,
       revenue_pct:  dp.revenue_pct,
+      revenue:      Math.round(totalExpectedRevenue * dp.revenue_pct * 100) / 100,
       labor_cost:   Math.round(dpLaborCost * 100) / 100,
       covers:       Math.round(totalExpectedCovers * dp.revenue_pct),
     };

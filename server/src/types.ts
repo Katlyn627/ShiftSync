@@ -135,7 +135,8 @@ export interface DaypartRevenue {
   daypart: string;   // e.g. 'Breakfast', 'Lunch', 'Dinner', 'Late Night'
   start: string;     // HH:MM
   end: string;       // HH:MM
-  revenue_pct: number; // estimated % of daily revenue
+  revenue_pct: number; // estimated % of weekly revenue
+  revenue: number;     // estimated dollar revenue for this daypart (weekly)
   labor_cost: number;
   covers: number;
 }
