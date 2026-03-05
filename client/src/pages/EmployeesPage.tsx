@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { getEmployees, createEmployee, updateEmployee, deleteEmployee, Employee } from '../api';
+import { getEmployees, getSites, createEmployee, updateEmployee, deleteEmployee, Employee, Site } from '../api';
 import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
-const ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
+const ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager', 'Front Desk', 'Housekeeping', 'F&B', 'Maintenance'];
 
 function roleVariant(role: string): BadgeVariant {
   const map: Record<string, BadgeVariant> = {
@@ -17,21 +17,30 @@ function initials(name: string) {
 }
 
 const AVATAR_BG: Record<string, string> = {
-  Manager: 'bg-violet-100 text-violet-700',
-  Server:  'bg-blue-100 text-blue-700',
-  Kitchen: 'bg-orange-100 text-orange-700',
-  Bar:     'bg-emerald-100 text-emerald-700',
-  Host:    'bg-pink-100 text-pink-700',
+  Manager:     'bg-violet-100 text-violet-700',
+  Server:      'bg-blue-100 text-blue-700',
+  Kitchen:     'bg-orange-100 text-orange-700',
+  Bar:         'bg-emerald-100 text-emerald-700',
+  Host:        'bg-pink-100 text-pink-700',
+  'Front Desk':'bg-sky-100 text-sky-700',
+  Housekeeping:'bg-amber-100 text-amber-700',
+  'F&B':       'bg-lime-100 text-lime-700',
+  Maintenance: 'bg-gray-100 text-gray-700',
 };
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [sites, setSites]         = useState<Site[]>([]);
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [filterSiteId, setFilterSiteId] = useState<number | 'all'>('all');
   const [form, setForm]           = useState({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
 
-  const load = () => getEmployees().then(e => { setEmployees(e); setLoading(false); });
+  const load = () => Promise.all([
+    getEmployees(),
+    getSites(),
+  ]).then(([emps, s]) => { setEmployees(emps); setSites(s); setLoading(false); });
   useEffect(() => { load(); }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,6 +65,11 @@ export default function EmployeesPage() {
     load();
   };
 
+  const siteMap = Object.fromEntries(sites.map(s => [s.id, s]));
+  const visibleEmployees = filterSiteId === 'all'
+    ? employees
+    : employees.filter(e => e.site_id === filterSiteId);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-muted-foreground text-sm">
@@ -72,22 +86,37 @@ export default function EmployeesPage() {
     <div className="space-y-5">
 
       {/* ── Page header ── */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-foreground">Employees</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{employees.length} team member{employees.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{visibleEmployees.length} team member{visibleEmployees.length !== 1 ? 's' : ''}</p>
         </div>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => {
-            setShowForm(true);
-            setEditingId(null);
-            setForm({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
-          }}
-        >
-          + Add Employee
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Site filter */}
+          {sites.length > 0 && (
+            <select
+              className={`text-sm ${NATIVE_SELECT_CLASS}`}
+              value={filterSiteId}
+              onChange={e => setFilterSiteId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            >
+              <option value="all">All Sites</option>
+              {sites.map(s => (
+                <option key={s.id} value={s.id}>{s.name} ({s.city})</option>
+              ))}
+            </select>
+          )}
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => {
+              setShowForm(true);
+              setEditingId(null);
+              setForm({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
+            }}
+          >
+            + Add Employee
+          </Button>
+        </div>
       </div>
 
       {/* ── Add / Edit Form ── */}
@@ -165,46 +194,66 @@ export default function EmployeesPage() {
             <tr className="bg-muted/40 border-b border-border text-left">
               <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Employee</th>
               <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Role</th>
+              <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Department</th>
+              <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Site</th>
               <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Rate / hr</th>
               <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Max Hours</th>
               <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {employees.map(emp => (
-              <tr key={emp.id} className="hover:bg-muted/20 transition-colors">
-                <td className="px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
-                      {emp.photo_url ? (
-                        <img src={emp.photo_url} alt={emp.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className={`w-full h-full flex items-center justify-center text-xs font-bold ${AVATAR_BG[emp.role] ?? 'bg-muted text-muted-foreground'}`}>
-                          {initials(emp.name)}
-                        </div>
-                      )}
+            {visibleEmployees.map(emp => {
+              const site = emp.site_id ? siteMap[emp.site_id] : null;
+              return (
+                <tr key={emp.id} className="hover:bg-muted/20 transition-colors">
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
+                        {emp.photo_url ? (
+                          <img src={emp.photo_url} alt={emp.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className={`w-full h-full flex items-center justify-center text-xs font-bold ${AVATAR_BG[emp.role] ?? 'bg-muted text-muted-foreground'}`}>
+                            {initials(emp.name)}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-medium text-foreground">{emp.name}</div>
+                        {emp.email && <div className="text-xs text-muted-foreground">{emp.email}</div>}
+                      </div>
                     </div>
-                    <span className="font-medium text-foreground">{emp.name}</span>
-                  </div>
-                </td>
-                <td className="px-5 py-3">
-                  <Badge variant={roleVariant(emp.role)}>{emp.role}</Badge>
-                </td>
-                <td className="px-5 py-3 text-right text-foreground font-medium">${emp.hourly_rate.toFixed(2)}</td>
-                <td className="px-5 py-3 text-right text-muted-foreground">{emp.weekly_hours_max}h</td>
-                <td className="px-5 py-3 text-right">
-                  <Button variant="ghost" size="sm" onClick={() => handleEdit(emp)} className="mr-1">
-                    Edit
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(emp.id)}>
-                    Delete
-                  </Button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-5 py-3">
+                    <Badge variant={roleVariant(emp.role)}>{emp.role}</Badge>
+                    {emp.role_title && emp.role_title.trim().toLowerCase() !== emp.role.trim().toLowerCase() && (
+                      <div className="text-xs text-muted-foreground mt-0.5">{emp.role_title}</div>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-muted-foreground hidden md:table-cell">{emp.department ?? '—'}</td>
+                  <td className="px-5 py-3 hidden lg:table-cell">
+                    {site ? (
+                      <span className="text-xs">
+                        <span className="font-medium text-foreground">{site.name}</span>
+                        <span className="text-muted-foreground ml-1">· {site.city}, {site.state}</span>
+                      </span>
+                    ) : <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="px-5 py-3 text-right text-foreground font-medium">${emp.hourly_rate.toFixed(2)}</td>
+                  <td className="px-5 py-3 text-right text-muted-foreground">{emp.weekly_hours_max}h</td>
+                  <td className="px-5 py-3 text-right">
+                    <Button variant="ghost" size="sm" onClick={() => handleEdit(emp)} className="mr-1">
+                      Edit
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={() => handleDelete(emp.id)}>
+                      Delete
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
-        {employees.length === 0 && (
+        {visibleEmployees.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
             <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">

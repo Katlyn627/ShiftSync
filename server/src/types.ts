@@ -1,9 +1,28 @@
+export interface Site {
+  id: number;
+  name: string;
+  city: string;
+  state: string;
+  timezone: string;
+  site_type: 'restaurant' | 'hotel';
+  created_at: string;
+}
+
 export interface Employee {
   id: number;
   name: string;
+  first_name: string;
+  last_name: string;
   role: string;
+  role_title: string;
+  department: string;
   hourly_rate: number;
   weekly_hours_max: number;
+  email: string;
+  phone: string;
+  photo_url: string | null;
+  hire_date: string;
+  site_id: number | null;
   created_at: string;
 }
 
@@ -27,6 +46,17 @@ export interface Schedule {
   week_start: string;
   labor_budget: number;
   status: string;
+  site_id: number | null;
+  created_at: string;
+}
+
+export interface WeeklyOvertime {
+  id: number;
+  employee_id: number;
+  week_start: string;
+  regular_hours: number;
+  overtime_hours: number;
+  overtime_pay: number;
   created_at: string;
 }
 
