@@ -94,4 +94,35 @@ router.get('/:id/burnout-risks', (req, res) => {
   }
 });
 
+router.get('/:id/turnover-risks', (req, res) => {
+  try {
+    const burnoutRisks = calculateBurnoutRisks(parseInt(req.params.id));
+    const turnoverRisks = burnoutRisks.map(risk => {
+      let turnover_risk: 'low' | 'medium' | 'high';
+      let reason: string;
+      if (risk.risk_level === 'high') {
+        turnover_risk = 'high';
+        reason = 'High burnout risk strongly correlates with turnover intent';
+      } else if (risk.risk_level === 'medium') {
+        turnover_risk = 'medium';
+        reason = 'Moderate stress factors may affect long-term retention';
+      } else {
+        turnover_risk = 'low';
+        reason = 'Schedule conditions suggest stable retention';
+      }
+      return {
+        employee_id: risk.employee_id,
+        employee_name: risk.employee_name,
+        turnover_risk,
+        reason,
+        risk_score: risk.risk_score,
+        burnout_risk: risk.risk_level,
+      };
+    });
+    res.json(turnoverRisks);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
