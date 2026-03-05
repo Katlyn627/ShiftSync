@@ -12,5 +12,7 @@ describe('API module', () => {
     expect(typeof module.getSwaps).toBe('function');
     expect(typeof module.approveSwap).toBe('function');
     expect(typeof module.rejectSwap).toBe('function');
+    expect(typeof module.deleteSchedule).toBe('function');
+    expect(typeof module.updateSchedule).toBe('function');
   });
 });

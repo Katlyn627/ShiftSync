@@ -1,7 +1,7 @@
 import { useEffect, useState, CSSProperties } from 'react';
 import {
-  getSchedules, generateSchedule, getScheduleShifts, updateSchedule,
-  getEmployees, createSwap, updateShift, getBurnoutRisks, getAvailability,
+  getSchedules, generateSchedule, getScheduleShifts, updateSchedule, deleteSchedule,
+  getEmployees, createSwap, updateShift, createShift, deleteShift, getBurnoutRisks, getAvailability,
   Schedule, ShiftWithEmployee, Employee, BurnoutRisk, Availability
 } from '../api';
 import { useAuth } from '../AuthContext';
@@ -86,6 +86,18 @@ export default function SchedulePage() {
   const [availabilityByEmployee, setAvailabilityByEmployee] = useState<Record<number, Availability[]>>({});
   const [dropLoadingShiftId, setDropLoadingShiftId] = useState<number | null>(null);
 
+  // Manual shift creation modal state
+  const [addShiftCell, setAddShiftCell] = useState<{ date: string; slotKey: string } | null>(null);
+  const [addShiftForm, setAddShiftForm] = useState({
+    employee_id: '',
+    start_time: '09:00',
+    end_time: '17:00',
+    role: 'Server',
+  });
+  const [addShiftSubmitting, setAddShiftSubmitting] = useState(false);
+
+  const ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
+
   const load = async () => {
     try {
       const s = await getSchedules();
@@ -131,8 +143,26 @@ export default function SchedulePage() {
     const s = schedules.find(sc => sc.id === selectedId);
     if (!s) return;
     const newStatus = s.status === 'published' ? 'draft' : 'published';
-    await updateSchedule(selectedId, { status: newStatus });
-    await load();
+    try {
+      await updateSchedule(selectedId, { status: newStatus });
+      await load();
+    } catch (err: any) {
+      alert('Error updating schedule: ' + err.message);
+    }
+  };
+
+  const handleDeleteSchedule = async () => {
+    if (!selectedId || !isManager) return;
+    if (!confirm('Delete this schedule and all its shifts? This cannot be undone.')) return;
+    try {
+      await deleteSchedule(selectedId);
+      const remaining = schedules.filter(s => s.id !== selectedId);
+      setSchedules(remaining);
+      setSelectedId(remaining.length > 0 ? remaining[0].id : null);
+      setShifts([]);
+    } catch (err: any) {
+      alert('Error deleting schedule: ' + err.message);
+    }
   };
 
   const handleOpenSwap = (shift: ShiftWithEmployee) => {
@@ -188,6 +218,18 @@ export default function SchedulePage() {
 
   const handleDropEmployee = async (targetShift: ShiftWithEmployee, employeeId: number) => {
     if (!isManager || targetShift.employee_id === employeeId) return;
+
+    // Check hours limit before dropping
+    const employee = employees.find(e => e.id === employeeId);
+    if (employee) {
+      const currentHours = employeeHours[employeeId] ?? 0;
+      const shiftDuration = shiftHours(targetShift.start_time, targetShift.end_time);
+      if (currentHours + shiftDuration > employee.weekly_hours_max) {
+        alert(`Cannot assign: ${employee.name} would exceed their ${employee.weekly_hours_max}h weekly limit (currently ${currentHours.toFixed(1)}h + ${shiftDuration.toFixed(1)}h = ${(currentHours + shiftDuration).toFixed(1)}h)`);
+        return;
+      }
+    }
+
     setDropLoadingShiftId(targetShift.id);
     try {
       await updateShift(targetShift.id, { employee_id: employeeId });
@@ -197,6 +239,67 @@ export default function SchedulePage() {
       alert('Error: ' + err.message);
     } finally {
       setDropLoadingShiftId(null);
+    }
+  };
+
+  const handleOpenAddShift = (date: string, slotKey: string) => {
+    const slot = SHIFT_SLOTS.find(s => s.key === slotKey);
+    const defaultStart = slot
+      ? `${String(Math.floor(slot.min / 60)).padStart(2, '0')}:00`
+      : '09:00';
+    const defaultEnd = slot
+      ? `${String(Math.floor(Math.min(slot.max, 23 * 60) / 60)).padStart(2, '0')}:00`
+      : '17:00';
+    setAddShiftForm({ employee_id: '', start_time: defaultStart, end_time: defaultEnd, role: 'Server' });
+    setAddShiftCell({ date, slotKey });
+  };
+
+  const handleAddShift = async () => {
+    if (!selectedId || !addShiftCell) return;
+    setAddShiftSubmitting(true);
+    try {
+      const empId = addShiftForm.employee_id ? Number(addShiftForm.employee_id) : undefined;
+
+      // Client-side hours check
+      if (empId) {
+        const employee = employees.find(e => e.id === empId);
+        if (employee) {
+          const currentHours = employeeHours[empId] ?? 0;
+          const shiftDuration = shiftHours(addShiftForm.start_time, addShiftForm.end_time);
+          if (currentHours + shiftDuration > employee.weekly_hours_max) {
+            alert(`Cannot assign: ${employee.name} would exceed their ${employee.weekly_hours_max}h weekly limit (${currentHours.toFixed(1)}h + ${shiftDuration.toFixed(1)}h)`);
+            setAddShiftSubmitting(false);
+            return;
+          }
+        }
+      }
+
+      await createShift({
+        schedule_id: selectedId,
+        employee_id: empId,
+        date: addShiftCell.date,
+        start_time: addShiftForm.start_time,
+        end_time: addShiftForm.end_time,
+        role: addShiftForm.role,
+      });
+      const refreshed = await getScheduleShifts(selectedId);
+      setShifts(refreshed);
+      setAddShiftCell(null);
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setAddShiftSubmitting(false);
+    }
+  };
+
+  const handleDeleteShift = async (shiftId: number) => {
+    if (!isManager || !confirm('Remove this shift?')) return;
+    try {
+      await deleteShift(shiftId);
+      const refreshed = await getScheduleShifts(selectedId!);
+      setShifts(refreshed);
+    } catch (err: any) {
+      alert('Error: ' + err.message);
     }
   };
 
@@ -270,13 +373,22 @@ export default function SchedulePage() {
               </select>
             </div>
             {isManager && selectedSchedule && (
-              <Button
-                variant={selectedSchedule.status === 'published' ? 'outline' : 'default'}
-                onClick={handlePublish}
-                className="self-end"
-              >
-                {selectedSchedule.status === 'published' ? 'Unpublish' : 'Publish Schedule'}
-              </Button>
+              <>
+                <Button
+                  variant={selectedSchedule.status === 'published' ? 'outline' : 'default'}
+                  onClick={handlePublish}
+                  className="self-end"
+                >
+                  {selectedSchedule.status === 'published' ? 'Unpublish' : 'Publish Schedule'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleDeleteSchedule}
+                  className="self-end text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  Delete Schedule
+                </Button>
+              </>
             )}
           </>
         )}
@@ -317,48 +429,79 @@ export default function SchedulePage() {
                     return (
                       <div
                         key={`cell-${date}-${slot.key}`}
-                        className={`border-r last:border-r-0 p-2 min-h-[140px] space-y-1.5 ${idx % 2 === 0 ? 'bg-white' : 'bg-background/60'} ${rowIdx < SHIFT_SLOTS.length - 1 ? 'border-b border-border' : ''}`}
+                        className={`border-r last:border-r-0 p-2 min-h-[140px] space-y-1.5 relative group/cell ${idx % 2 === 0 ? 'bg-white' : 'bg-background/60'} ${rowIdx < SHIFT_SLOTS.length - 1 ? 'border-b border-border' : ''}`}
                       >
                         {slotShifts.length === 0 ? (
-                          <p className="text-xs text-muted-foreground/40 text-center mt-8 select-none">Open</p>
-                        ) : (
-                          slotShifts.map(shift => {
-                            const canRequestSwap = shift.status !== 'swapped' &&
-                              (user?.isManager || shift.employee_id === user?.employeeId);
-                            const warning = hasAvailabilityWarning(shift);
-                            return (
-                              <div
-                                key={shift.id}
-                                className={`rounded-lg text-xs overflow-hidden ${shift.status === 'swapped' ? 'opacity-40' : ''} ${dropLoadingShiftId === shift.id ? 'animate-pulse' : ''}`}
-                                style={shiftBlockStyle(shift.role)}
-                                onDragOver={e => isManager && e.preventDefault()}
-                                onDrop={e => {
-                                  const employeeId = Number(e.dataTransfer.getData('text/plain'));
-                                  if (employeeId) handleDropEmployee(shift, employeeId);
-                                }}
+                          <div className="flex flex-col items-center justify-center h-full min-h-[100px]">
+                            <p className="text-xs text-muted-foreground/40 select-none">Open</p>
+                            {isManager && (
+                              <button
+                                className="mt-2 opacity-0 group-hover/cell:opacity-100 transition-opacity w-6 h-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20 flex items-center justify-center text-sm font-bold"
+                                title="Add shift"
+                                onClick={() => handleOpenAddShift(date, slot.key)}
                               >
-                                <div className="flex">
-                                  <div className="w-[3px] shrink-0 rounded-l-lg" style={{ backgroundColor: shiftBarColor(shift.role) }} />
-                                  <div className="flex-1 px-2 py-1.5 min-w-0">
-                                    <div className="font-semibold truncate text-[11px]" style={{ textDecoration: shift.status === 'swapped' ? 'line-through' : undefined }}>
-                                      {shift.employee_name}
+                                +
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <>
+                            {slotShifts.map(shift => {
+                              const canRequestSwap = shift.status !== 'swapped' &&
+                                (user?.isManager || shift.employee_id === user?.employeeId);
+                              const warning = hasAvailabilityWarning(shift);
+                              return (
+                                <div
+                                  key={shift.id}
+                                  className={`rounded-lg text-xs overflow-hidden relative group/shift ${shift.status === 'swapped' ? 'opacity-40' : ''} ${dropLoadingShiftId === shift.id ? 'animate-pulse' : ''}`}
+                                  style={shiftBlockStyle(shift.role)}
+                                  onDragOver={e => isManager && e.preventDefault()}
+                                  onDrop={e => {
+                                    const employeeId = Number(e.dataTransfer.getData('text/plain'));
+                                    if (employeeId) handleDropEmployee(shift, employeeId);
+                                  }}
+                                >
+                                  <div className="flex">
+                                    <div className="w-[3px] shrink-0 rounded-l-lg" style={{ backgroundColor: shiftBarColor(shift.role) }} />
+                                    <div className="flex-1 px-2 py-1.5 min-w-0">
+                                      <div className="font-semibold truncate text-[11px]" style={{ textDecoration: shift.status === 'swapped' ? 'line-through' : undefined }}>
+                                        {shift.employee_name}
+                                      </div>
+                                      <Badge variant={roleVariant(shift.role)} className="mt-0.5 text-[9px] px-1.5 py-0 h-4">{shift.role}</Badge>
+                                      <div className="opacity-60 mt-1 text-[10px] font-medium">{shift.start_time}–{shift.end_time}</div>
+                                      {warning && <p className="text-[10px] mt-1 text-amber-700 font-semibold">Availability warning</p>}
+                                      {canRequestSwap && (
+                                        <button
+                                          className="mt-1 text-[10px] underline underline-offset-2 opacity-50 hover:opacity-100 transition-opacity"
+                                          onClick={() => handleOpenSwap(shift)}
+                                        >
+                                          Swap
+                                        </button>
+                                      )}
                                     </div>
-                                    <Badge variant={roleVariant(shift.role)} className="mt-0.5 text-[9px] px-1.5 py-0 h-4">{shift.role}</Badge>
-                                    <div className="opacity-60 mt-1 text-[10px] font-medium">{shift.start_time}–{shift.end_time}</div>
-                                    {warning && <p className="text-[10px] mt-1 text-amber-700 font-semibold">Availability warning</p>}
-                                    {canRequestSwap && (
+                                    {isManager && (
                                       <button
-                                        className="mt-1 text-[10px] underline underline-offset-2 opacity-50 hover:opacity-100 transition-opacity"
-                                        onClick={() => handleOpenSwap(shift)}
+                                        className="opacity-0 group-hover/shift:opacity-100 transition-opacity absolute top-1 right-1 w-4 h-4 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center text-[10px] font-bold"
+                                        title="Remove shift"
+                                        onClick={() => handleDeleteShift(shift.id)}
                                       >
-                                        Swap
+                                        ×
                                       </button>
                                     )}
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })
+                              );
+                            })}
+                            {isManager && (
+                              <button
+                                className="opacity-0 group-hover/cell:opacity-100 transition-opacity w-5 h-5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 flex items-center justify-center text-xs font-bold mx-auto"
+                                title="Add shift"
+                                onClick={() => handleOpenAddShift(date, slot.key)}
+                              >
+                                +
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     );
@@ -378,16 +521,24 @@ export default function SchedulePage() {
                 const burnout = burnoutByEmployee[employee.id];
                 const availability = availabilityByEmployee[employee.id]?.length ?? 0;
                 const isAtRisk = burnout?.risk_level === 'high' || utilization >= 95;
+                const isAtMaxHours = hours >= employee.weekly_hours_max;
                 return (
                   <div
                     key={employee.id}
-                    className="rounded-lg border border-border p-3 bg-background/40"
-                    draggable={isManager}
-                    onDragStart={e => e.dataTransfer.setData('text/plain', String(employee.id))}
+                    className={`rounded-lg border p-3 ${isAtMaxHours ? 'border-rose-200 bg-rose-50/40 opacity-70' : 'border-border bg-background/40'}`}
+                    draggable={isManager && !isAtMaxHours}
+                    onDragStart={e => {
+                      if (!isAtMaxHours) e.dataTransfer.setData('text/plain', String(employee.id));
+                      else e.preventDefault();
+                    }}
+                    title={isAtMaxHours ? `${employee.name} is at their weekly hours limit` : undefined}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-semibold text-foreground truncate">{employee.name}</p>
-                      <Badge variant={roleVariant(employee.role)}>{employee.role}</Badge>
+                      <div className="flex items-center gap-1">
+                        {isAtMaxHours && <span className="text-[9px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">MAX</span>}
+                        <Badge variant={roleVariant(employee.role)}>{employee.role}</Badge>
+                      </div>
                     </div>
                     <div className="flex items-center justify-between text-[11px] mt-2">
                       <span className="text-muted-foreground">Availability</span>
@@ -397,7 +548,7 @@ export default function SchedulePage() {
                     </div>
                     <div className="flex items-center justify-between text-[11px] mt-1">
                       <span className="text-muted-foreground">Hour tracking</span>
-                      <span className="font-medium">{hours.toFixed(1)} / {employee.weekly_hours_max}h</span>
+                      <span className={`font-medium ${isAtMaxHours ? 'text-rose-600' : ''}`}>{hours.toFixed(1)} / {employee.weekly_hours_max}h</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-muted mt-1.5 overflow-hidden">
                       <div className={`h-full ${isAtRisk ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${utilization}%` }} />
@@ -504,6 +655,87 @@ export default function SchedulePage() {
               </Button>
             </div>
 
+          </Card>
+        </div>
+      )}
+
+      {/* ── Add Shift Modal ── */}
+      {addShiftCell && isManager && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4" onClick={e => e.target === e.currentTarget && setAddShiftCell(null)}>
+          <Card className="w-full max-w-sm shadow-2xl overflow-hidden p-0">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+              <h2 className="text-base font-semibold text-foreground">Add Shift</h2>
+              <button
+                onClick={() => setAddShiftCell(null)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Date: <span className="font-semibold text-foreground">{addShiftCell.date}</span>
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Employee</label>
+                <select
+                  className={`w-full ${NATIVE_SELECT_CLASS}`}
+                  value={addShiftForm.employee_id}
+                  onChange={e => setAddShiftForm(f => ({ ...f, employee_id: e.target.value }))}
+                >
+                  <option value="">— Unassigned (open shift) —</option>
+                  {employees.map(e => {
+                    const hrs = employeeHours[e.id] ?? 0;
+                    const atMax = hrs >= e.weekly_hours_max;
+                    return (
+                      <option key={e.id} value={e.id} disabled={atMax}>
+                        {e.name} ({e.role}){atMax ? ` — MAX ${e.weekly_hours_max}h` : ` — ${hrs.toFixed(1)}/${e.weekly_hours_max}h`}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Role</label>
+                <select
+                  className={`w-full ${NATIVE_SELECT_CLASS}`}
+                  value={addShiftForm.role}
+                  onChange={e => setAddShiftForm(f => ({ ...f, role: e.target.value }))}
+                >
+                  {ROLES.map(r => <option key={r}>{r}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="Start Time"
+                  type="time"
+                  value={addShiftForm.start_time}
+                  onChange={e => setAddShiftForm(f => ({ ...f, start_time: e.target.value }))}
+                />
+                <Input
+                  label="End Time"
+                  type="time"
+                  value={addShiftForm.end_time}
+                  onChange={e => setAddShiftForm(f => ({ ...f, end_time: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="px-6 pb-5 flex gap-2 border-t border-border pt-4">
+              <Button
+                variant="default"
+                className="flex-1"
+                onClick={handleAddShift}
+                disabled={addShiftSubmitting}
+                isLoading={addShiftSubmitting}
+              >
+                Add Shift
+              </Button>
+              <Button variant="outline" onClick={() => setAddShiftCell(null)}>
+                Cancel
+              </Button>
+            </div>
           </Card>
         </div>
       )}

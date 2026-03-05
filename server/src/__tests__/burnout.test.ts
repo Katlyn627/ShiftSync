@@ -1,11 +1,12 @@
+import fs from 'fs';
+import os from 'os';
 import { calculateBurnoutRisks } from '../burnout';
 import { getDb, closeDb } from '../db';
 import path from 'path';
 
-process.env.DB_PATH = path.join('/tmp', 'test-burnout.db');
+process.env.DB_PATH = path.join(os.tmpdir(), 'test-burnout.db');
 
 beforeAll(() => {
-  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
   const db = getDb();
   // Insert test employee
@@ -16,7 +17,6 @@ beforeAll(() => {
 
 afterAll(() => {
   closeDb();
-  const fs = require('fs');
   try { fs.unlinkSync(process.env.DB_PATH!); } catch (_) {}
 });
 

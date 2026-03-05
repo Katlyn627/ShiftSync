@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import fs from 'fs';
 import path from 'path';
 
 let db: Database.Database;
@@ -6,6 +7,10 @@ let db: Database.Database;
 export function getDb(): Database.Database {
   if (!db) {
     const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'shiftsync.db');
+    const dir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
@@ -75,12 +80,43 @@ function initSchema(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
+      password_hash TEXT,
+      google_id TEXT UNIQUE,
       employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
       is_manager INTEGER NOT NULL DEFAULT 0, -- 0=employee, 1=manager
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS time_off_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      start_date TEXT NOT NULL,   -- YYYY-MM-DD
+      end_date TEXT NOT NULL,     -- YYYY-MM-DD
+      reason TEXT,
+      status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected
+      manager_notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
+
+  // Migrate existing databases: add google_id column if absent
+  const cols = db.pragma('table_info(users)') as { name: string }[];
+  if (!cols.some(c => c.name === 'google_id')) {
+    db.exec('ALTER TABLE users ADD COLUMN google_id TEXT');
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)');
+  }
+
+  // Migrate employees table: add email, phone, and photo_url columns if absent
+  const empCols = db.pragma('table_info(employees)') as { name: string }[];
+  if (!empCols.some(c => c.name === 'email')) {
+    db.exec("ALTER TABLE employees ADD COLUMN email TEXT DEFAULT ''");
+  }
+  if (!empCols.some(c => c.name === 'phone')) {
+    db.exec("ALTER TABLE employees ADD COLUMN phone TEXT DEFAULT ''");
+  }
+  if (!empCols.some(c => c.name === 'photo_url')) {
+    db.exec("ALTER TABLE employees ADD COLUMN photo_url TEXT DEFAULT NULL");
+  }
 }
 
 export function closeDb(): void {

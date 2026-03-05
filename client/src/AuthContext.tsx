@@ -13,6 +13,8 @@ interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   login: (username: string, password: string) => Promise<void>;
+  loginWithToken: (token: string) => Promise<void>;
+  register: (employeeName: string, username: string, password: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
 }
@@ -64,6 +66,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   };
 
+  const loginWithToken = async (jwtToken: string) => {
+    const res = await fetch('/api/auth/me', {
+      headers: { Authorization: `Bearer ${jwtToken}` },
+    });
+    if (!res.ok) throw new Error('Invalid token');
+    const data = await res.json();
+    localStorage.setItem('shiftsync_token', jwtToken);
+    setToken(jwtToken);
+    setUser(data.user);
+  };
+
+  const register = async (employeeName: string, username: string, password: string) => {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employeeName, username, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Registration failed' }));
+      throw new Error(err.error || 'Registration failed');
+    }
+    const data = await res.json();
+    localStorage.setItem('shiftsync_token', data.token);
+    setToken(data.token);
+    setUser(data.user);
+  };
+
   const logout = () => {
     localStorage.removeItem('shiftsync_token');
     setToken(null);
@@ -71,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, loginWithToken, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
