@@ -71,6 +71,7 @@ export function getProfitabilityMetrics(scheduleId: number): ProfitabilityMetric
 
   const laborSummary = getLaborCostSummary(scheduleId);
   const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(scheduleId) as any;
+  if (!schedule) throw new Error(`Schedule ${scheduleId} not found`);
 
   // Aggregate forecasts for the 7-day week
   const weekDates: string[] = [];

@@ -4,7 +4,7 @@ import { requireManager } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', (_req, res) => {
+router.get('/', requireManager, (_req, res) => {
   try {
     res.json(getRestaurantSettings());
   } catch (err: any) {

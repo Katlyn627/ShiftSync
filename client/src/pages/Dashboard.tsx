@@ -867,7 +867,7 @@ export default function Dashboard() {
                   onChange={e => setSettingsForm(f => ({ ...f, cogs_pct: Number(e.target.value) }))}
                   className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
-                <p className="text-[10px] text-muted-foreground mt-0.5">Food &amp; bev cost % (typ. 28–35%)</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Food &amp; beverage cost % (typ. 28–35%)</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-foreground mb-1">Target Labor % of Revenue</label>

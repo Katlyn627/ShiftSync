@@ -117,9 +117,10 @@ export function generateSchedule(options: GenerateOptions): number {
     db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined
   );
   const totalWeekRevenue = weekForecasts.reduce((s, f) => s + (f?.expected_revenue ?? 3000), 0);
-  // Hard labor cost ceiling: min(laborBudget × 1.1, targetLaborPct% of revenue)
+  // Allow 10% flex over the tighter of budget vs. target-labor-pct-of-revenue
+  const LABOR_BUFFER_MULTIPLIER = 1.1;
   const laborPctCeiling = totalWeekRevenue * (settings.target_labor_pct / 100);
-  const effectiveLaborCeiling = Math.min(laborBudget * 1.1, laborPctCeiling * 1.1);
+  const effectiveLaborCeiling = Math.min(laborBudget, laborPctCeiling) * LABOR_BUFFER_MULTIPLIER;
 
   let totalCost = 0;
 
