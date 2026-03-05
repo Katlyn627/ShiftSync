@@ -7,7 +7,7 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "seed:mongodb": "node src/seedRunner.js",
-    "test": "echo 'Tests skipped - migrated to JS' && exit 0"
+    "test": "node --test src/__tests__/db.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -77,8 +77,9 @@ export function buildConnectionErrorMessage(err) {
 
 /**
  * Attempts to start an in-memory MongoDB instance using mongodb-memory-server.
- * Only activates outside of production so that the optional devDependency is
- * never required in a production build.
+ * Only activates outside of production AND when no explicit MONGODB_URI was
+ * configured (the `!explicitUri` guard in connectDb is the primary production
+ * safeguard — this NODE_ENV check is a secondary defence).
  *
  * Returns { uri, mongod } on success, or null if unavailable.
  */
@@ -163,7 +164,7 @@ export async function connectDb({ retries = 5, retryDelayMs = 5000 } = {}) {
     if (fallback) {
       try {
         // Reset any partial Mongoose state from the failed attempts above.
-        await mongoose.disconnect();
+        await mongoose.disconnect().catch(() => {});
         // The in-memory server is a plain MongoDB binary — no Stable API needed.
         const client = new MongoClient(fallback.uri);
         await client.connect();
