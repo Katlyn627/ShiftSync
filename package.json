@@ -9,6 +9,7 @@
     "concurrently": "^9.2.1"
   },
   "dependencies": {
-    "dependencies": "^0.0.1"
+    "dependencies": "^0.0.1",
+    "node": "^25.8.0"
   }
 }
