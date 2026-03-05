@@ -319,10 +319,10 @@ export default function Dashboard() {
         const burnoutRisk  = burnout.find(b => b.employee_id === emp.id);
         const turnoverRisk = getTurnoverRisk(burnoutRisk);
         const empShifts    = scheduleShifts.filter(s => s.employee_id === emp.id).sort((a, b) => a.date.localeCompare(b.date));
-        const empCost      = selectedEmployeeStats?.labor_cost ?? calculateEmployeeLaborCost(empShifts);
-        const totalHours   = selectedEmployeeStats?.total_hours ?? calculateTotalHours(empShifts);
-        const overtimeHours = selectedEmployeeStats?.overtime_hours ?? Math.max(0, totalHours - 40);
-        const avgHoursPerShift = selectedEmployeeStats?.avg_hours_per_shift ?? (empShifts.length > 0 ? totalHours / empShifts.length : 0);
+        const empCost      = (selectedEmployeeStats?.labor_cost ?? calculateEmployeeLaborCost(empShifts)) ?? 0;
+        const totalHours   = (selectedEmployeeStats?.total_hours ?? calculateTotalHours(empShifts)) ?? 0;
+        const overtimeHours = (selectedEmployeeStats?.overtime_hours ?? Math.max(0, totalHours - 40)) ?? 0;
+        const avgHoursPerShift = (selectedEmployeeStats?.avg_hours_per_shift ?? (empShifts.length > 0 ? totalHours / empShifts.length : 0)) ?? 0;
         const costPct      = laborCost && laborCost.projected_cost > 0 ? (empCost / laborCost.projected_cost) * 100 : 0;
         return (
           <Modal

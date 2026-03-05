@@ -50,6 +50,7 @@ export const generateSchedule = (week_start: string, labor_budget: number) =>
 export const getScheduleShifts = (id: number) => request<ShiftWithEmployee[]>(`/schedules/${id}/shifts`);
 export const getLaborCost = (id: number) => request<LaborCostSummary>(`/schedules/${id}/labor-cost`);
 export const getBurnoutRisks = (id: number) => request<BurnoutRisk[]>(`/schedules/${id}/burnout-risks`);
+export const getTurnoverRisks = (id: number) => request<TurnoverRisk[]>(`/schedules/${id}/turnover-risks`);
 export const updateSchedule = (id: number, data: { status: string }) =>
   request<Schedule>(`/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteSchedule = (id: number) =>
@@ -175,6 +176,15 @@ export interface BurnoutRisk {
   doubles: number;
   late_night_shifts: number;
   rest_days_recommended: number;
+}
+
+export interface TurnoverRisk {
+  employee_id: number;
+  employee_name: string;
+  turnover_risk: 'low' | 'medium' | 'high';
+  reason: string;
+  risk_score: number;
+  burnout_risk: 'low' | 'medium' | 'high';
 }
 
 export interface LaborCostSummary {
