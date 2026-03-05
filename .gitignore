@@ -5,3 +5,6 @@ dist/
 *.db-wal
 # Environment files (use .env.example as template)
 .env
+# TypeScript compiled JS output alongside source
+client/src/**/*.js
+client/src/**/*.js.map
