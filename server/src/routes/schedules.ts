@@ -5,6 +5,7 @@ import { getLaborCostSummary } from '../laborCost';
 import { calculateBurnoutRisks } from '../burnout';
 import { getProfitabilityMetrics } from '../metrics';
 import { getScheduleCoverageReport } from '../coverage';
+import { getScheduleIntelligence } from '../intelligence';
 import { requireManager } from '../middleware/auth';
 
 const router = Router();
@@ -109,6 +110,15 @@ router.get('/:id/coverage', (req, res) => {
   try {
     const report = getScheduleCoverageReport(parseInt(req.params.id));
     res.json(report);
+  } catch (err: any) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+router.get('/:id/intelligence', requireManager, (req, res) => {
+  try {
+    const intel = getScheduleIntelligence(parseInt(req.params.id));
+    res.json(intel);
   } catch (err: any) {
     res.status(404).json({ error: err.message });
   }
