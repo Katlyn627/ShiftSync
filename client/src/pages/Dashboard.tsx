@@ -5,7 +5,7 @@ import {
   getEmployees, getScheduleShifts, getAvailability,
   getProfitabilityMetrics, getRestaurantSettings, updateRestaurantSettings,
   Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee, Availability,
-  ProfitabilityMetrics, RestaurantSettings,
+  ProfitabilityMetrics, RestaurantSettings, DayRevenue,
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Card, Badge, Modal, NATIVE_SELECT_CLASS } from '../components/ui';
@@ -421,31 +421,42 @@ export default function Dashboard() {
           </Card>
 
           {/* ── Sales by Day ── */}
-          {profitabilityMetrics.sales_by_daypart.length > 0 && (
+          {profitabilityMetrics.sales_by_day.length > 0 && (
             <div className="grid md:grid-cols-2 gap-4">
               <Card className="p-5">
                 <h2 className="text-sm font-semibold text-foreground mb-4">Sales by Day</h2>
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={profitabilityMetrics.sales_by_daypart} barSize={32}>
-                    <XAxis dataKey="daypart" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={v => `$${v}`} axisLine={false} tickLine={false} width={52} />
+                  <BarChart data={profitabilityMetrics.sales_by_day} barSize={28}>
+                    <XAxis dataKey="day_name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: '#94a3b8' }}
+                      tickFormatter={v => v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`}
+                      axisLine={false}
+                      tickLine={false}
+                      width={52}
+                    />
                     <Tooltip
-                      formatter={(v: number) => [`$${v.toFixed(2)}`, 'Revenue']}
+                      formatter={(v: number) => [`$${v.toLocaleString()}`, 'Revenue']}
+                      labelFormatter={(label: string) => `Day: ${label}`}
                       contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 12 }}
                     />
-                    <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
-                      {profitabilityMetrics.sales_by_daypart.map((_, i) => (
-                        <Cell key={i} fill={['#6366f1','#8b5cf6','#ec4899','#f97316'][i % 4]} />
+                    <Bar dataKey="expected_revenue" radius={[6, 6, 0, 0]}>
+                      {profitabilityMetrics.sales_by_day.map((_: DayRevenue, i: number) => (
+                        <Cell key={i} fill={['#6366f1','#8b5cf6','#ec4899','#f97316','#06b6d4','#10b981','#f59e0b'][i % 7]} />
                       ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-                <div className="mt-3 grid grid-cols-4 gap-2">
-                  {profitabilityMetrics.sales_by_daypart.map(dp => (
-                    <div key={dp.daypart} className="text-center">
-                      <p className="text-[10px] font-semibold text-muted-foreground">{dp.daypart}</p>
-                      <p className="text-xs font-bold text-foreground">${dp.revenue.toLocaleString()}</p>
-                      <p className="text-[10px] text-muted-foreground">{dp.covers} covers</p>
+                <div className="mt-3 grid grid-cols-7 gap-1">
+                  {profitabilityMetrics.sales_by_day.map((day: DayRevenue) => (
+                    <div key={day.date} className="text-center">
+                      <p className="text-[10px] font-semibold text-muted-foreground">{day.day_name}</p>
+                      <p className="text-[10px] font-bold text-foreground">
+                        {day.expected_revenue >= 1000
+                          ? `$${(day.expected_revenue / 1000).toFixed(1)}k`
+                          : `$${day.expected_revenue}`}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">{day.expected_covers}cvr</p>
                     </div>
                   ))}
                 </div>
@@ -456,20 +467,24 @@ export default function Dashboard() {
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie
-                      data={profitabilityMetrics.sales_by_daypart}
+                      data={profitabilityMetrics.sales_by_day.filter((d: DayRevenue) => d.expected_revenue > 0)}
                       dataKey="revenue_pct"
-                      nameKey="daypart"
+                      nameKey="day_name"
                       cx="50%"
                       cy="50%"
                       outerRadius={75}
-                      label={({ daypart, revenue_pct }: any) => `${daypart} ${(revenue_pct * 100).toFixed(0)}%`}
+                      label={({ day_name, revenue_pct }: any) => `${day_name} ${(revenue_pct * 100).toFixed(0)}%`}
                       labelLine={false}
                     >
-                      {profitabilityMetrics.sales_by_daypart.map((_, i) => (
-                        <Cell key={i} fill={['#6366f1','#8b5cf6','#ec4899','#f97316'][i % 4]} />
+                      {profitabilityMetrics.sales_by_day.filter((d: DayRevenue) => d.expected_revenue > 0).map((_: DayRevenue, i: number) => (
+                        <Cell key={i} fill={['#6366f1','#8b5cf6','#ec4899','#f97316','#06b6d4','#10b981','#f59e0b'][i % 7]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: number) => `${(v * 100).toFixed(0)}%`} />
+                    <Tooltip
+                      formatter={(v: number, _name: string, props: any) =>
+                        [`$${props.payload?.expected_revenue?.toLocaleString() ?? 0} (${(v * 100).toFixed(1)}%)`, 'Revenue']
+                      }
+                    />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
