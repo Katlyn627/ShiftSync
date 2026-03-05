@@ -43,8 +43,8 @@ ShiftSync stores all data in MongoDB. You can use either **MongoDB Atlas** (free
 
 1. Sign up or log in at [https://cloud.mongodb.com](https://cloud.mongodb.com).
 2. Create a free **Shared** (M0) cluster (any cloud region).
-3. Under **Database Access**, create a database user with *Read and write to any database* privileges. Note the username and password.
-4. Under **Network Access**, add your IP address (or `0.0.0.0/0` to allow all IPs during development).
+3. Under **Database Access**, create a database user. For development you can use the built-in *Read and write to any database* role. For production, create a custom role with access scoped to only the `shiftsync` database — see [Atlas custom roles](https://www.mongodb.com/docs/atlas/security-add-mongodb-roles/) for steps. Note the username and password.
+4. Under **Network Access**, add your IP address (click *Add Current IP Address*). For development only you may use `0.0.0.0/0` to allow all IPs — **never do this in production**.
 5. On the cluster overview page click **Connect → Drivers**, select **Node.js**, and copy the connection string. It looks like:
    ```
    mongodb+srv://<username>:<password>@<cluster-name>.mongodb.net/?retryWrites=true&w=majority
@@ -73,6 +73,25 @@ To seed (or re-seed) the database without starting the full server:
 ```bash
 cd server && npm run seed:mongodb
 ```
+
+#### Troubleshooting: `querySrv ECONNREFUSED`
+
+If you see an error like:
+
+```
+MongoDB connection attempt 1/5 failed: querySrv ECONNREFUSED _mongodb._tcp.<cluster>.mongodb.net
+```
+
+your network is blocking DNS SRV record lookups, which are required by `mongodb+srv://` connection strings. Use the **Standard connection string** instead:
+
+1. In Atlas, click **Connect → Drivers**.
+2. Switch **Connection method** to **Standard connection string**.
+3. Copy the URI (it begins with `mongodb://`, not `mongodb+srv://`).
+4. Update `server/.env`:
+   ```
+   MONGODB_URI=mongodb://<user>:<password>@<host1>:27017,<host2>:27017/shiftsync?ssl=true&replicaSet=<rs>&authSource=admin
+   ```
+5. Re-run the seed: `cd server && npm run seed:mongodb`
 
 #### Enabling Google OAuth
 

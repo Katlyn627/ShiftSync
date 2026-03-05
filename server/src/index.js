@@ -12,7 +12,7 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import session from 'express-session';
 import passport from 'passport';
-import { connectDb, isConnected } from './db.js';
+import { connectDb, isConnected, buildConnectionErrorMessage } from './db.js';
 import { seedDemoData } from './seed.js';
 import authRouter from './routes/auth.js';
 import employeesRouter from './routes/employees.js';
@@ -58,12 +58,8 @@ app.listen(PORT, () => {
 connectDb()
   .then(() => seedDemoData())
   .catch(err => {
-    console.error('\n❌  Failed to connect to MongoDB:', err.message);
-    console.error('──────────────────────────────────────────────────────');
-    console.error('  Fix: set MONGODB_URI in server/.env, for example:');
-    console.error('  MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/shiftsync');
-    console.error('  Then restart the server.  The HTTP server is still');
-    console.error('  running but all database-backed routes will error.');
+    console.error(buildConnectionErrorMessage(err));
+    console.error('  The HTTP server is still running but all database-backed routes will error.');
     console.error('──────────────────────────────────────────────────────\n');
   });
 
