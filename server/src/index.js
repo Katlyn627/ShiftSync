@@ -1,30 +1,33 @@
 import dotenv from 'dotenv';
 import path from 'path';
-// __dirname is server/src (ts-node-dev) or server/dist (compiled), so ../
-// always resolves to server/ — the directory that contains the .env file.
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import session from 'express-session';
 import passport from 'passport';
-import { getDb } from './db';
-import { seedDemoData } from './seed';
-import authRouter from './routes/auth';
-import employeesRouter from './routes/employees';
-import schedulesRouter from './routes/schedules';
-import shiftsRouter from './routes/shifts';
-import swapsRouter from './routes/swaps';
-import forecastsRouter from './routes/forecasts';
-import timeOffRouter from './routes/time-off';
+import { connectDb } from './db.js';
+import { seedDemoData } from './seed.js';
+import authRouter from './routes/auth.js';
+import employeesRouter from './routes/employees.js';
+import schedulesRouter from './routes/schedules.js';
+import shiftsRouter from './routes/shifts.js';
+import swapsRouter from './routes/swaps.js';
+import forecastsRouter from './routes/forecasts.js';
+import timeOffRouter from './routes/time-off.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
-// Session required for the OAuth state parameter (stateless JWT is issued at callback)
 app.use(
   session({
     secret: process.env.SESSION_SECRET || 'shiftsync-session-secret-change-in-production',
@@ -33,13 +36,12 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
-      sameSite: 'lax', // mitigates CSRF for the OAuth state cookie
+      sameSite: 'lax',
     },
   })
 );
 app.use(passport.initialize());
 
-// Rate limiting: 300 requests per minute per IP
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 300,
@@ -48,11 +50,13 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// Init DB
-getDb();
-seedDemoData();
+connectDb()
+  .then(() => seedDemoData())
+  .catch(err => {
+    console.error('Failed to connect to MongoDB:', err.message);
+    process.exit(1);
+  });
 
-// Routes
 app.use('/api/auth', authRouter);
 app.use('/api/employees', employeesRouter);
 app.use('/api/schedules', schedulesRouter);
@@ -65,10 +69,8 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Serve built React frontend in production
 const clientDist = path.resolve(__dirname, '../../client/dist');
 app.use(express.static(clientDist));
-// SPA fallback: serve index.html for all non-API routes so React Router works
 app.get(/^(?!\/api).*/, (_req, res) => {
   res.sendFile(path.join(clientDist, 'index.html'));
 });

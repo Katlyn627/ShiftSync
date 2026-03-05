@@ -1,13 +1,13 @@
-import { getDb } from './db';
 import bcrypt from 'bcryptjs';
+import Employee from './models/Employee.js';
+import Availability from './models/Availability.js';
+import Forecast from './models/Forecast.js';
+import User from './models/User.js';
 
-export function seedDemoData(): void {
-  const db = getDb();
+export async function seedDemoData() {
+  const count = await Employee.countDocuments();
+  if (count > 0) return; // Already seeded
 
-  const existingCount = (db.prepare('SELECT COUNT(*) as c FROM employees').get() as any).c;
-  if (existingCount > 0) return; // Already seeded
-
-  // Seed employees
   const employees = [
     { name: 'Alice Johnson', role: 'Manager', hourly_rate: 22.0, weekly_hours_max: 45 },
     { name: 'Bob Smith', role: 'Server', hourly_rate: 14.0, weekly_hours_max: 40 },
@@ -28,37 +28,35 @@ export function seedDemoData(): void {
     { name: 'Quinn Lewis', role: 'Host', hourly_rate: 13.0, weekly_hours_max: 30 },
   ];
 
-  const insertEmp = db.prepare('INSERT INTO employees (name, role, hourly_rate, weekly_hours_max) VALUES (?, ?, ?, ?)');
-  
-  for (const emp of employees) {
-    insertEmp.run(emp.name, emp.role, emp.hourly_rate, emp.weekly_hours_max);
-  }
+  const savedEmps = await Employee.insertMany(employees);
 
-  // Set availability for all employees (Mon-Sun, broad windows)
-  const allEmps = db.prepare('SELECT id FROM employees').all() as any[];
-  const insertAvail = db.prepare('INSERT OR REPLACE INTO availability (employee_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)');
-  
-  for (const emp of allEmps) {
+  // Seed availability
+  const availDocs = [];
+  for (const emp of savedEmps) {
     for (let day = 0; day <= 6; day++) {
-      // Vary availability slightly
       const startHour = day === 0 || day === 6 ? '09:00' : '08:00';
       const endHour = '23:59';
-      if (emp.id % 3 === 0 && day === 1) continue; // some employees off Monday
-      if (emp.id % 4 === 0 && day === 2) continue; // some employees off Tuesday
-      insertAvail.run(emp.id, day, startHour, endHour);
+      const idx = savedEmps.indexOf(emp);
+      if (idx % 3 === 0 && day === 1) continue;
+      if (idx % 4 === 0 && day === 2) continue;
+      availDocs.push({
+        employee_id: emp._id,
+        day_of_week: day,
+        start_time: startHour,
+        end_time: endHour,
+      });
     }
   }
+  await Availability.insertMany(availDocs);
 
-  // Seed forecasts for next 2 weeks
+  // Seed forecasts
   const today = new Date();
-  // Find next Monday
   const dayOfWeek = today.getDay();
   const daysToMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek) % 7 || 7;
   const nextMonday = new Date(today);
-  nextMonday.setDate(today.getDate() + daysToMonday - 7); // current week's Monday
+  nextMonday.setDate(today.getDate() + daysToMonday - 7);
 
-  const insertForecast = db.prepare('INSERT OR REPLACE INTO forecasts (date, expected_revenue, expected_covers) VALUES (?, ?, ?)');
-  
+  const forecastDocs = [];
   for (let w = 0; w < 2; w++) {
     for (let d = 0; d < 7; d++) {
       const date = new Date(nextMonday);
@@ -69,21 +67,22 @@ export function seedDemoData(): void {
         ? 7000 + Math.floor(Math.random() * 2000)
         : 3500 + Math.floor(Math.random() * 2000);
       const covers = Math.floor(revenue / 35);
-      insertForecast.run(dateStr, revenue, covers);
+      forecastDocs.push({ date: dateStr, expected_revenue: revenue, expected_covers: covers });
     }
+  }
+  for (const f of forecastDocs) {
+    await Forecast.findOneAndUpdate({ date: f.date }, f, { upsert: true });
   }
 
   // Seed user accounts
-  // Manager account: alice / password123
-  // Employee accounts: bob, carol, david, ... / password123
-  const insertUser = db.prepare(
-    'INSERT INTO users (username, password_hash, employee_id, is_manager) VALUES (?, ?, ?, ?)'
-  );
-  const allSeeded = db.prepare('SELECT id, name, role FROM employees').all() as any[];
-  for (const emp of allSeeded) {
-    const username = emp.name.split(' ')[0].toLowerCase();
-    const hash = bcrypt.hashSync('password123', 10);
-    const isManager = emp.role === 'Manager' ? 1 : 0;
-    insertUser.run(username, hash, emp.id, isManager);
-  }
+  const hash = await bcrypt.hash('password123', 10);
+  const userDocs = savedEmps.map(emp => ({
+    username: emp.name.split(' ')[0].toLowerCase(),
+    password_hash: hash,
+    employee_id: emp._id,
+    is_manager: emp.role === 'Manager',
+  }));
+  await User.insertMany(userDocs);
+
+  console.log('Demo data seeded successfully');
 }

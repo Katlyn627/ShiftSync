@@ -1,0 +1,27 @@
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'shiftsync-secret-key-change-in-production';
+
+export function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  const token = authHeader.slice(7);
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
+export function requireManager(req, res, next) {
+  requireAuth(req, res, () => {
+    if (!req.user?.isManager) {
+      return res.status(403).json({ error: 'Manager access required' });
+    }
+    next();
+  });
+}
