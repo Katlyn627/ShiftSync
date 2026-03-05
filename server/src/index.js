@@ -12,7 +12,7 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import session from 'express-session';
 import passport from 'passport';
-import { connectDb } from './db.js';
+import { connectDb, isConnected } from './db.js';
 import { seedDemoData } from './seed.js';
 import authRouter from './routes/auth.js';
 import employeesRouter from './routes/employees.js';
@@ -50,11 +50,21 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
+// Start HTTP server immediately so the process is never killed by a DB issue.
+app.listen(PORT, () => {
+  console.log(`ShiftSync server running on http://localhost:${PORT}`);
+});
+
 connectDb()
   .then(() => seedDemoData())
   .catch(err => {
-    console.error('Failed to connect to MongoDB:', err.message);
-    process.exit(1);
+    console.error('\n❌  Failed to connect to MongoDB:', err.message);
+    console.error('──────────────────────────────────────────────────────');
+    console.error('  Fix: set MONGODB_URI in server/.env, for example:');
+    console.error('  MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/shiftsync');
+    console.error('  Then restart the server.  The HTTP server is still');
+    console.error('  running but all database-backed routes will error.');
+    console.error('──────────────────────────────────────────────────────\n');
   });
 
 app.use('/api/auth', authRouter);
@@ -66,17 +76,18 @@ app.use('/api/forecasts', forecastsRouter);
 app.use('/api/time-off', timeOffRouter);
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  const dbOk = isConnected();
+  res.status(dbOk ? 200 : 503).json({
+    status: dbOk ? 'ok' : 'degraded',
+    db: dbOk ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString(),
+  });
 });
 
 const clientDist = path.resolve(__dirname, '../../client/dist');
 app.use(express.static(clientDist));
 app.get(/^(?!\/api).*/, (_req, res) => {
   res.sendFile(path.join(clientDist, 'index.html'));
-});
-
-app.listen(PORT, () => {
-  console.log(`ShiftSync server running on http://localhost:${PORT}`);
 });
 
 export default app;
