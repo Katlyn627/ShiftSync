@@ -29,43 +29,73 @@ interface DayNeed {
   shiftsNeeded: { role: string; start: string; end: string; count: number }[];
 }
 
-// Determine staffing needs based on forecast and target labor cost %
+// Typical covers a single server handles across a full day (two service shifts).
+// Adjusted for service intensity: high avg-check venues need more attentive staff.
+const BASE_COVERS_PER_SERVER_DAY = 35;
+
+/**
+ * Determine staffing needs for a single day using a rich set of signals:
+ *  - expected_covers (from forecast)         → primary driver of server count
+ *  - avg_check_per_head                      → service intensity adjustment
+ *  - table_turnover_rate                     → workload multiplier
+ *  - target_labor_pct (restaurant settings)  → budget scaling
+ *  - day-of-week                             → weekend bump
+ *  - revenue                                 → minimum-viable-staffing floor
+ */
 function computeDayNeeds(
   forecast: Forecast | undefined,
   date: string,
   dayOfWeek: number,
   targetLaborPct: number,
+  avgCheckPerHead: number,
+  tableTurnoverRate: number,
 ): DayNeed {
   const revenue = forecast?.expected_revenue ?? 3000;
+  const covers  = forecast?.expected_covers  ?? Math.floor(revenue / 32);
 
-  // Base staffing tiers by revenue
-  let serverCount = 2;
-  let hostCount = 1;
-  let kitchenCount = 2;
-  let barCount = 1;
+  // ── Service intensity: high avg-check → more attentive service → fewer covers/server ──
+  const serviceIntensityFactor =
+    avgCheckPerHead > 60 ? 0.65 :
+    avgCheckPerHead > 45 ? 0.80 :
+    avgCheckPerHead > 30 ? 0.95 : 1.0;
 
-  if (revenue >= 8000) {
-    serverCount = 5; kitchenCount = 4; barCount = 2; hostCount = 2;
-  } else if (revenue >= 5000) {
-    serverCount = 4; kitchenCount = 3; barCount = 2; hostCount = 1;
-  } else if (revenue >= 3000) {
-    serverCount = 3; kitchenCount = 2; barCount = 1; hostCount = 1;
-  }
+  // ── Turnover intensity: more table turns → higher workload per server ──
+  const turnoverFactor =
+    tableTurnoverRate > 3 ? 1.25 :
+    tableTurnoverRate > 2 ? 1.12 : 1.0;
 
-  // Weekend bump
+  const coversPerServer = BASE_COVERS_PER_SERVER_DAY * serviceIntensityFactor;
+  let serverCount = Math.ceil((covers / coversPerServer) * turnoverFactor);
+
+  // ── Weekend bump ──────────────────────────────────────────────────────────
   if (dayOfWeek === 0 || dayOfWeek === 6) {
     serverCount = Math.ceil(serverCount * 1.3);
-    kitchenCount = Math.ceil(kitchenCount * 1.2);
   }
 
-  // Scale back staffing if target labor % is aggressive (< 28%), scale up if generous (> 35%)
-  if (targetLaborPct < 28) {
-    serverCount  = Math.max(1, serverCount  - 1);
-    kitchenCount = Math.max(1, kitchenCount - 1);
-  } else if (targetLaborPct > 35) {
-    serverCount  = serverCount  + 1;
-    kitchenCount = kitchenCount + 1;
+  // ── Revenue-tier floor (keeps minimum viable staffing on very slow days) ──
+  const revFloor =
+    revenue >= 8000 ? 5 :
+    revenue >= 5000 ? 4 :
+    revenue >= 3000 ? 3 : 2;
+  serverCount = Math.max(serverCount, revFloor);
+
+  // ── Target labor % scaling ────────────────────────────────────────────────
+  if (targetLaborPct < 28) serverCount = Math.max(1, serverCount - 1);
+  else if (targetLaborPct > 35) serverCount = serverCount + 1;
+
+  serverCount = Math.min(serverCount, 8); // hard cap
+
+  // ── Kitchen scales with server count ─────────────────────────────────────
+  let kitchenCount = Math.max(1, Math.ceil(serverCount * 0.7));
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    kitchenCount = Math.ceil(kitchenCount * 1.1);
   }
+  if (targetLaborPct < 28) kitchenCount = Math.max(1, kitchenCount - 1);
+  else if (targetLaborPct > 35) kitchenCount = kitchenCount + 1;
+
+  // ── Bar and Host ──────────────────────────────────────────────────────────
+  const barCount  = serverCount >= 4 ? 2 : 1;
+  const hostCount = serverCount >= 4 ? 2 : 1;
 
   return {
     date,
@@ -203,6 +233,14 @@ export function generateSchedule(options: GenerateOptions): number {
   const dayRevenues = weekDates.map((_, i) => weekForecasts[i]?.expected_revenue ?? 3000);
   const totalWeekRevenue = dayRevenues.reduce((s, r) => s + r, 0);
 
+  // ── Weekly-level metrics passed into each day's staffing computation ──────
+  const totalWeekCovers = weekForecasts.reduce(
+    (s, f) => s + (f?.expected_covers ?? 0), 0
+  );
+  const avgCheckPerHead = totalWeekCovers > 0 ? totalWeekRevenue / totalWeekCovers : 32;
+  const totalServicePeriods = settings.tables * 7 * 2; // 2 service periods/day (lunch + dinner)
+  const tableTurnoverRate = totalServicePeriods > 0 ? totalWeekCovers / totalServicePeriods : 1.5;
+
   // Allow 10% flex over the tighter of budget vs. target-labor-pct-of-revenue
   const LABOR_BUFFER_MULTIPLIER = 1.1;
   const laborPctCeiling = totalWeekRevenue * (settings.target_labor_pct / 100);
@@ -263,7 +301,7 @@ export function generateSchedule(options: GenerateOptions): number {
     const dayOfWeek = dateObj.getDay();
 
     const forecast = db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined;
-    const dayNeeds = computeDayNeeds(forecast, date, dayOfWeek, settings.target_labor_pct);
+    const dayNeeds = computeDayNeeds(forecast, date, dayOfWeek, settings.target_labor_pct, avgCheckPerHead, tableTurnoverRate);
 
     // Track employees assigned a regular shift today (for standby selection)
     const scheduledTodayIds = new Set<number>();
@@ -400,20 +438,34 @@ export function computeWeeklyStaffingNeeds(weekStart: string): DailyStaffingSugg
   const suggestions: DailyStaffingSuggestion[] = [];
 
   const startDate = new Date(weekStart);
+
+  // ── Compute weekly-level metrics ─────────────────────────────────────────
+  const weekDates: string[] = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(startDate);
     d.setDate(startDate.getDate() + i);
-    const date = d.toISOString().split('T')[0];
-    const dayOfWeek = d.getDay();
+    weekDates.push(d.toISOString().split('T')[0]);
+  }
+  const weekForecasts = weekDates.map(date =>
+    db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined
+  );
+  const totalRevenue = weekForecasts.reduce((s, f) => s + (f?.expected_revenue ?? 3000), 0);
+  const totalCovers  = weekForecasts.reduce((s, f) => s + (f?.expected_covers  ?? 0), 0);
+  const avgCheckPerHead  = totalCovers > 0 ? totalRevenue / totalCovers : 32;
+  const totalServicePeriods = settings.tables * 7 * 2;
+  const tableTurnoverRate   = totalServicePeriods > 0 ? totalCovers / totalServicePeriods : 1.5;
 
-    const forecast = db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined;
-    const dayNeed = computeDayNeeds(forecast, date, dayOfWeek, settings.target_labor_pct);
+  for (let i = 0; i < 7; i++) {
+    const date      = weekDates[i];
+    const dayOfWeek = new Date(date).getDay();
+    const forecast  = weekForecasts[i];
+    const dayNeed   = computeDayNeeds(forecast, date, dayOfWeek, settings.target_labor_pct, avgCheckPerHead, tableTurnoverRate);
 
     suggestions.push({
       date,
       day_of_week: dayOfWeek,
       expected_revenue: forecast?.expected_revenue ?? 3000,
-      expected_covers: forecast?.expected_covers ?? 0,
+      expected_covers:  forecast?.expected_covers  ?? 0,
       staffing: dayNeed.shiftsNeeded,
     });
   }

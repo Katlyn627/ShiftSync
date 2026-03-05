@@ -2,8 +2,9 @@ import { useEffect, useState, CSSProperties } from 'react';
 import {
   getSchedules, generateSchedule, getScheduleShifts, updateSchedule, deleteSchedule,
   getEmployees, createSwap, updateShift, createShift, deleteShift, getBurnoutRisks, getAvailability,
-  getScheduleCoverage,
-  Schedule, ShiftWithEmployee, Employee, BurnoutRisk, Availability, ScheduleCoverageReport
+  getScheduleCoverage, getScheduleIntelligence,
+  Schedule, ShiftWithEmployee, Employee, BurnoutRisk, Availability, ScheduleCoverageReport,
+  DayIntelligence, ScheduleIntelligence,
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Button, Input, Card, Badge, NATIVE_SELECT_CLASS } from '../components/ui';
@@ -85,8 +86,13 @@ export default function SchedulePage() {
   const [swapSubmitting, setSwapSubmitting] = useState(false);
   const [burnoutRisks, setBurnoutRisks]     = useState<BurnoutRisk[]>([]);
   const [coverage, setCoverage]             = useState<ScheduleCoverageReport | null>(null);
+  const [intelligence, setIntelligence]     = useState<ScheduleIntelligence | null>(null);
   const [availabilityByEmployee, setAvailabilityByEmployee] = useState<Record<number, Availability[]>>({});
   const [dropLoadingShiftId, setDropLoadingShiftId] = useState<number | null>(null);
+
+  // ── Manager filter state ──────────────────────────────────────────────────
+  type ActiveFilter = 'understaffed' | 'overstaffed' | 'burnout' | 'budget_flexible' | null;
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>(null);
 
   // Manual shift creation modal state
   const [addShiftCell, setAddShiftCell] = useState<{ date: string; slotKey: string } | null>(null);
@@ -126,7 +132,10 @@ export default function SchedulePage() {
     getScheduleShifts(selectedId).then(setShifts).catch(() => setShifts([]));
     getBurnoutRisks(selectedId).then(setBurnoutRisks).catch(() => setBurnoutRisks([]));
     getScheduleCoverage(selectedId).then(setCoverage).catch(() => setCoverage(null));
-  }, [selectedId]);
+    if (isManager) {
+      getScheduleIntelligence(selectedId).then(setIntelligence).catch(() => setIntelligence(null));
+    }
+  }, [selectedId, isManager]);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -204,6 +213,55 @@ export default function SchedulePage() {
   }
 
   const burnoutByEmployee = Object.fromEntries(burnoutRisks.map(risk => [risk.employee_id, risk]));
+
+  // Build quick intelligence lookup by date
+  const intelByDate: Record<string, DayIntelligence> = {};
+  if (intelligence) {
+    for (const day of intelligence.days) intelByDate[day.date] = day;
+  }
+
+  // Determine if a given employee should be highlighted by the burnout filter
+  const isBurnoutHighlightedEmployee = (empId: number) =>
+    activeFilter === 'burnout' && burnoutByEmployee[empId]?.risk_level === 'high';
+
+  // Determine day column overlay class and label for the active filter
+  const getDayFilterOverlay = (date: string) => {
+    if (!activeFilter || !intelligence) return null;
+    const intel = intelByDate[date];
+    if (!intel) return null;
+
+    if (activeFilter === 'understaffed' && intel.understaffed_probability > 0) {
+      return {
+        prob: intel.understaffed_probability,
+        label: `${intel.understaffed_probability}% short-staff risk`,
+        color: intel.understaffed_probability >= 60 ? '#991b1b' : '#92400e',
+        bg:    intel.understaffed_probability >= 60 ? '#fef2f2' : '#fffbeb',
+        border: intel.understaffed_probability >= 60 ? '#fca5a5' : '#fcd34d',
+      };
+    }
+    if (activeFilter === 'overstaffed' && intel.overstaffed_probability > 0) {
+      return {
+        prob: intel.overstaffed_probability,
+        label: `${intel.overstaffed_probability}% overstaffed`,
+        color: '#1d4ed8',
+        bg:    '#eff6ff',
+        border: '#93c5fd',
+      };
+    }
+    if (activeFilter === 'budget_flexible' && intel.budget_status === 'flexible') {
+      const room = intel.budget_allocated > 0
+        ? Math.round((1 - intel.budget_utilization_pct / 100) * intel.budget_allocated)
+        : 0;
+      return {
+        prob: Math.round(100 - intel.budget_utilization_pct),
+        label: `$${room} budget room (${intel.budget_utilization_pct.toFixed(0)}% used)`,
+        color: '#15803d',
+        bg:    '#f0fdf4',
+        border: '#86efac',
+      };
+    }
+    return null;
+  };
 
   const hasAvailabilityWarning = (shift: ShiftWithEmployee) => {
     const rules = availabilityByEmployee[shift.employee_id];
@@ -409,18 +467,149 @@ export default function SchedulePage() {
         </div>
       )}
 
+      {/* ── Manager Intelligence Filter Bar ── */}
+      {selectedSchedule && isManager && intelligence && (
+        <div className="rounded-xl border border-border bg-white shadow-sm p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mr-1">Filters</span>
+
+            {/* Short Staff */}
+            <button
+              onClick={() => setActiveFilter(f => f === 'understaffed' ? null : 'understaffed')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                activeFilter === 'understaffed'
+                  ? 'bg-rose-600 text-white border-rose-600'
+                  : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              Short Staff Risk
+              {intelligence.understaffed_days > 0 && (
+                <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] ${activeFilter === 'understaffed' ? 'bg-white/20' : 'bg-rose-100'}`}>
+                  {intelligence.understaffed_days}d
+                </span>
+              )}
+            </button>
+
+            {/* Overstaffed */}
+            <button
+              onClick={() => setActiveFilter(f => f === 'overstaffed' ? null : 'overstaffed')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                activeFilter === 'overstaffed'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+              Overstaffed
+              {intelligence.overstaffed_days > 0 && (
+                <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] ${activeFilter === 'overstaffed' ? 'bg-white/20' : 'bg-blue-100'}`}>
+                  {intelligence.overstaffed_days}d
+                </span>
+              )}
+            </button>
+
+            {/* Burnout Alert */}
+            <button
+              onClick={() => setActiveFilter(f => f === 'burnout' ? null : 'burnout')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                activeFilter === 'burnout'
+                  ? 'bg-orange-500 text-white border-orange-500'
+                  : 'bg-white text-orange-700 border-orange-200 hover:bg-orange-50'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+              Server Burnout Alert
+              {intelligence.overall_burnout_alert_count > 0 && (
+                <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] ${activeFilter === 'burnout' ? 'bg-white/20' : 'bg-orange-100'}`}>
+                  {intelligence.overall_burnout_alert_count}
+                </span>
+              )}
+            </button>
+
+            {/* Budget Flexible */}
+            <button
+              onClick={() => setActiveFilter(f => f === 'budget_flexible' ? null : 'budget_flexible')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                activeFilter === 'budget_flexible'
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              Labor Budget Flexible
+              <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] ${activeFilter === 'budget_flexible' ? 'bg-white/20' : 'bg-emerald-100'}`}>
+                {intelligence.budget_flexibility_pct.toFixed(0)}% slack
+              </span>
+            </button>
+
+            {/* Clear filter */}
+            {activeFilter && (
+              <button
+                onClick={() => setActiveFilter(null)}
+                className="px-2 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:bg-muted/40 transition-colors"
+              >
+                ✕ Clear
+              </button>
+            )}
+
+            {/* Summary chips */}
+            <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span>Avg check: <strong>{intelligence.avg_check_per_head > 0 ? `$${intelligence.avg_check_per_head.toFixed(0)}` : 'N/A'}</strong></span>
+              <span>·</span>
+              <span>Table turnover: <strong>{intelligence.table_turnover_rate > 0 ? `${intelligence.table_turnover_rate.toFixed(1)}x` : 'N/A'}</strong></span>
+              <span>·</span>
+              <span>Labor cost: <strong>${intelligence.total_labor_cost.toLocaleString()}</strong> / ${intelligence.labor_budget.toLocaleString()}</span>
+            </div>
+          </div>
+
+          {/* Filter legend */}
+          {activeFilter && (
+            <div className="mt-2 pt-2 border-t border-border text-[11px] text-muted-foreground">
+              {activeFilter === 'understaffed' && (
+                <span>🔴 Highlighting days where actual staffing falls below the demand-based optimal. Probability is proportional to the shortfall.</span>
+              )}
+              {activeFilter === 'overstaffed' && (
+                <span>🔵 Highlighting days where actual staffing exceeds optimal by more than 25%. Probability reflects excess relative to optimal.</span>
+              )}
+              {activeFilter === 'burnout' && (
+                <span>🔶 Highlighting shift cards assigned to employees with a <strong>high</strong> burnout risk score based on consecutive days, clopens, and overtime.</span>
+              )}
+              {activeFilter === 'budget_flexible' && (
+                <span>🟢 Highlighting days where labor cost is below 65% of the day's budget allocation — room to add shifts or increase hours.</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Weekly Calendar Grid + Employee Panel ── */}
       {selectedSchedule && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="overflow-x-auto rounded-xl border border-border bg-white shadow-sm">
             <div className="grid grid-cols-[120px_repeat(7,minmax(140px,1fr))] min-w-[1120px]">
               <div className="border-b border-r border-border bg-muted/30 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Shift</div>
-              {weekDates.map((date, idx) => (
-                <div key={`hdr-${date}`} className="border-b border-border border-r last:border-r-0 px-3 py-3 bg-muted/30 text-center">
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{DAY_LABELS[idx]}</div>
-                  <div className="text-sm font-bold text-foreground mt-0.5">{date.slice(5)}</div>
-                </div>
-              ))}
+              {weekDates.map((date, idx) => {
+                const overlay = getDayFilterOverlay(date);
+                return (
+                  <div
+                    key={`hdr-${date}`}
+                    className="border-b border-border border-r last:border-r-0 px-3 py-3 bg-muted/30 text-center relative"
+                    style={overlay ? { backgroundColor: overlay.bg, borderColor: overlay.border } : undefined}
+                  >
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{DAY_LABELS[idx]}</div>
+                    <div className="text-sm font-bold text-foreground mt-0.5">{date.slice(5)}</div>
+                    {overlay && (
+                      <div
+                        className="mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full inline-block"
+                        style={{ color: overlay.color, backgroundColor: overlay.bg, border: `1px solid ${overlay.border}` }}
+                      >
+                        {overlay.label}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
               {SHIFT_SLOTS.map((slot, rowIdx) => (
                 <div key={`row-${slot.key}`} className="contents">
@@ -429,10 +618,12 @@ export default function SchedulePage() {
                   </div>
                   {weekDates.map((date, idx) => {
                     const slotShifts = shiftsByDateAndSlot[date]?.[slot.key] ?? [];
+                    const overlay = getDayFilterOverlay(date);
                     return (
                       <div
                         key={`cell-${date}-${slot.key}`}
                         className={`border-r last:border-r-0 p-2 min-h-[140px] space-y-1.5 relative group/cell ${idx % 2 === 0 ? 'bg-white' : 'bg-background/60'} ${rowIdx < SHIFT_SLOTS.length - 1 ? 'border-b border-border' : ''}`}
+                        style={overlay ? { backgroundColor: overlay.bg + '55' } : undefined}
                       >
                         {slotShifts.length === 0 ? (
                           <div className="flex flex-col items-center justify-center h-full min-h-[100px]">
@@ -453,11 +644,14 @@ export default function SchedulePage() {
                               const canRequestSwap = shift.status !== 'swapped' &&
                                 (user?.isManager || shift.employee_id === user?.employeeId);
                               const warning = hasAvailabilityWarning(shift);
+                              const isBurnoutShift = isBurnoutHighlightedEmployee(shift.employee_id);
                               return (
                                 <div
                                   key={shift.id}
                                   className={`rounded-lg text-xs overflow-hidden relative group/shift ${shift.status === 'swapped' ? 'opacity-40' : ''} ${dropLoadingShiftId === shift.id ? 'animate-pulse' : ''}`}
-                                  style={shiftBlockStyle(shift.role)}
+                                  style={isBurnoutShift
+                                    ? { backgroundColor: '#fff7ed', color: '#9a3412', outline: '2px solid #f97316' }
+                                    : shiftBlockStyle(shift.role)}
                                   onDragOver={e => isManager && e.preventDefault()}
                                   onDrop={e => {
                                     const employeeId = Number(e.dataTransfer.getData('text/plain'));
@@ -465,7 +659,10 @@ export default function SchedulePage() {
                                   }}
                                 >
                                   <div className="flex">
-                                    <div className="w-[3px] shrink-0 rounded-l-lg" style={{ backgroundColor: shiftBarColor(shift.role) }} />
+                                    <div
+                                      className="w-[3px] shrink-0 rounded-l-lg"
+                                      style={{ backgroundColor: isBurnoutShift ? '#f97316' : shiftBarColor(shift.role) }}
+                                    />
                                     <div className="flex-1 px-2 py-1.5 min-w-0">
                                       <div className="font-semibold truncate text-[11px]" style={{ textDecoration: shift.status === 'swapped' ? 'line-through' : undefined }}>
                                         {shift.employee_name}
@@ -473,6 +670,9 @@ export default function SchedulePage() {
                                       <Badge variant={roleVariant(shift.role)} className="mt-0.5 text-[9px] px-1.5 py-0 h-4">{shift.role}</Badge>
                                       <div className="opacity-60 mt-1 text-[10px] font-medium">{shift.start_time}–{shift.end_time}</div>
                                       {warning && <p className="text-[10px] mt-1 text-amber-700 font-semibold">Availability warning</p>}
+                                      {isBurnoutShift && (
+                                        <p className="text-[10px] mt-1 font-bold text-orange-700">🔶 Burnout risk</p>
+                                      )}
                                       {canRequestSwap && (
                                         <button
                                           className="mt-1 text-[10px] underline underline-offset-2 opacity-50 hover:opacity-100 transition-opacity"
@@ -525,10 +725,17 @@ export default function SchedulePage() {
                 const availability = availabilityByEmployee[employee.id]?.length ?? 0;
                 const isAtRisk = burnout?.risk_level === 'high' || utilization >= 95;
                 const isAtMaxHours = hours >= employee.weekly_hours_max;
+                const isBurnoutHighlight = isBurnoutHighlightedEmployee(employee.id);
                 return (
                   <div
                     key={employee.id}
-                    className={`rounded-lg border p-3 ${isAtMaxHours ? 'border-rose-200 bg-rose-50/40 opacity-70' : 'border-border bg-background/40'}`}
+                    className={`rounded-lg border p-3 transition-colors ${
+                      isBurnoutHighlight
+                        ? 'border-orange-400 bg-orange-50/60'
+                        : isAtMaxHours
+                          ? 'border-rose-200 bg-rose-50/40 opacity-70'
+                          : 'border-border bg-background/40'
+                    }`}
                     draggable={isManager && !isAtMaxHours}
                     onDragStart={e => {
                       if (!isAtMaxHours) e.dataTransfer.setData('text/plain', String(employee.id));
@@ -553,6 +760,7 @@ export default function SchedulePage() {
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {isAtMaxHours && <span className="text-[9px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">MAX</span>}
+                        {isBurnoutHighlight && <span className="text-[9px] font-bold text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded">🔶 BURNOUT</span>}
                         <Badge variant={roleVariant(employee.role)}>{employee.role}</Badge>
                       </div>
                     </div>
@@ -570,6 +778,11 @@ export default function SchedulePage() {
                       <div className={`h-full ${isAtRisk ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${utilization}%` }} />
                     </div>
                     {isAtRisk && <p className="mt-1.5 text-[10px] font-semibold text-rose-600">Burnout alert</p>}
+                    {isBurnoutHighlight && burnout && (
+                      <p className="mt-1 text-[10px] text-orange-700">
+                        Score {burnout.risk_score} · {burnout.consecutive_days}d consec · {burnout.clopens} clopens
+                      </p>
+                    )}
                   </div>
                 );
               })}

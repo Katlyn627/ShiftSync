@@ -109,6 +109,10 @@ export const getProfitabilityMetrics = (scheduleId: number) =>
 export const getScheduleCoverage = (scheduleId: number) =>
   request<ScheduleCoverageReport>(`/schedules/${scheduleId}/coverage`);
 
+// Schedule Intelligence (manager-only)
+export const getScheduleIntelligence = (scheduleId: number) =>
+  request<ScheduleIntelligence>(`/schedules/${scheduleId}/intelligence`);
+
 // Types
 export interface Site {
   id: number;
@@ -330,4 +334,43 @@ export interface ScheduleCoverageReport {
   days: DailyCoverageReport[];
   total_standby_count: number;
   days_at_risk: number;
+}
+
+export interface DayIntelligence {
+  date: string;
+  day_of_week: number;
+  expected_revenue: number;
+  expected_covers: number;
+  avg_check_per_head: number;
+  table_turnover_rate: number;
+  optimal_server_count: number;
+  actual_server_count: number;
+  optimal_kitchen_count: number;
+  actual_kitchen_count: number;
+  total_scheduled: number;
+  understaffed_probability: number;
+  overstaffed_probability: number;
+  staffing_status: 'adequate' | 'understaffed' | 'overstaffed';
+  burnout_alert_count: number;
+  burnout_alert_names: string[];
+  day_labor_cost: number;
+  day_revenue_share: number;
+  budget_allocated: number;
+  budget_utilization_pct: number;
+  budget_status: 'tight' | 'on_track' | 'flexible';
+}
+
+export interface ScheduleIntelligence {
+  schedule_id: number;
+  week_start: string;
+  labor_budget: number;
+  total_labor_cost: number;
+  avg_check_per_head: number;
+  table_turnover_rate: number;
+  days: DayIntelligence[];
+  overall_burnout_alert_count: number;
+  budget_flexibility_pct: number;
+  budget_status: 'tight' | 'on_track' | 'flexible';
+  understaffed_days: number;
+  overstaffed_days: number;
 }
