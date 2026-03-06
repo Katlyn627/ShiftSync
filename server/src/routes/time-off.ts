@@ -10,16 +10,25 @@ function twoWeeksFromNow(): string {
   return new Date(Date.now() + TWO_WEEKS_MS).toISOString().slice(0, 10);
 }
 
-// GET /time-off — managers see all; employees see their own
+// GET /time-off — managers see all from their site; employees see their own
 router.get('/', requireAuth, (req, res) => {
   const db = getDb();
   if (req.user?.isManager) {
-    const rows = db.prepare(`
-      SELECT r.*, e.name AS employee_name
-      FROM time_off_requests r
-      JOIN employees e ON r.employee_id = e.id
-      ORDER BY r.created_at DESC
-    `).all();
+    const siteId = req.user?.siteId ?? null;
+    const rows = siteId
+      ? db.prepare(`
+          SELECT r.*, e.name AS employee_name
+          FROM time_off_requests r
+          JOIN employees e ON r.employee_id = e.id
+          WHERE e.site_id = ?
+          ORDER BY r.created_at DESC
+        `).all(siteId)
+      : db.prepare(`
+          SELECT r.*, e.name AS employee_name
+          FROM time_off_requests r
+          JOIN employees e ON r.employee_id = e.id
+          ORDER BY r.created_at DESC
+        `).all();
     return res.json(rows);
   }
   const empId = req.user?.employeeId;

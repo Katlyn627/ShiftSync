@@ -3,9 +3,9 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieCha
 import {
   getSchedules, getLaborCost, getBurnoutRisks, getStaffingSuggestions,
   getEmployees, getScheduleShifts, getAvailability,
-  getProfitabilityMetrics, getRestaurantSettings, updateRestaurantSettings,
+  getProfitabilityMetrics, getRestaurantSettings, updateRestaurantSettings, getSites,
   Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee, Availability,
-  ProfitabilityMetrics, RestaurantSettings, DayRevenue,
+  ProfitabilityMetrics, RestaurantSettings, DayRevenue, Site,
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Card, Badge, Modal, NATIVE_SELECT_CLASS } from '../components/ui';
@@ -157,6 +157,7 @@ export default function Dashboard() {
     seats: 60, tables: 15, cogs_pct: 30, target_labor_pct: 30, operating_hours_per_day: 12,
   });
   const [settingsSaving, setSettingsSaving]         = useState(false);
+  const [currentSite, setCurrentSite]               = useState<Site | null>(null);
 
   useEffect(() => {
     getSchedules().then(s => {
@@ -171,7 +172,13 @@ export default function Dashboard() {
         setSettingsForm(s);
       }).catch(() => {});
     }
-  }, [isManager]);
+    if (user?.siteId) {
+      getSites().then(sites => {
+        const site = sites.find(s => s.id === user.siteId);
+        setCurrentSite(site ?? null);
+      }).catch(() => {});
+    }
+  }, [isManager, user?.siteId]);
 
   useEffect(() => {
     if (!selectedEmployee) { setEmployeeAvailability([]); return; }
@@ -252,7 +259,14 @@ export default function Dashboard() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Weekly overview and insights</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-sm text-muted-foreground">Weekly overview and insights</p>
+            {currentSite && (
+              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                {currentSite.name} · {currentSite.city}, {currentSite.state}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {isManager && (

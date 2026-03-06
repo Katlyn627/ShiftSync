@@ -21,6 +21,7 @@ const STANDBY_HIGH_REVENUE      = 5000; // >= $5 k → 2 standbys
 interface GenerateOptions {
   weekStart: string; // YYYY-MM-DD (Monday)
   laborBudget: number;
+  siteId?: number | null;
 }
 
 interface DayNeed {
@@ -199,13 +200,33 @@ export function generateSchedule(options: GenerateOptions): number {
   }
 
   // ── 2. Create schedule record ─────────────────────────────────────────────
+  const { siteId } = options;
   const scheduleResult = db.prepare(
-    'INSERT INTO schedules (week_start, labor_budget, status) VALUES (?, ?, ?)'
-  ).run(weekStart, laborBudget, 'draft');
+    'INSERT INTO schedules (week_start, labor_budget, status, site_id) VALUES (?, ?, ?, ?)'
+  ).run(weekStart, laborBudget, 'draft', siteId ?? null);
   const scheduleId = scheduleResult.lastInsertRowid as number;
 
-  const employees = db.prepare('SELECT * FROM employees').all() as Employee[];
-  const allAvailability = db.prepare('SELECT * FROM availability').all() as Availability[];
+  const employees = siteId
+    ? db.prepare('SELECT * FROM employees WHERE site_id = ?').all(siteId) as Employee[]
+    : db.prepare('SELECT * FROM employees').all() as Employee[];
+
+  // Load availability: when site-scoped, filter by the already-fetched employee IDs
+  // (avoids a join; employee IDs are integers from our own DB so IN-list is safe)
+  let allAvailability: Availability[];
+  if (siteId) {
+    if (employees.length === 0) {
+      allAvailability = [];
+    } else {
+      const empIds = employees.map(e => e.id as number);
+      // sqlite IN clause with integer IDs is not susceptible to injection
+      const placeholders = empIds.map(() => '?').join(',');
+      allAvailability = db.prepare(
+        `SELECT * FROM availability WHERE employee_id IN (${placeholders})`
+      ).all(empIds) as Availability[];
+    }
+  } else {
+    allAvailability = db.prepare('SELECT * FROM availability').all() as Availability[];
+  }
 
   // Track employee state across this week
   const employeeWeeklyHours: Record<number, number> = {};

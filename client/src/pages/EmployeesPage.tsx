@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getEmployees, getSites, createEmployee, updateEmployee, deleteEmployee, Employee, Site } from '../api';
+import { useAuth } from '../AuthContext';
 import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
@@ -29,12 +30,12 @@ const AVATAR_BG: Record<string, string> = {
 };
 
 export default function EmployeesPage() {
+  const { user } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [sites, setSites]         = useState<Site[]>([]);
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [filterSiteId, setFilterSiteId] = useState<number | 'all'>('all');
   const [form, setForm]           = useState({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
 
   const load = () => Promise.all([
@@ -66,9 +67,8 @@ export default function EmployeesPage() {
   };
 
   const siteMap = Object.fromEntries(sites.map(s => [s.id, s]));
-  const visibleEmployees = filterSiteId === 'all'
-    ? employees
-    : employees.filter(e => e.site_id === filterSiteId);
+  const currentSite = user?.siteId ? siteMap[user.siteId] : null;
+  const visibleEmployees = employees;
 
   if (loading) {
     return (
@@ -89,22 +89,16 @@ export default function EmployeesPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-foreground">Employees</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{visibleEmployees.length} team member{visibleEmployees.length !== 1 ? 's' : ''}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-sm text-muted-foreground">{visibleEmployees.length} team member{visibleEmployees.length !== 1 ? 's' : ''}</p>
+            {currentSite && (
+              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                {currentSite.name} · {currentSite.city}, {currentSite.state}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Site filter */}
-          {sites.length > 0 && (
-            <select
-              className={`text-sm ${NATIVE_SELECT_CLASS}`}
-              value={filterSiteId}
-              onChange={e => setFilterSiteId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-            >
-              <option value="all">All Sites</option>
-              {sites.map(s => (
-                <option key={s.id} value={s.id}>{s.name} ({s.city})</option>
-              ))}
-            </select>
-          )}
           <Button
             variant="default"
             size="sm"
