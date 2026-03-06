@@ -1,5 +1,6 @@
 import { getDb } from './db';
 import bcrypt from 'bcryptjs';
+import type Database from 'better-sqlite3';
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -25,13 +26,82 @@ function addDays(base: string, days: number): string {
 /** Minimum weekly hours worked to create an overtime record (avoids trivial entries). */
 const MIN_HOURS_FOR_OVERTIME_RECORD = 20;
 
+/** Minimum number of seeded employees required to consider the dataset complete. */
+const MIN_EXPECTED_EMPLOYEES = 100;
+
+/** Fallback room count for a hotel site that isn't listed in hotelRooms. */
+const DEFAULT_HOTEL_ROOM_COUNT = 100;
+
+/** Expected site names from the canonical seed. Used to detect stale data. */
+const EXPECTED_SITE_NAMES = [
+  'Bella Napoli',
+  'The Blue Door',
+  'Grand Pacific Hotel',
+  'Seaside Suites & Spa',
+];
+
+// ── Reseed helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Returns true when the database contains stale or incomplete seed data that
+ * no longer matches the canonical seed (e.g. after a schema migration that
+ * added site_id to forecasts / employees, or after the employee roster changed).
+ */
+function shouldReseed(db: Database.Database): boolean {
+  // Must have all canonical sites (by exact name)
+  const siteRows = db.prepare('SELECT name FROM sites').all() as { name: string }[];
+  if (siteRows.length < EXPECTED_SITE_NAMES.length) return true;
+  const siteNames = new Set(siteRows.map(r => r.name));
+  if (EXPECTED_SITE_NAMES.some(n => !siteNames.has(n))) return true;
+
+  // Must have ≥ MIN_EXPECTED_EMPLOYEES employees all carrying a site_id
+  const empCount = (db.prepare('SELECT COUNT(*) as c FROM employees').get() as any).c;
+  if (empCount < MIN_EXPECTED_EMPLOYEES) return true;
+  const empsWithSite = (db.prepare('SELECT COUNT(*) as c FROM employees WHERE site_id IS NOT NULL').get() as any).c;
+  if (empsWithSite < MIN_EXPECTED_EMPLOYEES) return true;
+
+  // Forecasts must be site-scoped (≥ 10 rows with a non-NULL site_id)
+  const forecastsWithSite = (db.prepare('SELECT COUNT(*) as c FROM forecasts WHERE site_id IS NOT NULL').get() as any).c;
+  if (forecastsWithSite < 10) return true;
+
+  // Schedules must be site-scoped (at least one per canonical site)
+  const schedulesWithSite = (db.prepare('SELECT COUNT(*) as c FROM schedules WHERE site_id IS NOT NULL').get() as any).c;
+  if (schedulesWithSite < EXPECTED_SITE_NAMES.length) return true;
+
+  return false;
+}
+
+/** Wipes all seeded tables so that seedDemoData() can start from a clean slate. */
+function clearSeedData(db: Database.Database): void {
+  db.exec(`
+    DELETE FROM shift_swaps;
+    DELETE FROM weekly_overtime;
+    DELETE FROM standby_assignments;
+    DELETE FROM shifts;
+    DELETE FROM schedules;
+    DELETE FROM availability;
+    DELETE FROM forecasts;
+    DELETE FROM time_off_requests;
+    DELETE FROM users;
+    DELETE FROM employees;
+    DELETE FROM sites;
+  `);
+}
+
 // ── Main seed function ────────────────────────────────────────────────────────
 
 export function seedDemoData(): void {
   const db = getDb();
 
-  const existingCount = (db.prepare('SELECT COUNT(*) as c FROM employees').get() as any).c;
-  if (existingCount > 0) return; // Already seeded
+  // If the data looks up-to-date, skip seeding entirely.
+  // If it looks stale (schema upgrade, incomplete previous seed, etc.),
+  // wipe everything and reseed from scratch so the UI shows full, correct data.
+  if (shouldReseed(db)) {
+    clearSeedData(db);
+  } else {
+    const existingCount = (db.prepare('SELECT COUNT(*) as c FROM employees').get() as any).c;
+    if (existingCount > 0) return; // Already fully seeded
+  }
 
   // ── 1. Sites ──────────────────────────────────────────────────────────────
   const insertSite = db.prepare(
@@ -374,6 +444,12 @@ export function seedDemoData(): void {
   // Hotels: higher Thu–Sat (business + leisure)
   const hotelRevByOffset      = [32000, 38000, 45000, 55000, 62000, 68000, 44000];
 
+  // Hotel room counts (used to derive occupied-room-night covers)
+  // Grand Pacific: 120 rooms; Seaside Suites: 85 rooms
+  const hotelRooms: Record<number, number> = { [siteH1]: 120, [siteH2]: 85 };
+  // Occupancy rate by day offset (Mon=0 … Sun=6) — higher Thu-Sat
+  const hotelOccupancyByOffset = [0.65, 0.70, 0.75, 0.82, 0.88, 0.92, 0.72];
+
   // Site-specific multipliers
   const siteRevMultiplier: Record<number, number> = {
     [siteR1]: 1.00,   // Bella Napoli — mid-size Chicago restaurant
@@ -395,9 +471,16 @@ export function seedDemoData(): void {
       for (let d = 0; d < 7; d++) {
         const dateStr = addDays(weekStart, d);
         const revenue = Math.round(revByOffset[d] * multiplier * weekMult);
-        // Covers: only meaningful for restaurants (avg check ~$42 BN, ~$38 BD)
-        const avgCheck = siteId === siteR1 ? 42 : 38;
-        const covers   = isHotel ? 0 : Math.floor(revenue / avgCheck);
+        let covers: number;
+        if (isHotel) {
+          // For hotels, covers = occupied room-nights (rooms × occupancy rate)
+          const rooms = hotelRooms[siteId] ?? DEFAULT_HOTEL_ROOM_COUNT;
+          covers = Math.round(rooms * hotelOccupancyByOffset[d] * weekMult);
+        } else {
+          // For restaurants, covers derived from avg check (~$42 BN, ~$38 BD)
+          const avgCheck = siteId === siteR1 ? 42 : 38;
+          covers = Math.floor(revenue / avgCheck);
+        }
         insertForecast.run(dateStr, siteId, revenue, covers);
       }
     }
