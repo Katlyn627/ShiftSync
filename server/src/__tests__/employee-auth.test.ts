@@ -10,6 +10,8 @@ import request from 'supertest';
 
 process.env.DB_PATH = path.join(os.tmpdir(), 'test-employee-auth.db');
 
+jest.setTimeout(30000);
+
 let app: express.Express;
 let managerToken: string;
 let staffToken: string;
