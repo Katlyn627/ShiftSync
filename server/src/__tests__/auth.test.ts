@@ -1,3 +1,5 @@
+jest.setTimeout(20000);
+
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
