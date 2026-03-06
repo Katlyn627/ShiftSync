@@ -299,6 +299,7 @@ export interface DayRevenue {
 export interface ProfitabilityMetrics {
   schedule_id: number;
   week_start: string;
+  site_type: 'restaurant' | 'hotel';
   prime_cost: number;
   prime_cost_pct: number;
   prime_cost_target_pct: number;

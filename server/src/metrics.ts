@@ -12,12 +12,20 @@ const DEFAULT_SETTINGS: RestaurantSettings = {
   operating_hours_per_day: 12,
 };
 
-// Daypart windows used for revenue distribution
-const DAYPARTS = [
+// Daypart windows for restaurants: Breakfast → Lunch → Dinner → Late Night
+const RESTAURANT_DAYPARTS = [
   { daypart: 'Breakfast', start: '06:00', end: '11:00', revenue_pct: 0.10 },
   { daypart: 'Lunch',     start: '11:00', end: '15:00', revenue_pct: 0.30 },
   { daypart: 'Dinner',    start: '15:00', end: '21:00', revenue_pct: 0.50 },
   { daypart: 'Late Night',start: '21:00', end: '02:00', revenue_pct: 0.10 },
+];
+
+// Daypart windows for hotels: Overnight → Morning → Afternoon → Evening
+const HOTEL_DAYPARTS = [
+  { daypart: 'Overnight', start: '00:00', end: '06:00', revenue_pct: 0.08 },
+  { daypart: 'Morning',   start: '06:00', end: '12:00', revenue_pct: 0.22 },
+  { daypart: 'Afternoon', start: '12:00', end: '18:00', revenue_pct: 0.35 },
+  { daypart: 'Evening',   start: '18:00', end: '00:00', revenue_pct: 0.35 },
 ];
 
 function parseMinutes(time: string): number {
@@ -74,6 +82,15 @@ export function getProfitabilityMetrics(scheduleId: number): ProfitabilityMetric
   if (!schedule) throw new Error(`Schedule ${scheduleId} not found`);
 
   const siteId: number | null = schedule.site_id ?? null;
+
+  // Determine business type from the site record (defaults to 'restaurant')
+  const siteRow = siteId !== null
+    ? db.prepare('SELECT site_type FROM sites WHERE id = ?').get(siteId) as any
+    : null;
+  const siteType: 'restaurant' | 'hotel' = siteRow?.site_type === 'hotel' ? 'hotel' : 'restaurant';
+
+  // Select daypart profile appropriate for this business type
+  const DAYPARTS = siteType === 'hotel' ? HOTEL_DAYPARTS : RESTAURANT_DAYPARTS;
 
   // Helper: look up a forecast for a date, scoped to the schedule's site when available
   function getForecast(date: string): any {
@@ -204,6 +221,7 @@ export function getProfitabilityMetrics(scheduleId: number): ProfitabilityMetric
   return {
     schedule_id:              scheduleId,
     week_start:               schedule.week_start,
+    site_type:                siteType,
     prime_cost:               Math.round(primeCost * 100) / 100,
     prime_cost_pct:           Math.round(primeCostPct * 10) / 10,
     prime_cost_target_pct:    65,

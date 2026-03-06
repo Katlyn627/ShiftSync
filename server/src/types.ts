@@ -153,6 +153,8 @@ export interface DayRevenue {
 export interface ProfitabilityMetrics {
   schedule_id: number;
   week_start: string;
+  // Business type (drives daypart labels & terminology)
+  site_type: 'restaurant' | 'hotel';
   // Prime Cost
   prime_cost: number;
   prime_cost_pct: number;         // (labor + COGS) / revenue × 100
@@ -176,7 +178,7 @@ export interface ProfitabilityMetrics {
   avg_check_per_head: number;     // revenue / covers
   // Sales by Day (actual per-day data from forecasts)
   sales_by_day: DayRevenue[];
-  // Sales by Daypart (time-of-day distribution)
+  // Sales by Daypart (time-of-day distribution, tailored to site_type)
   sales_by_daypart: DaypartRevenue[];
   // Employee Turnover Risk
   high_turnover_risk_count: number;
