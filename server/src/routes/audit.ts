@@ -79,8 +79,9 @@ export function logAudit(params: {
       params.user_id ?? null,
       JSON.stringify(params.details ?? {})
     );
-  } catch {
-    // Audit logging must never crash the primary operation
+  } catch (err) {
+    // Audit logging must never crash the primary operation, but log for diagnostics
+    console.error('[audit] Failed to write audit entry:', err);
   }
 }
 

@@ -86,6 +86,10 @@ router.post('/', requireAuth, (req, res) => {
   if (!reason || reason.trim() === '') {
     return res.status(400).json({ error: 'reason is required' });
   }
+  const MAX_REASON_LENGTH = 2000;
+  if (reason.trim().length > MAX_REASON_LENGTH) {
+    return res.status(400).json({ error: `reason must not exceed ${MAX_REASON_LENGTH} characters` });
+  }
 
   const db = getDb();
   const employeeId = req.user?.employeeId;

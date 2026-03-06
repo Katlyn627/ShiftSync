@@ -113,8 +113,8 @@ export function calculateBurnoutRisks(scheduleId: number): BurnoutRisk[] {
         factors.push(`Minor worker exceeded weekly limit: ${weeklyHours.toFixed(1)}h > ${minorMaxWeekly}h`);
         riskScore += 25;
       }
-      const dailyHours = Object.values(shiftsByDay).map((dayShifts: any[]) =>
-        dayShifts.reduce((s: number, sh: any) => s + shiftHours(sh.start_time, sh.end_time), 0)
+      const dailyHours = Object.values(shiftsByDay).map((dayShifts: { start_time: string; end_time: string }[]) =>
+        dayShifts.reduce((s: number, sh: { start_time: string; end_time: string }) => s + shiftHours(sh.start_time, sh.end_time), 0)
       );
       const maxDailyHours = dailyHours.length > 0 ? Math.max(...dailyHours) : 0;
       if (maxDailyHours > minorMaxDaily) {

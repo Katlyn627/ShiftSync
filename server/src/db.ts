@@ -309,8 +309,8 @@ function seedDefaultComplianceRules(db: Database.Database): void {
     ['us-ca', 'max_consecutive_days',    '6',   'CA Lab. Code §551–552: one day rest in seven'],
     ['us-ca', 'max_weekly_hours',        '40',  'CA Lab. Code §510: OT after 40 h/week'],
     ['us-ca', 'overtime_threshold_daily','8',   'CA Lab. Code §510: OT after 8 h/day, double-time after 12 h/day'],
-    ['us-ca', 'advance_notice_days',     '0',   'CA does not have statewide predictive scheduling law (as of 2024)'],
-    ['us-ca', 'predictability_pay_hours','0',   'No statewide predictability pay in CA'],
+    ['us-ca', 'advance_notice_days',     '0',   'No uniform statewide predictive scheduling law in CA (check local ordinances: San Francisco, Berkeley, Emeryville have their own)'],
+    ['us-ca', 'predictability_pay_hours','0',   'Varies by locality — check SF/Berkeley/Emeryville ordinances for predictability pay requirements'],
     ['us-ca', 'minor_max_daily_hours',   '8',   'CA minor work permit limit'],
     ['us-ca', 'minor_max_weekly_hours',  '48',  'CA minor work permit limit (with permit, up to 48 h/week for 16-17 yr)'],
 
