@@ -73,6 +73,16 @@ export function getProfitabilityMetrics(scheduleId: number): ProfitabilityMetric
   const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(scheduleId) as any;
   if (!schedule) throw new Error(`Schedule ${scheduleId} not found`);
 
+  const siteId: number | null = schedule.site_id ?? null;
+
+  // Helper: look up a forecast for a date, scoped to the schedule's site when available
+  function getForecast(date: string): any {
+    if (siteId !== null) {
+      return db.prepare('SELECT * FROM forecasts WHERE date = ? AND site_id = ?').get(date, siteId) ?? null;
+    }
+    return db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) ?? null;
+  }
+
   // Aggregate forecasts for the 7-day week
   const weekDates: string[] = [];
   const start = new Date(schedule.week_start);
@@ -82,9 +92,7 @@ export function getProfitabilityMetrics(scheduleId: number): ProfitabilityMetric
     weekDates.push(d.toISOString().split('T')[0]);
   }
 
-  const forecasts = weekDates.map(date =>
-    db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as any
-  ).filter(Boolean);
+  const forecasts = weekDates.map(date => getForecast(date)).filter(Boolean);
 
   const totalExpectedRevenue = forecasts.reduce((s: number, f: any) => s + (f.expected_revenue ?? 0), 0);
   const totalExpectedCovers  = forecasts.reduce((s: number, f: any) => s + (f.expected_covers  ?? 0), 0);
@@ -127,7 +135,7 @@ export function getProfitabilityMetrics(scheduleId: number): ProfitabilityMetric
   const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const forecastsByDate = new Map<string, { expected_revenue: number; expected_covers: number }>(
     weekDates.map(date => {
-      const f = db.prepare('SELECT expected_revenue, expected_covers FROM forecasts WHERE date = ?').get(date) as any;
+      const f = getForecast(date) as any;
       return [date, f ?? { expected_revenue: 0, expected_covers: 0 }];
     })
   );
