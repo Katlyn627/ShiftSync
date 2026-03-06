@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
+import { logAudit } from './audit';
 
 const router = Router();
 
@@ -93,6 +94,14 @@ router.put('/:id/approve', requireManager, (req, res) => {
     `UPDATE time_off_requests SET status='approved', manager_notes=? WHERE id=?`
   ).run(manager_notes ?? null, req.params.id);
 
+  logAudit({
+    action: 'time_off_approved',
+    entity_type: 'time_off',
+    entity_id: parseInt(req.params.id, 10),
+    user_id: req.user?.userId,
+    details: { employee_id: existing.employee_id, start_date: existing.start_date, end_date: existing.end_date },
+  });
+
   const updated = db.prepare(`
     SELECT r.*, e.name AS employee_name
     FROM time_off_requests r
@@ -112,6 +121,14 @@ router.put('/:id/reject', requireManager, (req, res) => {
   db.prepare(
     `UPDATE time_off_requests SET status='rejected', manager_notes=? WHERE id=?`
   ).run(manager_notes ?? null, req.params.id);
+
+  logAudit({
+    action: 'time_off_rejected',
+    entity_type: 'time_off',
+    entity_id: parseInt(req.params.id, 10),
+    user_id: req.user?.userId,
+    details: { employee_id: existing.employee_id, start_date: existing.start_date, end_date: existing.end_date },
+  });
 
   const updated = db.prepare(`
     SELECT r.*, e.name AS employee_name

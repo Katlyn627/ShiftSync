@@ -7,6 +7,7 @@ import { getProfitabilityMetrics } from '../metrics';
 import { getScheduleCoverageReport } from '../coverage';
 import { getScheduleIntelligence } from '../intelligence';
 import { requireManager, requireAuth } from '../middleware/auth';
+import { logAudit } from './audit';
 
 const router = Router();
 
@@ -27,6 +28,13 @@ router.post('/generate', requireManager, (req, res) => {
     const scheduleId = generateSchedule({ weekStart: week_start, laborBudget: labor_budget ?? 5000, siteId });
     const db = getDb();
     const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(scheduleId);
+    logAudit({
+      action: 'schedule_generated',
+      entity_type: 'schedule',
+      entity_id: scheduleId,
+      user_id: req.user?.userId,
+      details: { week_start, labor_budget: labor_budget ?? 5000, site_id: siteId },
+    });
     res.status(201).json(schedule);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -60,6 +68,15 @@ router.put('/:id', requireManager, (req, res) => {
   const existing = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id) as any;
   if (!existing) return res.status(404).json({ error: 'Schedule not found' });
   if (status) db.prepare('UPDATE schedules SET status=? WHERE id=?').run(status, req.params.id);
+  if (status) {
+    logAudit({
+      action: `schedule_${status}`,
+      entity_type: 'schedule',
+      entity_id: parseInt(req.params.id, 10),
+      user_id: req.user?.userId,
+      details: { previous_status: existing.status, new_status: status },
+    });
+  }
   const updated = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id);
   res.json(updated);
 });
@@ -93,10 +110,34 @@ router.get('/:id/labor-cost', requireManager, (req, res) => {
   }
 });
 
-router.get('/:id/burnout-risks', (req, res) => {
+router.get('/:id/burnout-risks', requireAuth, (req, res) => {
   try {
     const risks = calculateBurnoutRisks(parseInt(req.params.id));
-    res.json(risks);
+    const isManager = req.user?.isManager;
+
+    if (isManager) {
+      // Managers see full individual-level burnout data
+      return res.json(risks);
+    }
+
+    // Non-managers: only return their own entry (if it exists) plus an anonymised aggregate
+    // to prevent re-identification from small group scores.
+    const employeeId = req.user?.employeeId;
+    const own = risks.find(r => r.employee_id === employeeId) ?? null;
+
+    // Aggregate summary — always safe to expose (no individual identification)
+    const summary = {
+      total_employees: risks.length,
+      high_risk_count: risks.filter(r => r.risk_level === 'high').length,
+      medium_risk_count: risks.filter(r => r.risk_level === 'medium').length,
+      low_risk_count: risks.filter(r => r.risk_level === 'low').length,
+      // Expose averages only; never expose individual non-self scores
+      avg_risk_score: risks.length
+        ? Math.round(risks.reduce((s, r) => s + r.risk_score, 0) / risks.length)
+        : 0,
+    };
+
+    return res.json({ own, summary });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -5,6 +5,8 @@ export interface Site {
   state: string;
   timezone: string;
   site_type: 'restaurant' | 'hotel';
+  /** Jurisdiction code used to select applicable compliance rules, e.g. 'default', 'eu', 'us-ca' */
+  jurisdiction: string;
   created_at: string;
 }
 
@@ -16,13 +18,64 @@ export interface Employee {
   role: string;
   role_title: string;
   department: string;
+  /** 'hourly' or 'salaried' — drives overtime eligibility */
+  pay_type: 'hourly' | 'salaried';
   hourly_rate: number;
   weekly_hours_max: number;
+  /** JSON-encoded array of skill/certification labels, e.g. ["food-handler","barista"] */
+  certifications: string;
+  /** True if the worker is a minor (triggers eligibility constraints) */
+  is_minor: number; // 0 | 1
+  /** True if the worker is covered by a union agreement */
+  union_member: number; // 0 | 1
   email: string;
   phone: string;
   photo_url: string | null;
   hire_date: string;
   site_id: number | null;
+  created_at: string;
+}
+
+/**
+ * A single compliance rule entry for a jurisdiction.
+ * rule_type values include: min_rest_hours, max_consecutive_days, max_weekly_hours,
+ * overtime_threshold_daily, advance_notice_days, predictability_pay_hours,
+ * minor_max_daily_hours, minor_max_weekly_hours.
+ */
+export interface ComplianceRule {
+  id: number;
+  jurisdiction: string;
+  rule_type: string;
+  /** Numeric or string value, stored as text */
+  rule_value: string;
+  description: string;
+  enabled: number; // 0 | 1
+  created_at: string;
+}
+
+/**
+ * Immutable audit log entry recording compliance-relevant actions.
+ */
+export interface AuditLog {
+  id: number;
+  action: string;           // e.g. 'shift_assigned', 'swap_approved', 'time_off_rejected', 'schedule_published'
+  entity_type: string;      // 'shift' | 'swap' | 'time_off' | 'schedule' | 'employee'
+  entity_id: number | null;
+  user_id: number | null;   // user who performed the action
+  details: string;          // JSON-encoded supplementary data
+  created_at: string;
+}
+
+/**
+ * An appeal submitted by an employee contesting an automated scheduling decision.
+ */
+export interface SchedulingAppeal {
+  id: number;
+  shift_id: number | null;
+  employee_id: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  manager_notes: string | null;
   created_at: string;
 }
 
