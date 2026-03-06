@@ -635,7 +635,7 @@ export function seedDemoData(): void {
     let suffix   = 2;
     while (usedUsernames.has(username)) { username = `${base}${suffix}`; suffix++; }
     usedUsernames.add(username);
-    const hash      = bcrypt.hashSync('password123', 10);
+    const hash      = bcrypt.hashSync('password123', Math.max(4, Math.min(31, parseInt(process.env.BCRYPT_ROUNDS ?? '10', 10) || 10)));
     const isManager = emp.role === 'Manager' ? 1 : 0;
     insertUser.run(username, hash, emp.id, isManager);
   }
