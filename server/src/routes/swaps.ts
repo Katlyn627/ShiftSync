@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { getDb } from '../db';
-import { requireManager } from '../middleware/auth';
+import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', (_req, res) => {
+router.get('/', requireAuth, (req, res) => {
   const db = getDb();
-  const swaps = db.prepare(`
+  const siteId = req.user?.siteId ?? null;
+  const baseQuery = `
     SELECT sw.*, 
       e1.name as requester_name, 
       e2.name as target_name,
@@ -15,8 +16,10 @@ router.get('/', (_req, res) => {
     JOIN employees e1 ON sw.requester_id = e1.id
     LEFT JOIN employees e2 ON sw.target_id = e2.id
     JOIN shifts s ON sw.shift_id = s.id
-    ORDER BY sw.created_at DESC
-  `).all();
+  `;
+  const swaps = siteId
+    ? db.prepare(`${baseQuery} WHERE e1.site_id = ? ORDER BY sw.created_at DESC`).all(siteId)
+    : db.prepare(`${baseQuery} ORDER BY sw.created_at DESC`).all();
   res.json(swaps);
 });
 

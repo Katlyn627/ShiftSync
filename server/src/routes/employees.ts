@@ -4,9 +4,12 @@ import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', requireAuth, (_req, res) => {
+router.get('/', requireAuth, (req, res) => {
   const db = getDb();
-  const employees = db.prepare('SELECT * FROM employees ORDER BY name').all();
+  const siteId = req.user?.siteId;
+  const employees = siteId
+    ? db.prepare('SELECT * FROM employees WHERE site_id = ? ORDER BY name').all(siteId)
+    : db.prepare('SELECT * FROM employees ORDER BY name').all();
   res.json(employees);
 });
 
@@ -14,9 +17,10 @@ router.post('/', requireManager, (req, res) => {
   const { name, role, hourly_rate, weekly_hours_max, email, phone } = req.body;
   if (!name || !role) return res.status(400).json({ error: 'name and role are required' });
   const db = getDb();
+  const siteId = req.user?.siteId ?? null;
   const result = db.prepare(
-    'INSERT INTO employees (name, role, hourly_rate, weekly_hours_max, email, phone) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(name, role, hourly_rate ?? 15.0, weekly_hours_max ?? 40, email ?? '', phone ?? '');
+    'INSERT INTO employees (name, role, hourly_rate, weekly_hours_max, email, phone, site_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(name, role, hourly_rate ?? 15.0, weekly_hours_max ?? 40, email ?? '', phone ?? '', siteId);
   const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(employee);
 });

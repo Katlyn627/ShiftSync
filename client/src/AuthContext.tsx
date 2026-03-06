@@ -8,6 +8,7 @@ export interface AuthUser {
   employeeName: string | null;
   employeeRole: string | null;
   photoUrl: string | null;
+  siteId: number | null;
 }
 
 interface AuthContextValue {

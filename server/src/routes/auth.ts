@@ -99,7 +99,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
           // Attach employee details
           const emp = user.employee_id
             ? (db
-                .prepare('SELECT name, role FROM employees WHERE id = ?')
+                .prepare('SELECT name, role, site_id FROM employees WHERE id = ?')
                 .get(user.employee_id) as any)
             : null;
 
@@ -110,6 +110,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             isManager: user.is_manager === 1,
             employeeName: emp?.name ?? null,
             employeeRole: emp?.role ?? null,
+            siteId: emp?.site_id ?? null,
           });
         } catch (err) {
           return done(err as Error);
@@ -128,7 +129,7 @@ router.post('/login', (req, res) => {
 
   const db = getDb();
   const user = db.prepare(`
-    SELECT u.*, e.name as employee_name, e.role as employee_role, e.photo_url as employee_photo_url
+    SELECT u.*, e.name as employee_name, e.role as employee_role, e.photo_url as employee_photo_url, e.site_id as employee_site_id
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
     WHERE u.username = ?
@@ -155,6 +156,7 @@ router.post('/login', (req, res) => {
     employeeName: user.employee_name,
     employeeRole: user.employee_role,
     photoUrl: user.employee_photo_url ?? null,
+    siteId: user.employee_site_id ?? null,
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -215,6 +217,7 @@ router.post('/register', (req, res) => {
     employeeName: employee.name,
     employeeRole: employee.role,
     photoUrl: employee.photo_url ?? null,
+    siteId: employee.site_id ?? null,
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -259,12 +262,12 @@ router.get('/me', (req, res) => {
   const token = authHeader.slice(7);
   try {
     const payload = jwt.verify(token, JWT_SECRET) as any;
-    // Fetch fresh employee data (including latest photo_url)
+    // Fetch fresh employee data (including latest photo_url and site_id)
     const db = getDb();
     const emp = payload.employeeId
-      ? (db.prepare('SELECT photo_url FROM employees WHERE id = ?').get(payload.employeeId) as any)
+      ? (db.prepare('SELECT photo_url, site_id FROM employees WHERE id = ?').get(payload.employeeId) as any)
       : null;
-    res.json({ user: { ...payload, photoUrl: emp?.photo_url ?? payload.photoUrl ?? null } });
+    res.json({ user: { ...payload, photoUrl: emp?.photo_url ?? payload.photoUrl ?? null, siteId: emp?.site_id ?? payload.siteId ?? null } });
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
   }

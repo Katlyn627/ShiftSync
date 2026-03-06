@@ -6,13 +6,16 @@ import { calculateBurnoutRisks } from '../burnout';
 import { getProfitabilityMetrics } from '../metrics';
 import { getScheduleCoverageReport } from '../coverage';
 import { getScheduleIntelligence } from '../intelligence';
-import { requireManager } from '../middleware/auth';
+import { requireManager, requireAuth } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', (_req, res) => {
+router.get('/', requireAuth, (req, res) => {
   const db = getDb();
-  const schedules = db.prepare('SELECT * FROM schedules ORDER BY week_start DESC').all();
+  const siteId = req.user?.siteId ?? null;
+  const schedules = siteId
+    ? db.prepare('SELECT * FROM schedules WHERE site_id = ? ORDER BY week_start DESC').all(siteId)
+    : db.prepare('SELECT * FROM schedules ORDER BY week_start DESC').all();
   res.json(schedules);
 });
 
@@ -20,7 +23,8 @@ router.post('/generate', requireManager, (req, res) => {
   const { week_start, labor_budget } = req.body;
   if (!week_start) return res.status(400).json({ error: 'week_start is required' });
   try {
-    const scheduleId = generateSchedule({ weekStart: week_start, laborBudget: labor_budget ?? 5000 });
+    const siteId = req.user?.siteId ?? null;
+    const scheduleId = generateSchedule({ weekStart: week_start, laborBudget: labor_budget ?? 5000, siteId });
     const db = getDb();
     const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(scheduleId);
     res.status(201).json(schedule);

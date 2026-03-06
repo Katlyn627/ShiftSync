@@ -10,6 +10,7 @@ export interface AuthPayload {
   isManager: boolean;
   employeeName: string | null;
   employeeRole: string | null;
+  siteId: number | null;
 }
 
 // Extend passport's User type to include our fields

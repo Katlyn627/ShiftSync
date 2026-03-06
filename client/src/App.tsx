@@ -1,5 +1,6 @@
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import { useState, useEffect } from 'react';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import SchedulePage from './pages/SchedulePage';
@@ -9,6 +10,7 @@ import ProfilePage from './pages/ProfilePage';
 import TimeOffApprovalsPage from './pages/TimeOffApprovalsPage';
 import { Badge } from './components/ui';
 import type { BadgeVariant } from './components/ui';
+import { getSites, Site } from './api';
 
 function roleVariant(role: string): BadgeVariant {
   const map: Record<string, BadgeVariant> = {
@@ -81,6 +83,18 @@ function TimeOffIcon() {
 export default function App() {
   const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
+  const [currentSite, setCurrentSite] = useState<Site | null>(null);
+
+  useEffect(() => {
+    if (user?.siteId) {
+      getSites().then(sites => {
+        const site = sites.find(s => s.id === user.siteId);
+        setCurrentSite(site ?? null);
+      }).catch(() => {});
+    } else {
+      setCurrentSite(null);
+    }
+  }, [user?.siteId]);
 
   if (loading) {
     return (
@@ -104,7 +118,6 @@ export default function App() {
     { to: '/schedule',  label: 'Schedule',  icon: <ScheduleIcon /> },
     ...(user.isManager ? [{ to: '/employees', label: 'Employees', icon: <EmployeesIcon /> }] : []),
     { to: '/swaps',      label: 'Shift Swaps', icon: <SwapIcon /> },
-    { to: '/profile',   label: 'My Profile',  icon: <ProfileIcon /> },
     ...(user.isManager ? [{ to: '/time-off-approvals', label: 'Time-Off Approvals', icon: <TimeOffIcon /> }] : []),
   ];
 
@@ -129,7 +142,14 @@ export default function App() {
                 <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
               </svg>
             </div>
-            <span className="text-base font-bold text-foreground tracking-tight">ShiftSync</span>
+            <div className="flex flex-col leading-none">
+              <span className="text-base font-bold text-foreground tracking-tight">ShiftSync</span>
+              {currentSite && (
+                <span className="text-xs text-muted-foreground font-medium truncate max-w-[160px]">
+                  {currentSite.name} · {currentSite.city}, {currentSite.state}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Nav links */}
