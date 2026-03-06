@@ -354,84 +354,111 @@ export default function Dashboard() {
             </div>
 
             {/* Metrics Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {/* Prime Cost */}
-              <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Prime Cost %</p>
-                <p className={`text-xl font-bold ${primeCostColor}`}>{profitabilityMetrics.prime_cost_pct.toFixed(1)}%</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Target ≤ {profitabilityMetrics.prime_cost_target_pct}% · ${profitabilityMetrics.prime_cost.toLocaleString()}
-                </p>
-                <div className="mt-1.5 bg-muted/50 rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className="h-1.5 rounded-full transition-all"
-                    style={{
-                      width: `${Math.min(100, (profitabilityMetrics.prime_cost_pct / 80) * 100)}%`,
-                      backgroundColor:
-                        profitabilityMetrics.prime_cost_status === 'good' ? '#10b981' :
-                        profitabilityMetrics.prime_cost_status === 'warning' ? '#f59e0b' : '#ef4444',
-                    }}
-                  />
+            {(() => {
+              const isHotel = currentSite?.site_type === 'hotel';
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {/* Prime Cost */}
+                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Prime Cost %</p>
+                    <p className={`text-xl font-bold ${primeCostColor}`}>{profitabilityMetrics.prime_cost_pct.toFixed(1)}%</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Target ≤ {profitabilityMetrics.prime_cost_target_pct}% · ${profitabilityMetrics.prime_cost.toLocaleString()}
+                    </p>
+                    <div className="mt-1.5 bg-muted/50 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="h-1.5 rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(100, (profitabilityMetrics.prime_cost_pct / 80) * 100)}%`,
+                          backgroundColor:
+                            profitabilityMetrics.prime_cost_status === 'good' ? '#10b981' :
+                            profitabilityMetrics.prime_cost_status === 'warning' ? '#f59e0b' : '#ef4444',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Labor Cost % */}
+                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Labor Cost %</p>
+                    <p className={`text-xl font-bold ${profitabilityMetrics.labor_cost_pct > profitabilityMetrics.labor_cost_target_pct ? 'text-red-500' : 'text-foreground'}`}>
+                      {profitabilityMetrics.labor_cost_pct.toFixed(1)}%
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Target ≤ {profitabilityMetrics.labor_cost_target_pct}% · ${profitabilityMetrics.total_labor_cost.toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* RevPASH / RevPAR */}
+                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                      {isHotel ? 'Rev / Room-Night' : 'RevPASH'}
+                    </p>
+                    <p className="text-xl font-bold text-foreground">
+                      {isHotel
+                        ? `$${profitabilityMetrics.total_expected_covers > 0 ? (profitabilityMetrics.total_expected_revenue / profitabilityMetrics.total_expected_covers).toFixed(2) : '0.00'}`
+                        : `$${profitabilityMetrics.revpash.toFixed(2)}`}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {isHotel ? 'Revenue per occupied room' : 'Revenue per seat per hour'}
+                    </p>
+                  </div>
+
+                  {/* Table Turnover / Occupancy */}
+                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                      {isHotel ? 'Room-Nights / Week' : 'Table Turnover'}
+                    </p>
+                    <p className="text-xl font-bold text-foreground">
+                      {isHotel
+                        ? profitabilityMetrics.total_expected_covers.toLocaleString()
+                        : `${profitabilityMetrics.table_turnover_rate.toFixed(1)}x`}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {isHotel ? 'Occupied room-nights' : 'Covers per service period'}
+                    </p>
+                  </div>
+
+                  {/* Avg Check per Head / ADR */}
+                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                      {isHotel ? 'Avg Daily Rate (ADR)' : 'Avg Check / Head'}
+                    </p>
+                    <p className="text-xl font-bold text-foreground">${profitabilityMetrics.avg_check_per_head.toFixed(2)}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {isHotel
+                        ? `${profitabilityMetrics.total_expected_covers.toLocaleString()} room-nights`
+                        : `${profitabilityMetrics.total_expected_covers.toLocaleString()} covers`}
+                    </p>
+                  </div>
+
+                  {/* COGS */}
+                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Est. COGS</p>
+                    <p className="text-xl font-bold text-foreground">${profitabilityMetrics.estimated_cogs.toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{profitabilityMetrics.cogs_pct}% of revenue</p>
+                  </div>
+
+                  {/* Revenue */}
+                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Expected Revenue</p>
+                    <p className="text-xl font-bold text-foreground">${profitabilityMetrics.total_expected_revenue.toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Projected for the week</p>
+                  </div>
+
+                  {/* Employee Turnover Risk */}
+                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Turnover Risk</p>
+                    <p className={`text-xl font-bold ${profitabilityMetrics.turnover_risk_pct > 30 ? 'text-red-500' : profitabilityMetrics.turnover_risk_pct > 10 ? 'text-amber-500' : 'text-foreground'}`}>
+                      {profitabilityMetrics.turnover_risk_pct.toFixed(0)}%
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {profitabilityMetrics.high_turnover_risk_count} high-risk employee{profitabilityMetrics.high_turnover_risk_count !== 1 ? 's' : ''}
+                    </p>
+                  </div>
                 </div>
-              </div>
-
-              {/* Labor Cost % */}
-              <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Labor Cost %</p>
-                <p className={`text-xl font-bold ${profitabilityMetrics.labor_cost_pct > profitabilityMetrics.labor_cost_target_pct ? 'text-red-500' : 'text-foreground'}`}>
-                  {profitabilityMetrics.labor_cost_pct.toFixed(1)}%
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Target ≤ {profitabilityMetrics.labor_cost_target_pct}% · ${profitabilityMetrics.total_labor_cost.toLocaleString()}
-                </p>
-              </div>
-
-              {/* RevPASH */}
-              <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">RevPASH</p>
-                <p className="text-xl font-bold text-foreground">${profitabilityMetrics.revpash.toFixed(2)}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Revenue per seat per hour</p>
-              </div>
-
-              {/* Table Turnover */}
-              <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Table Turnover</p>
-                <p className="text-xl font-bold text-foreground">{profitabilityMetrics.table_turnover_rate.toFixed(1)}x</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Covers per service period</p>
-              </div>
-
-              {/* Avg Check per Head */}
-              <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Avg Check / Head</p>
-                <p className="text-xl font-bold text-foreground">${profitabilityMetrics.avg_check_per_head.toFixed(2)}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{profitabilityMetrics.total_expected_covers.toLocaleString()} covers</p>
-              </div>
-
-              {/* COGS */}
-              <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Est. COGS</p>
-                <p className="text-xl font-bold text-foreground">${profitabilityMetrics.estimated_cogs.toLocaleString()}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{profitabilityMetrics.cogs_pct}% of revenue</p>
-              </div>
-
-              {/* Revenue */}
-              <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Expected Revenue</p>
-                <p className="text-xl font-bold text-foreground">${profitabilityMetrics.total_expected_revenue.toLocaleString()}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Projected for the week</p>
-              </div>
-
-              {/* Employee Turnover Risk */}
-              <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Turnover Risk</p>
-                <p className={`text-xl font-bold ${profitabilityMetrics.turnover_risk_pct > 30 ? 'text-red-500' : profitabilityMetrics.turnover_risk_pct > 10 ? 'text-amber-500' : 'text-foreground'}`}>
-                  {profitabilityMetrics.turnover_risk_pct.toFixed(0)}%
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {profitabilityMetrics.high_turnover_risk_count} high-risk employee{profitabilityMetrics.high_turnover_risk_count !== 1 ? 's' : ''}
-                </p>
-              </div>
-            </div>
+              );
+            })()}
           </Card>
 
           {/* ── Sales by Day ── */}
@@ -470,7 +497,9 @@ export default function Dashboard() {
                           ? `$${(day.expected_revenue / 1000).toFixed(1)}k`
                           : `$${day.expected_revenue}`}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">{day.expected_covers}cvr</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {day.expected_covers}{currentSite?.site_type === 'hotel' ? 'rm' : 'cvr'}
+                      </p>
                     </div>
                   ))}
                 </div>
