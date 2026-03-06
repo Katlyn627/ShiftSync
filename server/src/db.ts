@@ -28,6 +28,7 @@ function initSchema(db: Database.Database): void {
       state TEXT NOT NULL,
       timezone TEXT NOT NULL DEFAULT 'America/Chicago',
       site_type TEXT NOT NULL DEFAULT 'restaurant', -- restaurant | hotel
+      jurisdiction TEXT NOT NULL DEFAULT 'default',  -- compliance rule set: default | eu | us-ca | …
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -35,8 +36,46 @@ function initSchema(db: Database.Database): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       role TEXT NOT NULL,
+      pay_type TEXT NOT NULL DEFAULT 'hourly',         -- hourly | salaried
       hourly_rate REAL NOT NULL DEFAULT 15.0,
       weekly_hours_max INTEGER NOT NULL DEFAULT 40,
+      certifications TEXT NOT NULL DEFAULT '[]',       -- JSON array of skill/cert labels
+      is_minor INTEGER NOT NULL DEFAULT 0,             -- 0=no, 1=yes
+      union_member INTEGER NOT NULL DEFAULT 0,         -- 0=no, 1=yes
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS compliance_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      jurisdiction TEXT NOT NULL,
+      rule_type TEXT NOT NULL,   -- min_rest_hours | max_consecutive_days | max_weekly_hours |
+                                 -- overtime_threshold_daily | advance_notice_days |
+                                 -- predictability_pay_hours | minor_max_daily_hours |
+                                 -- minor_max_weekly_hours
+      rule_value TEXT NOT NULL,  -- numeric value stored as text for flexibility
+      description TEXT NOT NULL DEFAULT '',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(jurisdiction, rule_type)
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action TEXT NOT NULL,         -- shift_assigned | swap_approved | time_off_rejected | schedule_published | …
+      entity_type TEXT NOT NULL,    -- shift | swap | time_off | schedule | employee
+      entity_id INTEGER,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      details TEXT NOT NULL DEFAULT '{}',   -- JSON supplementary data
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS scheduling_appeals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shift_id INTEGER REFERENCES shifts(id) ON DELETE SET NULL,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected
+      manager_notes TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -179,6 +218,25 @@ function initSchema(db: Database.Database): void {
   if (!empCols.some(c => c.name === 'site_id')) {
     db.exec("ALTER TABLE employees ADD COLUMN site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL");
   }
+  // New capability columns
+  if (!empCols.some(c => c.name === 'pay_type')) {
+    db.exec("ALTER TABLE employees ADD COLUMN pay_type TEXT NOT NULL DEFAULT 'hourly'");
+  }
+  if (!empCols.some(c => c.name === 'certifications')) {
+    db.exec("ALTER TABLE employees ADD COLUMN certifications TEXT NOT NULL DEFAULT '[]'");
+  }
+  if (!empCols.some(c => c.name === 'is_minor')) {
+    db.exec("ALTER TABLE employees ADD COLUMN is_minor INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!empCols.some(c => c.name === 'union_member')) {
+    db.exec("ALTER TABLE employees ADD COLUMN union_member INTEGER NOT NULL DEFAULT 0");
+  }
+
+  // Migrate sites table: add jurisdiction column if absent
+  const siteCols = db.pragma('table_info(sites)') as { name: string }[];
+  if (!siteCols.some(c => c.name === 'jurisdiction')) {
+    db.exec("ALTER TABLE sites ADD COLUMN jurisdiction TEXT NOT NULL DEFAULT 'default'");
+  }
 
   // Migrate availability table: add availability_type column if absent
   const availCols = db.pragma('table_info(availability)') as { name: string }[];
@@ -210,6 +268,69 @@ function initSchema(db: Database.Database): void {
       DROP TABLE _forecasts_old;
     `);
   }
+
+  // Seed default compliance rules (idempotent via INSERT OR IGNORE)
+  seedDefaultComplianceRules(db);
+}
+
+/**
+ * Insert a curated set of compliance rules covering the most common jurisdictions.
+ * Uses INSERT OR IGNORE so existing customisations are never overwritten.
+ */
+function seedDefaultComplianceRules(db: Database.Database): void {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO compliance_rules (jurisdiction, rule_type, rule_value, description)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  const rules: [string, string, string, string][] = [
+    // ── Default (US baseline) ────────────────────────────────────────────────
+    ['default', 'min_rest_hours',          '10',  'Minimum hours between end of one shift and start of next (clopen threshold)'],
+    ['default', 'max_consecutive_days',    '6',   'Maximum consecutive working days before a mandatory day off'],
+    ['default', 'max_weekly_hours',        '40',  'Standard weekly hours before overtime applies'],
+    ['default', 'overtime_threshold_daily','8',   'Daily hours threshold triggering daily overtime (0 = disabled)'],
+    ['default', 'advance_notice_days',     '0',   'Advance notice days required before schedule changes (0 = no requirement)'],
+    ['default', 'predictability_pay_hours','0',   'Hours of pay owed if schedule changes within notice window (0 = disabled)'],
+    ['default', 'minor_max_daily_hours',   '8',   'Maximum daily hours for minor (under-18) workers'],
+    ['default', 'minor_max_weekly_hours',  '40',  'Maximum weekly hours for minor (under-18) workers'],
+
+    // ── EU Working Time Directive ────────────────────────────────────────────
+    ['eu', 'min_rest_hours',          '11',  'EU WTD Art.3: 11 consecutive hours minimum daily rest'],
+    ['eu', 'max_consecutive_days',    '6',   'EU WTD Art.5: at least one rest day per week'],
+    ['eu', 'max_weekly_hours',        '48',  'EU WTD Art.6: 48 h/week averaged over reference period (opt-out possible)'],
+    ['eu', 'overtime_threshold_daily','0',   'EU does not mandate daily OT premium (national law may vary)'],
+    ['eu', 'advance_notice_days',     '0',   'EU WTD does not specify a fixed notice window'],
+    ['eu', 'predictability_pay_hours','0',   'Not mandated at EU level'],
+    ['eu', 'minor_max_daily_hours',   '8',   'EU Young Workers Directive: max 8 h/day for under-18'],
+    ['eu', 'minor_max_weekly_hours',  '40',  'EU Young Workers Directive: max 40 h/week for under-18'],
+
+    // ── US California ────────────────────────────────────────────────────────
+    ['us-ca', 'min_rest_hours',          '8',   'California IWC: minimum 8-hour rest between shifts recommended'],
+    ['us-ca', 'max_consecutive_days',    '6',   'CA Lab. Code §551–552: one day rest in seven'],
+    ['us-ca', 'max_weekly_hours',        '40',  'CA Lab. Code §510: OT after 40 h/week'],
+    ['us-ca', 'overtime_threshold_daily','8',   'CA Lab. Code §510: OT after 8 h/day, double-time after 12 h/day'],
+    ['us-ca', 'advance_notice_days',     '0',   'No uniform statewide predictive scheduling law in CA (check local ordinances: San Francisco, Berkeley, Emeryville have their own)'],
+    ['us-ca', 'predictability_pay_hours','0',   'Varies by locality — check SF/Berkeley/Emeryville ordinances for predictability pay requirements'],
+    ['us-ca', 'minor_max_daily_hours',   '8',   'CA minor work permit limit'],
+    ['us-ca', 'minor_max_weekly_hours',  '48',  'CA minor work permit limit (with permit, up to 48 h/week for 16-17 yr)'],
+
+    // ── US NYC (Fair Workweek) ───────────────────────────────────────────────
+    ['us-nyc', 'min_rest_hours',          '11',  'NYC Fair Workweek: 11-hour rest between closing and opening shifts'],
+    ['us-nyc', 'max_consecutive_days',    '6',   'Standard federal guideline'],
+    ['us-nyc', 'max_weekly_hours',        '40',  'FLSA standard'],
+    ['us-nyc', 'overtime_threshold_daily','0',   'NY does not require daily OT'],
+    ['us-nyc', 'advance_notice_days',     '14',  'NYC Fair Workweek Law: 14-day advance schedule notice for fast food & retail'],
+    ['us-nyc', 'predictability_pay_hours','1',   'NYC Fair Workweek: 1-hour premium pay if schedule changed with <14 days notice'],
+    ['us-nyc', 'minor_max_daily_hours',   '8',   'NY Education Law minor restrictions'],
+    ['us-nyc', 'minor_max_weekly_hours',  '40',  'NY Education Law minor restrictions'],
+  ];
+
+  const insertMany = db.transaction(() => {
+    for (const [j, rt, rv, desc] of rules) {
+      insert.run(j, rt, rv, desc);
+    }
+  });
+  insertMany();
 }
 
 export function closeDb(): void {

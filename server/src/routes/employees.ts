@@ -14,13 +14,25 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 router.post('/', requireManager, (req, res) => {
-  const { name, role, hourly_rate, weekly_hours_max, email, phone } = req.body;
+  const { name, role, hourly_rate, weekly_hours_max, email, phone, pay_type, certifications, is_minor, union_member } = req.body;
   if (!name || !role) return res.status(400).json({ error: 'name and role are required' });
   const db = getDb();
   const siteId = req.user?.siteId ?? null;
   const result = db.prepare(
-    'INSERT INTO employees (name, role, hourly_rate, weekly_hours_max, email, phone, site_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(name, role, hourly_rate ?? 15.0, weekly_hours_max ?? 40, email ?? '', phone ?? '', siteId);
+    'INSERT INTO employees (name, role, hourly_rate, weekly_hours_max, email, phone, pay_type, certifications, is_minor, union_member, site_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(
+    name,
+    role,
+    hourly_rate ?? 15.0,
+    weekly_hours_max ?? 40,
+    email ?? '',
+    phone ?? '',
+    pay_type ?? 'hourly',
+    certifications ? JSON.stringify(certifications) : '[]',
+    is_minor ? 1 : 0,
+    union_member ? 1 : 0,
+    siteId
+  );
   const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(employee);
 });
@@ -38,12 +50,12 @@ router.put('/:id', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'You can only update your own profile' });
   }
 
-  const { name, role, hourly_rate, weekly_hours_max, email, phone, photo_url } = req.body;
+  const { name, role, hourly_rate, weekly_hours_max, email, phone, photo_url, pay_type, certifications, is_minor, union_member } = req.body;
 
   if (isManager) {
     // Managers can update everything
     db.prepare(
-      'UPDATE employees SET name=?, role=?, hourly_rate=?, weekly_hours_max=?, email=?, phone=?, photo_url=? WHERE id=?'
+      'UPDATE employees SET name=?, role=?, hourly_rate=?, weekly_hours_max=?, email=?, phone=?, photo_url=?, pay_type=?, certifications=?, is_minor=?, union_member=? WHERE id=?'
     ).run(
       name ?? existing.name,
       role ?? existing.role,
@@ -52,6 +64,10 @@ router.put('/:id', requireAuth, (req, res) => {
       email !== undefined ? email : (existing.email ?? ''),
       phone !== undefined ? phone : (existing.phone ?? ''),
       photo_url !== undefined ? photo_url : (existing.photo_url ?? null),
+      pay_type ?? existing.pay_type ?? 'hourly',
+      certifications !== undefined ? JSON.stringify(certifications) : (existing.certifications ?? '[]'),
+      is_minor !== undefined ? (is_minor ? 1 : 0) : (existing.is_minor ?? 0),
+      union_member !== undefined ? (union_member ? 1 : 0) : (existing.union_member ?? 0),
       req.params.id
     );
   } else {

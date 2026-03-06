@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
+import { logAudit } from './audit';
 
 const router = Router();
 
@@ -95,6 +96,14 @@ router.put('/:id/approve', requireManager, (req, res) => {
     db.prepare("UPDATE shifts SET employee_id=?, status='swapped' WHERE id=?").run(swap.target_id, swap.shift_id);
   }
 
+  logAudit({
+    action: 'swap_approved',
+    entity_type: 'swap',
+    entity_id: swap.id,
+    user_id: req.user?.userId,
+    details: { shift_id: swap.shift_id, requester_id: swap.requester_id, target_id: swap.target_id },
+  });
+
   const updated = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(req.params.id);
   res.json(updated);
 });
@@ -107,6 +116,13 @@ router.put('/:id/reject', requireManager, (req, res) => {
   if (swap.status !== 'pending') return res.status(400).json({ error: 'Swap is not pending' });
 
   db.prepare('UPDATE shift_swaps SET status=?, manager_notes=? WHERE id=?').run('rejected', manager_notes ?? null, req.params.id);
+  logAudit({
+    action: 'swap_rejected',
+    entity_type: 'swap',
+    entity_id: swap.id,
+    user_id: req.user?.userId,
+    details: { shift_id: swap.shift_id, requester_id: swap.requester_id },
+  });
   const updated = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(req.params.id);
   res.json(updated);
 });

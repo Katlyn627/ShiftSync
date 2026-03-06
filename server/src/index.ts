@@ -20,6 +20,9 @@ import timeOffRouter from './routes/time-off';
 import settingsRouter from './routes/settings';
 import sitesRouter from './routes/sites';
 import overtimeRouter from './routes/overtime';
+import complianceRouter from './routes/compliance';
+import auditRouter from './routes/audit';
+import appealsRouter from './routes/appeals';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -66,6 +69,9 @@ app.use('/api/time-off', timeOffRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/sites', sitesRouter);
 app.use('/api/overtime', overtimeRouter);
+app.use('/api/compliance', complianceRouter);
+app.use('/api/audit', auditRouter);
+app.use('/api/appeals', appealsRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
