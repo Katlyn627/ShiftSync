@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="https://github.com/user-attachments/assets/5bea754f-ef5c-4b67-9a0d-03c8ced64dbb" alt="ShiftSync Login" width="420" />
-
 # ShiftSync
 
 **Smart scheduling & shift-swap platform for restaurants and hotels**
@@ -35,7 +33,7 @@
 
 ### Login
 
-<img src="https://github.com/user-attachments/assets/5bea754f-ef5c-4b67-9a0d-03c8ced64dbb" alt="Login page" width="700" />
+<img src="https://github.com/user-attachments/assets/77632fcc-3772-4220-ae90-8e128007d206" alt="Login page" width="700" />
 
 > Sign in with Google OAuth or username/password — see [docs/demo-data.md](docs/demo-data.md) for the full list of pre-loaded accounts.
 
@@ -43,53 +41,49 @@
 
 ### Dashboard
 
-<img src="https://github.com/user-attachments/assets/9225ec7f-d14c-4558-a204-fafdac3a3eba" alt="Manager Dashboard" width="700" />
+<img src="https://github.com/user-attachments/assets/b67f1c96-c5e7-4532-a2a4-f35d398d8d13" alt="Manager Dashboard" width="700" />
 
-> Weekly KPIs at a glance: projected cost vs. budget, burnout-risk counts, profitability metrics (prime cost, RevPASH, table turnover, sales by day), an employee overview grid, demand-based staffing forecast, daily labor cost chart, and a burnout risk monitor.
+> Weekly KPIs at a glance: projected cost vs. budget, burnout-risk counts, profitability metrics (prime cost, RevPASH, table turnover, sales by day), revenue distribution by daypart, and sales-by-day chart.
 
 ---
 
 ### Schedule Builder
 
-<img src="https://github.com/user-attachments/assets/2801598f-abef-4b76-b85a-da25bac44b8d" alt="Schedule Builder" width="700" />
+<img src="https://github.com/user-attachments/assets/a3198fcd-4ba0-4b45-a7c7-57404a9fb4d5" alt="Schedule Builder" width="700" />
 
-> One-click schedule generation with drag-and-drop reassignment, shift-time editing, and publish/draft toggling. The employee panel shows hours, availability, and burnout alerts side-by-side.
+> One-click schedule generation with drag-and-drop reassignment, shift-time editing, and publish/draft toggling. Intelligence filters highlight short-staff risk, overstaffed days, burnout alerts, and budget status at the top of the grid.
 
 ---
 
 ### Employees *(Manager only)*
 
-<img src="https://github.com/user-attachments/assets/e043b655-762a-43cf-b679-43bf31f7e2e5" alt="Employees page" width="700" />
+<img src="https://github.com/user-attachments/assets/b251cbf3-32ea-4f4a-91ca-962d004bc145" alt="Employees page" width="700" />
 
-> Add, edit, or remove team members. Each row shows role, hourly rate, and weekly-hour cap with colour-coded role badges.
+> Add, edit, or remove team members. Each row shows role, department, site, hourly rate, and weekly-hour cap with colour-coded role badges.
 
 ---
 
 ### Shift Swaps
 
-<img src="https://github.com/user-attachments/assets/b85c431d-9408-47d3-b820-3348393b61e0" alt="Shift Swaps page" width="700" />
+<img src="https://github.com/user-attachments/assets/89912b18-2051-4abf-bf6e-fcd01a603cd7" alt="Shift Swaps page" width="700" />
 
 > Employees request swaps directly from the schedule. Managers review each request with automatic guardrails (role match, overtime limit, availability) before approving or rejecting.
 
 ---
 
-### My Profile
+### Time-Off Approvals *(Manager only)*
 
-<img src="https://github.com/user-attachments/assets/a8ee9b37-96e5-45c8-bd11-3f7d43eb7e34" alt="Profile page" width="700" />
+<img src="https://github.com/user-attachments/assets/4d6914d8-8823-4e86-81f5-45ce65244c8c" alt="Time-Off Approvals page" width="700" />
 
-> Each employee manages their own availability windows, submits time-off requests, and views team-contact info — all in one place.
+> Managers review pending time-off requests, approve or deny them with optional notes, and filter by status (pending / approved / rejected / all).
 
 ---
 
-## 🎬 Demo Video
+### My Profile
 
-> **Watch a full walkthrough** of the login flow and manager pages:
->
-> *A screen-recording demo showing login → Dashboard → Schedule Builder → Employees → Shift Swaps can be added here. Record your screen with [OBS Studio](https://obsproject.com/) or [Loom](https://www.loom.com/), upload to YouTube, and replace this note with an embedded thumbnail link.*
->
-> ```
-> [![ShiftSync Demo](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
-> ```
+<img src="https://github.com/user-attachments/assets/e52a96f0-0fa9-4917-a6c7-50ac6bea0356" alt="Profile page" width="700" />
+
+> Each employee manages their own availability windows, submits time-off requests, and views team-contact info — all in one place.
 
 ---
 
