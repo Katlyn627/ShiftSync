@@ -248,9 +248,14 @@ export function generateSchedule(options: GenerateOptions): number {
   }
 
   // ── 3. Per-day revenue-proportional budget allocation ─────────────────────
-  const weekForecasts = weekDates.map(date =>
-    db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined
-  );
+  function getScheduleForecast(date: string): Forecast | undefined {
+    if (siteId) {
+      return db.prepare('SELECT * FROM forecasts WHERE date = ? AND site_id = ?').get(date, siteId) as Forecast | undefined;
+    }
+    return db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined;
+  }
+
+  const weekForecasts = weekDates.map(date => getScheduleForecast(date));
   const dayRevenues = weekDates.map((_, i) => weekForecasts[i]?.expected_revenue ?? 3000);
   const totalWeekRevenue = dayRevenues.reduce((s, r) => s + r, 0);
 
@@ -321,7 +326,7 @@ export function generateSchedule(options: GenerateOptions): number {
     const dateObj = new Date(date);
     const dayOfWeek = dateObj.getDay();
 
-    const forecast = db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined;
+    const forecast = getScheduleForecast(date);
     const dayNeeds = computeDayNeeds(forecast, date, dayOfWeek, settings.target_labor_pct, avgCheckPerHead, tableTurnoverRate);
 
     // Track employees assigned a regular shift today (for standby selection)
@@ -453,7 +458,7 @@ export function generateSchedule(options: GenerateOptions): number {
 }
 
 // Returns demand-based staffing suggestions for a week without creating a schedule
-export function computeWeeklyStaffingNeeds(weekStart: string): DailyStaffingSuggestion[] {
+export function computeWeeklyStaffingNeeds(weekStart: string, siteId?: number | null): DailyStaffingSuggestion[] {
   const db = getDb();
   const settings = getRestaurantSettings();
   const suggestions: DailyStaffingSuggestion[] = [];
@@ -467,9 +472,15 @@ export function computeWeeklyStaffingNeeds(weekStart: string): DailyStaffingSugg
     d.setDate(startDate.getDate() + i);
     weekDates.push(d.toISOString().split('T')[0]);
   }
-  const weekForecasts = weekDates.map(date =>
-    db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined
-  );
+
+  function getWeekForecast(date: string): Forecast | undefined {
+    if (siteId) {
+      return db.prepare('SELECT * FROM forecasts WHERE date = ? AND site_id = ?').get(date, siteId) as Forecast | undefined;
+    }
+    return db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as Forecast | undefined;
+  }
+
+  const weekForecasts = weekDates.map(date => getWeekForecast(date));
   const totalRevenue = weekForecasts.reduce((s, f) => s + (f?.expected_revenue ?? 3000), 0);
   const totalCovers  = weekForecasts.reduce((s, f) => s + (f?.expected_covers  ?? 0), 0);
   const avgCheckPerHead  = totalCovers > 0 ? totalRevenue / totalCovers : 32;

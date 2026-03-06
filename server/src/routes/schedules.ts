@@ -39,7 +39,8 @@ router.get('/staffing-suggestions', requireManager, (req, res) => {
     return res.status(400).json({ error: 'week_start query parameter is required' });
   }
   try {
-    const suggestions = computeWeeklyStaffingNeeds(week_start);
+    const siteId = req.user?.siteId ?? null;
+    const suggestions = computeWeeklyStaffingNeeds(week_start, siteId);
     res.json(suggestions);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

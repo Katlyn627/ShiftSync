@@ -63,9 +63,11 @@ function initSchema(db: Database.Database): void {
 
     CREATE TABLE IF NOT EXISTS forecasts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT NOT NULL UNIQUE,    -- YYYY-MM-DD
+      date TEXT NOT NULL,           -- YYYY-MM-DD
+      site_id INTEGER REFERENCES sites(id) ON DELETE CASCADE,
       expected_revenue REAL NOT NULL,
-      expected_covers INTEGER NOT NULL DEFAULT 0
+      expected_covers INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(date, site_id)
     );
 
     CREATE TABLE IF NOT EXISTS schedules (
@@ -188,6 +190,25 @@ function initSchema(db: Database.Database): void {
   const scheduleCols = db.pragma('table_info(schedules)') as { name: string }[];
   if (!scheduleCols.some(c => c.name === 'site_id')) {
     db.exec("ALTER TABLE schedules ADD COLUMN site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL");
+  }
+
+  // Migrate forecasts table: replace UNIQUE(date) with UNIQUE(date, site_id) for per-site revenue
+  const forecastCols = db.pragma('table_info(forecasts)') as { name: string }[];
+  if (!forecastCols.some(c => c.name === 'site_id')) {
+    db.exec(`
+      ALTER TABLE forecasts RENAME TO _forecasts_old;
+      CREATE TABLE forecasts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        site_id INTEGER REFERENCES sites(id) ON DELETE CASCADE,
+        expected_revenue REAL NOT NULL,
+        expected_covers INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(date, site_id)
+      );
+      INSERT INTO forecasts (id, date, expected_revenue, expected_covers)
+        SELECT id, date, expected_revenue, expected_covers FROM _forecasts_old;
+      DROP TABLE _forecasts_old;
+    `);
   }
 }
 
