@@ -5,7 +5,7 @@ import {
   getEmployees, getScheduleShifts, getAvailability,
   getProfitabilityMetrics, getRestaurantSettings, updateRestaurantSettings, getSites,
   Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee, Availability,
-  ProfitabilityMetrics, RestaurantSettings, DayRevenue, Site,
+  ProfitabilityMetrics, RestaurantSettings, DayRevenue, DaypartRevenue, Site,
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Card, Badge, Modal, NATIVE_SELECT_CLASS } from '../components/ui';
@@ -506,31 +506,50 @@ export default function Dashboard() {
               </Card>
 
               <Card className="p-5">
-                <h2 className="text-sm font-semibold text-foreground mb-4">Revenue Distribution</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-semibold text-foreground">Revenue Distribution</h2>
+                  <span className="text-[10px] text-muted-foreground capitalize">
+                    {profitabilityMetrics.site_type === 'hotel' ? 'by shift window' : 'by daypart'}
+                  </span>
+                </div>
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie
-                      data={profitabilityMetrics.sales_by_day.filter((d: DayRevenue) => d.expected_revenue > 0)}
+                      data={profitabilityMetrics.sales_by_daypart}
                       dataKey="revenue_pct"
-                      nameKey="day_name"
+                      nameKey="daypart"
                       cx="50%"
                       cy="50%"
                       outerRadius={75}
-                      label={({ day_name, revenue_pct }: any) => `${day_name} ${(revenue_pct * 100).toFixed(0)}%`}
+                      label={({ daypart, revenue_pct }: any) => `${daypart} ${(revenue_pct * 100).toFixed(0)}%`}
                       labelLine={false}
                     >
-                      {profitabilityMetrics.sales_by_day.filter((d: DayRevenue) => d.expected_revenue > 0).map((_: DayRevenue, i: number) => (
+                      {profitabilityMetrics.sales_by_daypart.map((_: DaypartRevenue, i: number) => (
                         <Cell key={i} fill={['#6366f1','#8b5cf6','#ec4899','#f97316','#06b6d4','#10b981','#f59e0b'][i % 7]} />
                       ))}
                     </Pie>
                     <Tooltip
                       formatter={(v: number, _name: string, props: any) =>
-                        [`$${props.payload?.expected_revenue?.toLocaleString() ?? 0} (${(v * 100).toFixed(1)}%)`, 'Revenue']
+                        [`$${props.payload?.revenue?.toLocaleString() ?? 0} (${(v * 100).toFixed(1)}%)`, 'Revenue']
                       }
                     />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
+                <div className="mt-3 grid grid-cols-2 gap-1.5">
+                  {profitabilityMetrics.sales_by_daypart.map((dp: DaypartRevenue) => (
+                    <div key={dp.daypart} className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-muted/20 border border-border/50 text-[10px]">
+                      <span className="font-semibold text-foreground">{dp.daypart}</span>
+                      <span className="text-muted-foreground">{dp.start}–{dp.end}</span>
+                      <span className="font-bold text-foreground">
+                        {dp.revenue >= 1000 ? `$${(dp.revenue / 1000).toFixed(1)}k` : `$${dp.revenue}`}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {dp.covers} {profitabilityMetrics.site_type === 'hotel' ? 'rm' : 'cvr'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </Card>
             </div>
           )}
