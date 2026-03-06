@@ -1,11 +1,14 @@
 {
   "scripts": {
     "build": "npm run build --prefix server && npm run build --prefix client",
-    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "predev": "node scripts/setup-env.js",
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev:client\"",
+    "dev:client": "wait-on http-get://localhost:3001/api/health && npm run dev --prefix client",
     "start": "npm run start --prefix server",
     "test": "npm run test --prefix server && npm run test --prefix client"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "wait-on": "^9.0.4"
   }
 }
