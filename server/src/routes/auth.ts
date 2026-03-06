@@ -201,7 +201,7 @@ router.post('/register', (req, res) => {
     return res.status(409).json({ error: 'Username already taken.' });
   }
 
-  const hash = bcrypt.hashSync(password, 10);
+  const hash = bcrypt.hashSync(password, Math.max(4, Math.min(31, parseInt(process.env.BCRYPT_ROUNDS ?? '10', 10) || 10)));
   const isManager = employee.role === 'Manager' ? 1 : 0;
   const result = db
     .prepare('INSERT INTO users (username, password_hash, employee_id, is_manager) VALUES (?, ?, ?, ?)')
