@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
+import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useState, useEffect } from 'react';
 import LoginPage from './pages/LoginPage';
@@ -8,6 +8,9 @@ import EmployeesPage from './pages/EmployeesPage';
 import SwapsPage from './pages/SwapsPage';
 import ProfilePage from './pages/ProfilePage';
 import TimeOffApprovalsPage from './pages/TimeOffApprovalsPage';
+import OpenShiftsPage from './pages/OpenShiftsPage';
+import FairnessPage from './pages/FairnessPage';
+import SurveysPage from './pages/SurveysPage';
 import { Badge } from './components/ui';
 import type { BadgeVariant } from './components/ui';
 import { getSites, Site } from './api';
@@ -118,7 +121,10 @@ export default function App() {
     { to: '/schedule',  label: 'Schedule',  icon: <ScheduleIcon /> },
     ...(user.isManager ? [{ to: '/employees', label: 'Employees', icon: <EmployeesIcon /> }] : []),
     { to: '/swaps',      label: 'Shift Swaps', icon: <SwapIcon /> },
+    { to: '/open-shifts', label: 'Open Shifts', icon: <SwapIcon /> },
+    { to: '/surveys',   label: 'Surveys', icon: <ProfileIcon /> },
     ...(user.isManager ? [{ to: '/time-off-approvals', label: 'Time-Off Approvals', icon: <TimeOffIcon /> }] : []),
+    ...(user.isManager ? [{ to: '/fairness', label: 'Fairness', icon: <DashboardIcon /> }] : []),
   ];
 
   const initials = (user.employeeName || user.username)
@@ -215,6 +221,9 @@ export default function App() {
           <Route path="/swaps"      element={<SwapsPage />} />
           <Route path="/profile"    element={<ProfilePage />} />
           {user.isManager && <Route path="/time-off-approvals" element={<TimeOffApprovalsPage />} />}
+          <Route path="/open-shifts" element={<OpenShiftsPage />} />
+          <Route path="/surveys"    element={<SurveysPage />} />
+          <Route path="/fairness"   element={user.isManager ? <FairnessPage /> : <Navigate to="/" replace />} />
         </Routes>
       </main>
 

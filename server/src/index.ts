@@ -23,6 +23,13 @@ import overtimeRouter from './routes/overtime';
 import complianceRouter from './routes/compliance';
 import auditRouter from './routes/audit';
 import appealsRouter from './routes/appeals';
+import openShiftsRouter from './routes/open-shifts';
+import calloutsRouter from './routes/callouts';
+import surveysRouter from './routes/surveys';
+import featureFlagsRouter from './routes/feature-flags';
+import fairnessRouter from './routes/fairness';
+import changeRequestsRouter from './routes/change-requests';
+import publishSlaRouter from './routes/publish-sla';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -72,6 +79,13 @@ app.use('/api/overtime', overtimeRouter);
 app.use('/api/compliance', complianceRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/appeals', appealsRouter);
+app.use('/api/open-shifts', openShiftsRouter);
+app.use('/api/callouts', calloutsRouter);
+app.use('/api/surveys', surveysRouter);
+app.use('/api/feature-flags', featureFlagsRouter);
+app.use('/api/fairness', fairnessRouter);
+app.use('/api/change-requests', changeRequestsRouter);
+app.use('/api/publish-sla', publishSlaRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

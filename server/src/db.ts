@@ -180,6 +180,119 @@ function initSchema(db: Database.Database): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(schedule_id, employee_id, date)
     );
+
+    CREATE TABLE IF NOT EXISTS publish_ahead_sla (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      site_id INTEGER REFERENCES sites(id) ON DELETE CASCADE,
+      role TEXT DEFAULT NULL,
+      advance_days INTEGER NOT NULL DEFAULT 14,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(site_id, role)
+    );
+
+    CREATE TABLE IF NOT EXISTS schedule_change_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shift_id INTEGER NOT NULL REFERENCES shifts(id) ON DELETE CASCADE,
+      requested_by INTEGER NOT NULL REFERENCES users(id),
+      change_type TEXT NOT NULL,
+      reason_code TEXT NOT NULL,
+      reason_detail TEXT,
+      original_date TEXT,
+      original_start_time TEXT,
+      original_end_time TEXT,
+      new_date TEXT,
+      new_start_time TEXT,
+      new_end_time TEXT,
+      worker_consent TEXT NOT NULL DEFAULT 'pending',
+      status TEXT NOT NULL DEFAULT 'pending',
+      manager_notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS open_shifts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      schedule_id INTEGER NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
+      site_id INTEGER REFERENCES sites(id) ON DELETE CASCADE,
+      date TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      role TEXT NOT NULL,
+      required_certifications TEXT NOT NULL DEFAULT '[]',
+      reason TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      deadline TEXT,
+      claimed_by INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+      created_by INTEGER REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS open_shift_offers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      open_shift_id INTEGER NOT NULL REFERENCES open_shifts(id) ON DELETE CASCADE,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      ineligibility_reason TEXT,
+      manager_notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(open_shift_id, employee_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS callout_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shift_id INTEGER REFERENCES shifts(id) ON DELETE SET NULL,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      callout_time TEXT NOT NULL DEFAULT (datetime('now')),
+      reason TEXT,
+      replacement_employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+      replacement_status TEXT NOT NULL DEFAULT 'none',
+      open_shift_id INTEGER REFERENCES open_shifts(id) ON DELETE SET NULL,
+      manager_override INTEGER NOT NULL DEFAULT 0,
+      manager_notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS burnout_survey_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      instrument TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      questions TEXT NOT NULL DEFAULT '[]',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS burnout_survey_campaigns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      template_id INTEGER NOT NULL REFERENCES burnout_survey_templates(id),
+      site_id INTEGER REFERENCES sites(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      anonymized INTEGER NOT NULL DEFAULT 1,
+      min_group_size INTEGER NOT NULL DEFAULT 5,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS burnout_survey_responses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      campaign_id INTEGER NOT NULL REFERENCES burnout_survey_campaigns(id),
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      responses TEXT NOT NULL DEFAULT '{}',
+      submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(campaign_id, employee_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS feature_flags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      flag_key TEXT NOT NULL UNIQUE,
+      description TEXT NOT NULL DEFAULT '',
+      enabled INTEGER NOT NULL DEFAULT 0,
+      rollout_pct INTEGER NOT NULL DEFAULT 0,
+      site_ids TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migrate existing databases: add google_id column if absent
@@ -278,6 +391,12 @@ function initSchema(db: Database.Database): void {
     `);
   }
 
+  // Seed default burnout survey templates
+  seedDefaultSurveyTemplates(db);
+
+  // Seed default feature flags
+  seedDefaultFeatureFlags(db);
+
   // Seed default compliance rules (idempotent via INSERT OR IGNORE)
   seedDefaultComplianceRules(db);
 }
@@ -337,6 +456,77 @@ function seedDefaultComplianceRules(db: Database.Database): void {
   const insertMany = db.transaction(() => {
     for (const [j, rt, rv, desc] of rules) {
       insert.run(j, rt, rv, desc);
+    }
+  });
+  insertMany();
+}
+
+function seedDefaultSurveyTemplates(db: Database.Database): void {
+  const existing = db.prepare('SELECT COUNT(*) as cnt FROM burnout_survey_templates').get() as { cnt: number };
+  if (existing.cnt > 0) return;
+
+  // CBI (Copenhagen Burnout Inventory) - brief 3-item version per subscale
+  const cbiQuestions = [
+    { id: 'cbi_p1', text: 'How often do you feel tired?', scale: 5, subscale: 'personal' },
+    { id: 'cbi_p2', text: 'How often are you physically exhausted?', scale: 5, subscale: 'personal' },
+    { id: 'cbi_p3', text: 'How often are you emotionally exhausted?', scale: 5, subscale: 'personal' },
+    { id: 'cbi_w1', text: 'Does your work emotionally exhaust you?', scale: 5, subscale: 'work' },
+    { id: 'cbi_w2', text: 'Do you feel burnt out because of your work?', scale: 5, subscale: 'work' },
+    { id: 'cbi_w3', text: 'Does your work frustrate you?', scale: 5, subscale: 'work' },
+    { id: 'cbi_m1', text: 'Do you find it hard to work with your schedule?', scale: 5, subscale: 'mediator_schedule_control' },
+    { id: 'cbi_m2', text: 'Does your work schedule interfere with your sleep?', scale: 5, subscale: 'mediator_sleep' },
+  ];
+
+  // OLBI (Oldenburg Burnout Inventory) - brief 4-item version
+  const olbiQuestions = [
+    { id: 'olbi_e1', text: 'There are days when I feel tired before I arrive at work.', scale: 4, subscale: 'exhaustion' },
+    { id: 'olbi_e2', text: 'After work, I tend to need more time than in the past in order to relax.', scale: 4, subscale: 'exhaustion' },
+    { id: 'olbi_e3', text: 'I can tolerate the pressure of my work very well.', scale: 4, subscale: 'exhaustion', reversed: true },
+    { id: 'olbi_d1', text: 'Lately, I tend to think less at work and do my job almost mechanically.', scale: 4, subscale: 'disengagement' },
+    { id: 'olbi_d2', text: 'I find my work to be a positive challenge.', scale: 4, subscale: 'disengagement', reversed: true },
+    { id: 'olbi_d3', text: 'Over time, one can become disconnected from this type of work.', scale: 4, subscale: 'disengagement' },
+    { id: 'olbi_m1', text: 'I feel in control of how my shifts are scheduled.', scale: 4, subscale: 'mediator_schedule_control' },
+    { id: 'olbi_m2', text: 'My work schedule negatively affects my ability to sleep well.', scale: 4, subscale: 'mediator_sleep' },
+  ];
+
+  // BAT (Burnout Assessment Tool) - brief version
+  const batQuestions = [
+    { id: 'bat_e1', text: 'I feel mentally exhausted at work.', scale: 5, subscale: 'exhaustion' },
+    { id: 'bat_e2', text: 'Everything I do at work requires a great deal of effort.', scale: 5, subscale: 'exhaustion' },
+    { id: 'bat_d1', text: 'I struggle to find any enthusiasm for my work.', scale: 5, subscale: 'distance' },
+    { id: 'bat_d2', text: 'At work, I do not think about what I am doing and work on autopilot.', scale: 5, subscale: 'distance' },
+    { id: 'bat_c1', text: 'At work, I feel unable to control my emotions.', scale: 5, subscale: 'cognitive' },
+    { id: 'bat_c2', text: 'I have difficulty concentrating on my work.', scale: 5, subscale: 'cognitive' },
+    { id: 'bat_m1', text: 'I have a say in when and how much I work.', scale: 5, subscale: 'mediator_schedule_control' },
+    { id: 'bat_m2', text: 'My shift schedule disrupts my sleep patterns.', scale: 5, subscale: 'mediator_sleep' },
+  ];
+
+  const insert = db.prepare(
+    'INSERT INTO burnout_survey_templates (instrument, name, description, questions) VALUES (?, ?, ?, ?)'
+  );
+  insert.run('CBI', 'Copenhagen Burnout Inventory (Brief)', 'Validated burnout instrument measuring personal, work-related burnout, and key mediators (schedule control, sleep interference).', JSON.stringify(cbiQuestions));
+  insert.run('OLBI', 'Oldenburg Burnout Inventory (Brief)', 'Validated burnout instrument measuring exhaustion and disengagement, with schedule mediators.', JSON.stringify(olbiQuestions));
+  insert.run('BAT', 'Burnout Assessment Tool (Brief)', 'WHO-aligned burnout instrument measuring exhaustion, mental distance, cognitive impairment, with schedule mediators.', JSON.stringify(batQuestions));
+}
+
+function seedDefaultFeatureFlags(db: Database.Database): void {
+  const flags = [
+    ['open_shift_marketplace', 'Enable the open-shift marketplace for self-service coverage', 1, 100],
+    ['burnout_surveys', 'Enable periodic burnout survey campaigns', 1, 100],
+    ['schedule_instability_analytics', 'Show schedule instability/volatility analytics to managers', 1, 100],
+    ['fairness_dashboard', 'Show workforce fairness distribution dashboard', 1, 100],
+    ['callout_automation', 'Auto-generate open shifts when a callout is reported', 1, 100],
+    ['change_request_workflow', 'Require structured reason codes and worker consent for post-publish schedule changes', 1, 100],
+    ['publish_ahead_sla', 'Enforce configurable publish-ahead SLA before schedule goes live', 0, 0],
+    ['predictive_scheduling_compliance', 'Surface predictability-pay exposure warnings in instability analytics', 1, 100],
+    ['geofencing_clock_in', 'Allow location-based clock-in verification (requires worker opt-in)', 0, 0],
+  ];
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO feature_flags (flag_key, description, enabled, rollout_pct) VALUES (?, ?, ?, ?)`
+  );
+  const insertMany = db.transaction(() => {
+    for (const [key, desc, enabled, pct] of flags) {
+      insert.run(key, desc, enabled, pct);
     }
   });
   insertMany();

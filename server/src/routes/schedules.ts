@@ -67,6 +67,27 @@ router.put('/:id', requireManager, (req, res) => {
   const db = getDb();
   const existing = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id) as any;
   if (!existing) return res.status(404).json({ error: 'Schedule not found' });
+
+  // Publish-ahead SLA enforcement
+  if (status === 'published') {
+    const sla = existing.site_id
+      ? db.prepare('SELECT advance_days FROM publish_ahead_sla WHERE site_id = ? AND role IS NULL').get(existing.site_id) as any
+      : null;
+    if (sla) {
+      const weekStartDate = new Date(existing.week_start + 'T00:00:00').getTime();
+      const now = Date.now();
+      const daysUntilStart = (weekStartDate - now) / (24 * 3600 * 1000);
+      if (daysUntilStart < sla.advance_days) {
+        return res.status(422).json({
+          error: `Publish-ahead SLA violation: schedule must be published at least ${sla.advance_days} days before the week starts. Currently ${Math.round(daysUntilStart)} days away.`,
+          sla_advance_days: sla.advance_days,
+          days_until_start: Math.round(daysUntilStart),
+          can_override: true,
+        });
+      }
+    }
+  }
+
   if (status) db.prepare('UPDATE schedules SET status=? WHERE id=?').run(status, req.params.id);
   if (status) {
     logAudit({
@@ -167,6 +188,92 @@ router.get('/:id/intelligence', requireManager, (req, res) => {
     res.json(intel);
   } catch (err: any) {
     res.status(404).json({ error: err.message });
+  }
+});
+
+router.get('/:id/instability', requireManager, (req, res) => {
+  try {
+    const db = getDb();
+    const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id) as any;
+    if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
+
+    const allShifts = db.prepare("SELECT * FROM shifts WHERE schedule_id = ?").all(req.params.id) as any[];
+    const cancelledShifts = allShifts.filter(s => s.status === 'cancelled');
+    const activeShifts = allShifts.filter(s => s.status !== 'cancelled');
+
+    const shiftIds = allShifts.map(s => s.id);
+    const changeRequests = shiftIds.length > 0
+      ? db.prepare(`SELECT * FROM schedule_change_requests WHERE shift_id IN (${shiftIds.map(() => '?').join(',')})`).all(...shiftIds) as any[]
+      : [];
+
+    const lateChanges = changeRequests.filter(cr => {
+      if (!cr.original_date) return false;
+      const daysBefore = (new Date(cr.original_date).getTime() - new Date(cr.created_at).getTime()) / (24 * 3600 * 1000);
+      return daysBefore < 14;
+    });
+
+    const callouts = db.prepare(`
+      SELECT ce.* FROM callout_events ce JOIN shifts s ON ce.shift_id = s.id WHERE s.schedule_id = ?
+    `).all(req.params.id) as any[];
+
+    // Quick returns
+    let quickReturns = 0;
+    const compRule = db.prepare("SELECT rule_value FROM compliance_rules WHERE jurisdiction = 'default' AND rule_type = 'min_rest_hours'").get() as any;
+    const minRest = compRule ? parseFloat(compRule.rule_value) : 10;
+    const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+
+    const byEmp: Record<number, any[]> = {};
+    for (const s of activeShifts) {
+      if (!byEmp[s.employee_id]) byEmp[s.employee_id] = [];
+      byEmp[s.employee_id].push(s);
+    }
+    for (const empShifts of Object.values(byEmp)) {
+      const sorted = [...empShifts].sort((a, b) => a.date.localeCompare(b.date));
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1]; const curr = sorted[i];
+        if (prev.date === curr.date) continue;
+        const prevMs = new Date(prev.date + 'T00:00:00').getTime();
+        const currMs = new Date(curr.date + 'T00:00:00').getTime();
+        if ((currMs - prevMs) / (24 * 3600 * 1000) === 1) {
+          const gap = (24 * 60 - toMin(prev.end_time)) + toMin(curr.start_time);
+          if (gap < minRest * 60) quickReturns++;
+        }
+      }
+    }
+
+    const sla = schedule.site_id
+      ? db.prepare('SELECT advance_days FROM publish_ahead_sla WHERE site_id = ? AND role IS NULL').get(schedule.site_id) as any
+      : null;
+    const requiredAdvanceDays = sla?.advance_days ?? 14;
+    const daysAdvance = (new Date(schedule.week_start + 'T00:00:00').getTime() - new Date(schedule.created_at).getTime()) / (24 * 3600 * 1000);
+    const predictabilityPayExposure = daysAdvance < requiredAdvanceDays ? activeShifts.length : lateChanges.length;
+
+    const instabilityScore = Math.min(100, Math.round(
+      (cancelledShifts.length / Math.max(1, allShifts.length)) * 30 +
+      (quickReturns / Math.max(1, activeShifts.length)) * 25 +
+      (callouts.length / Math.max(1, activeShifts.length)) * 25 +
+      (lateChanges.length / Math.max(1, allShifts.length)) * 20
+    ));
+
+    res.json({
+      schedule_id: parseInt(req.params.id, 10),
+      week_start: schedule.week_start,
+      total_shifts: allShifts.length,
+      active_shifts: activeShifts.length,
+      cancelled_shifts: cancelledShifts.length,
+      cancellation_rate_pct: allShifts.length > 0 ? Math.round((cancelledShifts.length / allShifts.length) * 100) : 0,
+      change_requests: changeRequests.length,
+      late_change_count: lateChanges.length,
+      quick_returns: quickReturns,
+      callout_count: callouts.length,
+      days_advance_published: Math.round(daysAdvance),
+      required_advance_days: requiredAdvanceDays,
+      predictability_pay_exposure_count: predictabilityPayExposure,
+      instability_score: instabilityScore,
+      instability_level: instabilityScore < 15 ? 'stable' : instabilityScore < 35 ? 'moderate' : 'volatile',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
