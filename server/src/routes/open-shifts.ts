@@ -96,8 +96,9 @@ function checkEligibility(
     }
     // Clopen check across day boundary
     if (s.date === dayBefore) {
+      // Minutes remaining in the prev day after the shift ended + minutes into the new day until new shift starts
       const prevEnd = toMinutes(s.end_time);
-      const gapMinutes = Math.min((newStart + 24 * 60) - prevEnd, newStart - prevEnd);
+      const gapMinutes = (24 * 60 - prevEnd) + newStart;
       if (gapMinutes < restHours * 60) {
         return { eligible: false, reason: `rest_violation: less than ${restHours}h rest since previous shift` };
       }

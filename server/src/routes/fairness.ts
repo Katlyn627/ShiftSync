@@ -176,7 +176,8 @@ router.get('/instability', requireManager, (req, res) => {
       : [];
 
     const lateChanges = changeRequests.filter(cr => {
-      const daysBefore = (new Date(cr.original_date ?? '').getTime() - new Date(cr.created_at).getTime()) / (24 * 3600 * 1000);
+      if (!cr.original_date) return false;
+      const daysBefore = (new Date(cr.original_date).getTime() - new Date(cr.created_at).getTime()) / (24 * 3600 * 1000);
       return daysBefore < 14; // within predictability window
     });
 

@@ -21,7 +21,10 @@ router.get('/', requireAuth, (req, res) => {
   const evaluated = flags.map(f => {
     let active = !!f.enabled;
     if (active && f.rollout_pct < 100) {
-      // Deterministic rollout based on user ID
+      // Deterministic rollout based on user ID.
+      // Uses Knuth's multiplicative hash (golden ratio constant 2654435761 for 32-bit)
+      // to provide a uniform, deterministic distribution across the 0-99 range
+      // so the same user always gets the same flag state for a given rollout_pct.
       const userId = req.user?.userId ?? 0;
       const hash = (userId * 2654435761) % 100;
       active = hash < f.rollout_pct;
