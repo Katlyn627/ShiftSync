@@ -231,6 +231,15 @@ function initSchema(db: Database.Database): void {
   if (!empCols.some(c => c.name === 'union_member')) {
     db.exec("ALTER TABLE employees ADD COLUMN union_member INTEGER NOT NULL DEFAULT 0");
   }
+  if (!empCols.some(c => c.name === 'location_lat')) {
+    db.exec("ALTER TABLE employees ADD COLUMN location_lat REAL DEFAULT NULL");
+  }
+  if (!empCols.some(c => c.name === 'location_lng')) {
+    db.exec("ALTER TABLE employees ADD COLUMN location_lng REAL DEFAULT NULL");
+  }
+  if (!empCols.some(c => c.name === 'location_label')) {
+    db.exec("ALTER TABLE employees ADD COLUMN location_label TEXT DEFAULT NULL");
+  }
 
   // Migrate sites table: add jurisdiction column if absent
   const siteCols = db.pragma('table_info(sites)') as { name: string }[];

@@ -87,6 +87,10 @@ export default function ProfilePage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  // Location sharing
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'success' | 'error'>('idle');
+  const [locationError, setLocationError] = useState<string | null>(null);
+
   const loadData = async () => {
     try {
       const all = await getEmployees();
@@ -242,6 +246,67 @@ export default function ProfilePage() {
       setMyEmployee(updated);
     } catch (err: any) {
       alert('Error removing photo: ' + err.message);
+    }
+  };
+
+  const handleEnableLocation = () => {
+    if (!myEmployee) return;
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser.');
+      return;
+    }
+    setLocationStatus('requesting');
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        let label = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        try {
+          const resp = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+            { headers: { 'Accept-Language': 'en', 'User-Agent': 'ShiftSync/1.0 (shift scheduling app)' } }
+          );
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.display_name) label = data.display_name;
+          }
+        } catch {
+          // fall back to raw coordinates if reverse geocoding fails
+        }
+        try {
+          const updated = await updateEmployee(myEmployee.id, {
+            location_lat: latitude,
+            location_lng: longitude,
+            location_label: label,
+          });
+          setMyEmployee(updated);
+          setLocationStatus('success');
+        } catch (err: any) {
+          setLocationError('Failed to save location: ' + err.message);
+          setLocationStatus('error');
+        }
+      },
+      (err) => {
+        setLocationStatus('error');
+        setLocationError(err.message || 'Unable to retrieve location.');
+      },
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
+  };
+
+  const handleClearLocation = async () => {
+    if (!myEmployee || !confirm('Clear your saved location?')) return;
+    try {
+      const updated = await updateEmployee(myEmployee.id, {
+        location_lat: null,
+        location_lng: null,
+        location_label: null,
+      });
+      setMyEmployee(updated);
+      setLocationStatus('idle');
+      setLocationError(null);
+    } catch (err: any) {
+      alert('Error clearing location: ' + err.message);
     }
   };
 
@@ -525,6 +590,64 @@ export default function ProfilePage() {
                   </div>
                 );
               })}
+            </div>
+          </Card>
+
+          {/* ── Location ── */}
+          <Card className="p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">My Location</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Share your current location so managers can verify check-ins and coordinate shift coverage.
+                </p>
+              </div>
+              <svg className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+                <circle cx="12" cy="10" r="3"/>
+              </svg>
+            </div>
+
+            {myEmployee.location_label ? (
+              <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800">
+                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1 flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                  </svg>
+                  Location shared
+                </p>
+                <p className="text-xs text-emerald-800 dark:text-emerald-300 break-words">{myEmployee.location_label}</p>
+                {myEmployee.location_lat != null && myEmployee.location_lng != null && (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-500 mt-1">
+                    {myEmployee.location_lat.toFixed(5)}, {myEmployee.location_lng.toFixed(5)}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="mt-4 p-3 rounded-lg bg-muted/40 border border-border text-sm text-muted-foreground italic">
+                No location saved yet.
+              </div>
+            )}
+
+            {locationError && (
+              <p className="mt-3 text-xs text-red-600 dark:text-red-400">{locationError}</p>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleEnableLocation}
+                disabled={locationStatus === 'requesting'}
+                isLoading={locationStatus === 'requesting'}
+              >
+                {myEmployee.location_label ? 'Update Location' : 'Enable Location'}
+              </Button>
+              {myEmployee.location_label && (
+                <Button variant="outline" size="sm" onClick={handleClearLocation}>
+                  Clear Location
+                </Button>
+              )}
             </div>
           </Card>
 

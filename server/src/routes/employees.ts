@@ -50,12 +50,12 @@ router.put('/:id', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'You can only update your own profile' });
   }
 
-  const { name, role, hourly_rate, weekly_hours_max, email, phone, photo_url, pay_type, certifications, is_minor, union_member } = req.body;
+  const { name, role, hourly_rate, weekly_hours_max, email, phone, photo_url, pay_type, certifications, is_minor, union_member, location_lat, location_lng, location_label } = req.body;
 
   if (isManager) {
     // Managers can update everything
     db.prepare(
-      'UPDATE employees SET name=?, role=?, hourly_rate=?, weekly_hours_max=?, email=?, phone=?, photo_url=?, pay_type=?, certifications=?, is_minor=?, union_member=? WHERE id=?'
+      'UPDATE employees SET name=?, role=?, hourly_rate=?, weekly_hours_max=?, email=?, phone=?, photo_url=?, pay_type=?, certifications=?, is_minor=?, union_member=?, location_lat=?, location_lng=?, location_label=? WHERE id=?'
     ).run(
       name ?? existing.name,
       role ?? existing.role,
@@ -68,17 +68,23 @@ router.put('/:id', requireAuth, (req, res) => {
       certifications !== undefined ? JSON.stringify(certifications) : (existing.certifications ?? '[]'),
       is_minor !== undefined ? (is_minor ? 1 : 0) : (existing.is_minor ?? 0),
       union_member !== undefined ? (union_member ? 1 : 0) : (existing.union_member ?? 0),
+      location_lat !== undefined ? location_lat : (existing.location_lat ?? null),
+      location_lng !== undefined ? location_lng : (existing.location_lng ?? null),
+      location_label !== undefined ? location_label : (existing.location_label ?? null),
       req.params.id
     );
   } else {
-    // Employees can only update their own contact info, availability preferences, and photo
+    // Employees can only update their own contact info, availability preferences, photo, and location
     db.prepare(
-      'UPDATE employees SET weekly_hours_max=?, email=?, phone=?, photo_url=? WHERE id=?'
+      'UPDATE employees SET weekly_hours_max=?, email=?, phone=?, photo_url=?, location_lat=?, location_lng=?, location_label=? WHERE id=?'
     ).run(
       weekly_hours_max ?? existing.weekly_hours_max,
       email !== undefined ? email : (existing.email ?? ''),
       phone !== undefined ? phone : (existing.phone ?? ''),
       photo_url !== undefined ? photo_url : (existing.photo_url ?? null),
+      location_lat !== undefined ? location_lat : (existing.location_lat ?? null),
+      location_lng !== undefined ? location_lng : (existing.location_lng ?? null),
+      location_label !== undefined ? location_label : (existing.location_label ?? null),
       req.params.id
     );
   }
