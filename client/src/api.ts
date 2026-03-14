@@ -47,7 +47,11 @@ export const generateSchedule = (week_start: string, labor_budget: number) =>
   request<Schedule>('/schedules/generate', { method: 'POST', body: JSON.stringify({ week_start, labor_budget }) });
 export const getScheduleShifts = (id: number) => request<ShiftWithEmployee[]>(`/schedules/${id}/shifts`);
 export const getLaborCost = (id: number) => request<LaborCostSummary>(`/schedules/${id}/labor-cost`);
-export const getBurnoutRisks = (id: number) => request<BurnoutRisk[]>(`/schedules/${id}/burnout-risks`);
+export const getBurnoutRisks = async (id: number): Promise<BurnoutRisk[]> => {
+  const data = await request<BurnoutRisk[] | { own: BurnoutRisk | null; summary: unknown }>(`/schedules/${id}/burnout-risks`);
+  if (Array.isArray(data)) return data;
+  return data.own ? [data.own] : [];
+};
 export const updateSchedule = (id: number, data: { status: string }) =>
   request<Schedule>(`/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteSchedule = (id: number) =>
