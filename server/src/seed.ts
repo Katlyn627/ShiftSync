@@ -45,7 +45,8 @@ const EXPECTED_SITE_NAMES = [
 /**
  * Returns true when the database contains stale or incomplete seed data that
  * no longer matches the canonical seed (e.g. after a schema migration that
- * added site_id to forecasts / employees, or after the employee roster changed).
+ * added site_id to forecasts / employees, or after the employee roster changed,
+ * or when a previous seed run was interrupted before user accounts were created).
  */
 function shouldReseed(db: Database.Database): boolean {
   // Must have all canonical sites (by exact name)
@@ -59,6 +60,13 @@ function shouldReseed(db: Database.Database): boolean {
   if (empCount < MIN_EXPECTED_EMPLOYEES) return true;
   const empsWithSite = (db.prepare('SELECT COUNT(*) as c FROM employees WHERE site_id IS NOT NULL').get() as any).c;
   if (empsWithSite < MIN_EXPECTED_EMPLOYEES) return true;
+
+  // Must have user accounts for the seeded employees.  Catches the case where
+  // a previous seed was interrupted after employee creation but before (or
+  // during) the bcrypt-hashing step that creates user accounts, leaving the
+  // database with employees but no login credentials.
+  const userCount = (db.prepare('SELECT COUNT(*) as c FROM users').get() as any).c;
+  if (userCount < MIN_EXPECTED_EMPLOYEES) return true;
 
   // Forecasts must be site-scoped (≥ 10 rows with a non-NULL site_id)
   const forecastsWithSite = (db.prepare('SELECT COUNT(*) as c FROM forecasts WHERE site_id IS NOT NULL').get() as any).c;
@@ -93,17 +101,25 @@ function clearSeedData(db: Database.Database): void {
 export function seedDemoData(): void {
   const db = getDb();
 
-  // If the data looks up-to-date, skip seeding entirely.
-  // If it looks stale (schema upgrade, incomplete previous seed, etc.),
-  // wipe everything and reseed from scratch so the UI shows full, correct data.
-  if (shouldReseed(db)) {
-    clearSeedData(db);
-  } else {
+  // Determine up-front whether a reseed is needed so we can decide whether to
+  // call clearSeedData() inside the transaction below.
+  const needsReseed = shouldReseed(db);
+  if (!needsReseed) {
     const existingCount = (db.prepare('SELECT COUNT(*) as c FROM employees').get() as any).c;
     if (existingCount > 0) return; // Already fully seeded
   }
 
-  // ── 1. Sites ──────────────────────────────────────────────────────────────
+  // Run the entire seed (including the optional clear) inside a single SQLite
+  // transaction.  If the process is killed mid-seed the transaction is
+  // automatically rolled back on next open, leaving the database in its
+  // previous consistent state rather than a half-seeded one (e.g. employees
+  // present but user accounts missing).
+  db.transaction(() => {
+    if (needsReseed) {
+      clearSeedData(db);
+    }
+
+    // ── 1. Sites ──────────────────────────────────────────────────────────────
   const insertSite = db.prepare(
     'INSERT INTO sites (name, city, state, timezone, site_type) VALUES (?, ?, ?, ?, ?)'
   );
@@ -718,7 +734,11 @@ export function seedDemoData(): void {
     let suffix   = 2;
     while (usedUsernames.has(username)) { username = `${base}${suffix}`; suffix++; }
     usedUsernames.add(username);
-    const hash      = bcrypt.hashSync('password123', Math.max(4, Math.min(31, parseInt(process.env.BCRYPT_ROUNDS ?? '10', 10) || 10)));
+    // Use a low bcrypt cost for seeded demo users.  These accounts all share
+    // the well-known password "password123" so there is no benefit to a high
+    // cost factor, and a lower cost avoids a 15+ second blocking seed that
+    // can cause the process to be killed before user creation completes.
+    const hash      = bcrypt.hashSync('password123', 4);
     const isManager = emp.role === 'Manager' ? 1 : 0;
     insertUser.run(username, hash, emp.id, isManager);
   }
@@ -802,6 +822,7 @@ export function seedDemoData(): void {
 
   // ── 11. Sanity validation ─────────────────────────────────────────────────
   validateSeedData();
+  })(); // end db.transaction
 }
 
 /** Lightweight runtime checks confirming seed integrity. Throws on failure. */

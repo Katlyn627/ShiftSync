@@ -38,6 +38,8 @@ export default function EmployeesPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm]           = useState({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
 
+  const [error, setError] = useState<string | null>(null);
+
   const load = () => Promise.all([
     getEmployees(),
     getSites(),
@@ -46,8 +48,14 @@ export default function EmployeesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingId) { await updateEmployee(editingId, form); }
-    else           { await createEmployee(form); }
+    setError(null);
+    try {
+      if (editingId) { await updateEmployee(editingId, form); }
+      else           { await createEmployee(form); }
+    } catch (err: any) {
+      setError(err.message || 'Failed to save employee. Please try again.');
+      return;
+    }
     setShowForm(false);
     setEditingId(null);
     setForm({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
@@ -169,13 +177,18 @@ export default function EmployeesPage() {
               value={form.phone}
               onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
             />
-            <div className="col-span-2 md:col-span-4 flex gap-2 pt-1 border-t border-border mt-1">
-              <Button type="submit" variant="default" size="sm">
-                {editingId ? 'Save Changes' : 'Add Employee'}
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => setShowForm(false)}>
-                Cancel
-              </Button>
+            <div className="col-span-2 md:col-span-4 flex flex-col gap-2 pt-1 border-t border-border mt-1">
+              {error && (
+                <p className="text-sm text-destructive">{error}</p>
+              )}
+              <div className="flex gap-2">
+                <Button type="submit" variant="default" size="sm">
+                  {editingId ? 'Save Changes' : 'Add Employee'}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => { setShowForm(false); setError(null); }}>
+                  Cancel
+                </Button>
+              </div>
             </div>
           </form>
         </Card>
