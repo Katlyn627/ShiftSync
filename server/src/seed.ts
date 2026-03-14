@@ -82,6 +82,11 @@ function shouldReseed(db: Database.Database): boolean {
 /** Wipes all seeded tables so that seedDemoData() can start from a clean slate. */
 function clearSeedData(db: Database.Database): void {
   db.exec(`
+    DELETE FROM burnout_survey_responses;
+    DELETE FROM burnout_survey_campaigns;
+    DELETE FROM open_shift_offers;
+    DELETE FROM open_shifts;
+    DELETE FROM callout_events;
     DELETE FROM shift_swaps;
     DELETE FROM weekly_overtime;
     DELETE FROM standby_assignments;
@@ -820,7 +825,475 @@ export function seedDemoData(): void {
       'Denied — Amy is already at max hours this week.');
   }
 
-  // ── 11. Sanity validation ─────────────────────────────────────────────────
+  // ── 11. Open Shifts & Offers ──────────────────────────────────────────────
+
+  // Fetch manager user IDs (needed for created_by on open_shifts)
+  const managerUsers = db.prepare(`
+    SELECT u.id as user_id, e.site_id, e.role
+    FROM users u JOIN employees e ON u.employee_id = e.id
+    WHERE u.is_manager = 1
+  `).all() as { user_id: number; site_id: number; role: string }[];
+
+  function managerUserIdForSite(siteId: number): number | null {
+    const m = managerUsers.find(u => u.site_id === siteId);
+    return m ? m.user_id : null;
+  }
+
+  const insertOpenShift = db.prepare(`
+    INSERT INTO open_shifts
+      (schedule_id, site_id, date, start_time, end_time, role,
+       required_certifications, reason, status, deadline, claimed_by, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertOpenShiftOffer = db.prepare(`
+    INSERT OR IGNORE INTO open_shift_offers
+      (open_shift_id, employee_id, status, ineligibility_reason, manager_notes)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  // ── Bella Napoli open shifts ──────────────────────────────────────────────
+  const r1Mgr = managerUserIdForSite(siteR1);
+  const r1AllServers  = empsByRole(siteR1, 'Server');
+  const r1AllCooks    = empsByRole(siteR1, 'Kitchen');
+  const r1AllBar      = empsByRole(siteR1, 'Bar');
+  const r1AllHosts    = empsByRole(siteR1, 'Host');
+
+  // Open: Server needed Friday dinner (callout — will stay open)
+  const r1FridayDate = addDays(thisMonday, 4);
+  const r1OpenSrv = insertOpenShift.run(
+    scheduleIds[`${siteR1}_${thisMonday}`], siteR1,
+    r1FridayDate, '16:00', '22:00', 'Server',
+    '[]', 'Callout — Maria called in sick', 'open',
+    addDays(r1FridayDate, -1), null, r1Mgr
+  );
+  // Two employees offer; one pending, one ineligible
+  if (r1AllServers.length >= 3) {
+    insertOpenShiftOffer.run(r1OpenSrv.lastInsertRowid, r1AllServers[1].id, 'pending', null, null);
+    insertOpenShiftOffer.run(r1OpenSrv.lastInsertRowid, r1AllServers[2].id, 'pending', null, null);
+  }
+  if (r1AllHosts.length >= 1) {
+    insertOpenShiftOffer.run(r1OpenSrv.lastInsertRowid, r1AllHosts[0].id, 'rejected',
+      'role_mismatch: shift requires Server', null);
+  }
+
+  // Open: Kitchen prep Saturday (understaffed for a private event)
+  const r1SatDate = addDays(thisMonday, 5);
+  const r1OpenKitch = insertOpenShift.run(
+    scheduleIds[`${siteR1}_${thisMonday}`], siteR1,
+    r1SatDate, '09:00', '17:00', 'Kitchen',
+    JSON.stringify(['food_handler_cert']),
+    'Private dining event — need extra prep cook', 'open',
+    r1SatDate, null, r1Mgr
+  );
+  if (r1AllCooks.length >= 2) {
+    insertOpenShiftOffer.run(r1OpenKitch.lastInsertRowid, r1AllCooks[1].id, 'pending', null, null);
+  }
+
+  // Claimed: Bar Saturday night (someone already claimed it)
+  const r1OpenBar = insertOpenShift.run(
+    scheduleIds[`${siteR1}_${thisMonday}`], siteR1,
+    r1SatDate, '18:00', '02:00', 'Bar',
+    '[]', 'Extra bar coverage for weekend rush', 'claimed',
+    r1SatDate, r1AllBar.length >= 2 ? r1AllBar[1].id : null, r1Mgr
+  );
+  if (r1AllBar.length >= 2) {
+    insertOpenShiftOffer.run(r1OpenBar.lastInsertRowid, r1AllBar[1].id, 'approved',
+      null, 'Confirmed — great, thanks for stepping up.');
+  }
+
+  // Expired: Host shift from last week (never filled)
+  const r1PastDate = addDays(lastMonday, 6);
+  insertOpenShift.run(
+    scheduleIds[`${siteR1}_${lastMonday}`], siteR1,
+    r1PastDate, '11:00', '19:00', 'Host',
+    '[]', 'No-show — host did not arrive for shift', 'expired',
+    r1PastDate, null, r1Mgr
+  );
+
+  // ── The Blue Door open shifts ─────────────────────────────────────────────
+  const r2Mgr = managerUserIdForSite(siteR2);
+  const r2AllServers  = empsByRole(siteR2, 'Server');
+  const r2AllKitchen  = empsByRole(siteR2, 'Kitchen');
+  const r2AllManagers = empsByRole(siteR2, 'Manager');
+
+  // Open: Server Thursday evening (last-minute large booking)
+  const r2ThuDate = addDays(thisMonday, 3);
+  const r2OpenSrv = insertOpenShift.run(
+    scheduleIds[`${siteR2}_${thisMonday}`], siteR2,
+    r2ThuDate, '17:00', '23:00', 'Server',
+    '[]', 'Large party reservation added — need extra server coverage', 'open',
+    r2ThuDate, null, r2Mgr
+  );
+  if (r2AllServers.length >= 2) {
+    insertOpenShiftOffer.run(r2OpenSrv.lastInsertRowid, r2AllServers[0].id, 'pending', null, null);
+    insertOpenShiftOffer.run(r2OpenSrv.lastInsertRowid, r2AllServers[1].id, 'pending', null, null);
+  }
+
+  // Open: Kitchen Wednesday (sick leave)
+  const r2WedDate = addDays(thisMonday, 2);
+  insertOpenShift.run(
+    scheduleIds[`${siteR2}_${thisMonday}`], siteR2,
+    r2WedDate, '15:00', '23:00', 'Kitchen',
+    '[]', 'Chef called in sick — need line cook coverage', 'open',
+    r2WedDate, null, r2Mgr
+  );
+
+  // Claimed: Manager coverage for Sunday brunch (manager swap)
+  const r2SunDate = addDays(thisMonday, 6);
+  const r2OpenMgr = insertOpenShift.run(
+    scheduleIds[`${siteR2}_${thisMonday}`], siteR2,
+    r2SunDate, '10:00', '18:00', 'Manager',
+    '[]', 'Manager travelling — need floor supervisor for Sunday brunch', 'claimed',
+    r2SunDate, r2AllManagers.length >= 2 ? r2AllManagers[1].id : null, r2Mgr
+  );
+  if (r2AllManagers.length >= 2) {
+    insertOpenShiftOffer.run(r2OpenMgr.lastInsertRowid, r2AllManagers[1].id, 'approved',
+      null, 'Approved — thanks for covering the brunch shift.');
+  }
+
+  // Expired: Kitchen last Saturday (went unfilled)
+  const r2PastSat = addDays(lastMonday, 5);
+  insertOpenShift.run(
+    scheduleIds[`${siteR2}_${lastMonday}`], siteR2,
+    r2PastSat, '09:00', '17:00', 'Kitchen',
+    JSON.stringify(['food_handler_cert']),
+    'Understaffed for weekend service', 'expired',
+    r2PastSat, null, r2Mgr
+  );
+
+  // ── Grand Pacific Hotel open shifts ──────────────────────────────────────
+  const h1Mgr = managerUserIdForSite(siteH1);
+  const h1AllFD    = empsByRole(siteH1, 'Front Desk');
+  const h1AllHouse = empsByRole(siteH1, 'Housekeeping');
+  const h1AllKitch = empsByRole(siteH1, 'Kitchen');
+  const h1AllFB    = empsByRole(siteH1, 'F&B');
+  const h1AllSec   = empsByRole(siteH1, 'Security');
+
+  // Open: Front Desk overnight (callout — needs fluent English + PMS cert)
+  const h1MonDate = addDays(thisMonday, 0);
+  const h1OpenFD = insertOpenShift.run(
+    scheduleIds[`${siteH1}_${thisMonday}`], siteH1,
+    h1MonDate, '23:00', '07:00', 'Front Desk',
+    JSON.stringify(['PMS_certified']),
+    'Overnight audit agent called out sick', 'open',
+    h1MonDate, null, h1Mgr
+  );
+  if (h1AllFD.length >= 2) {
+    insertOpenShiftOffer.run(h1OpenFD.lastInsertRowid, h1AllFD[1].id, 'pending', null, null);
+  }
+  if (h1AllFD.length >= 3) {
+    insertOpenShiftOffer.run(h1OpenFD.lastInsertRowid, h1AllFD[2].id, 'rejected',
+      'missing_certifications: PMS_certified', null);
+  }
+
+  // Open: Housekeeping Tuesday (high occupancy — extra room attendant needed)
+  const h1TueDate = addDays(thisMonday, 1);
+  insertOpenShift.run(
+    scheduleIds[`${siteH1}_${thisMonday}`], siteH1,
+    h1TueDate, '08:00', '16:00', 'Housekeeping',
+    '[]', '98% occupancy checkout rush — need extra room attendant', 'open',
+    h1TueDate, null, h1Mgr
+  );
+
+  // Open: Housekeeping Wednesday (another high-occupancy day)
+  const h1WedDate = addDays(thisMonday, 2);
+  insertOpenShift.run(
+    scheduleIds[`${siteH1}_${thisMonday}`], siteH1,
+    h1WedDate, '08:00', '16:00', 'Housekeeping',
+    '[]', 'Conference group checkout — additional housekeeping support needed', 'open',
+    h1WedDate, null, h1Mgr
+  );
+
+  // Claimed: Kitchen Saturday banquet (employee claimed)
+  const h1SatDate = addDays(thisMonday, 5);
+  const h1OpenKitch = insertOpenShift.run(
+    scheduleIds[`${siteH1}_${thisMonday}`], siteH1,
+    h1SatDate, '14:00', '22:00', 'Kitchen',
+    JSON.stringify(['food_handler_cert', 'banquet_experience']),
+    'Wedding banquet — need extra line cook', 'claimed',
+    h1SatDate, h1AllKitch.length >= 2 ? h1AllKitch[1].id : null, h1Mgr
+  );
+  if (h1AllKitch.length >= 2) {
+    insertOpenShiftOffer.run(h1OpenKitch.lastInsertRowid, h1AllKitch[1].id, 'approved',
+      null, 'Approved — great, please confirm with banquet coordinator.');
+    insertOpenShiftOffer.run(h1OpenKitch.lastInsertRowid, h1AllKitch[0].id, 'rejected',
+      null, 'Already filled by another volunteer.');
+  }
+
+  // Open: Security Friday night (under-coverage for large event)
+  const h1FriDate = addDays(thisMonday, 4);
+  insertOpenShift.run(
+    scheduleIds[`${siteH1}_${thisMonday}`], siteH1,
+    h1FriDate, '20:00', '04:00', 'Security',
+    JSON.stringify(['security_license']),
+    'Corporate gala event — additional security coverage required', 'open',
+    h1FriDate, null, h1Mgr
+  );
+
+  // Expired: F&B prior week brunch (never staffed)
+  const h1PastSun = addDays(lastMonday, 6);
+  insertOpenShift.run(
+    scheduleIds[`${siteH1}_${lastMonday}`], siteH1,
+    h1PastSun, '09:00', '14:00', 'F&B',
+    '[]', 'Sunday brunch understaffed — need F&B server', 'expired',
+    h1PastSun, null, h1Mgr
+  );
+
+  // ── Seaside Suites & Spa open shifts ─────────────────────────────────────
+  const h2Mgr = managerUserIdForSite(siteH2);
+  const h2AllFD    = empsByRole(siteH2, 'Front Desk');
+  const h2AllHouse = empsByRole(siteH2, 'Housekeeping');
+  const h2AllMaint = empsByRole(siteH2, 'Maintenance');
+  const h2AllFB    = empsByRole(siteH2, 'F&B');
+  const h2AllKitch = empsByRole(siteH2, 'Kitchen');
+
+  // Open: Front Desk Tuesday afternoon (employee called in sick)
+  const h2TueDate = addDays(thisMonday, 1);
+  const h2OpenFD = insertOpenShift.run(
+    scheduleIds[`${siteH2}_${thisMonday}`], siteH2,
+    h2TueDate, '15:00', '23:00', 'Front Desk',
+    '[]', 'Agent called in sick — need afternoon/evening coverage', 'open',
+    h2TueDate, null, h2Mgr
+  );
+  if (h2AllFD.length >= 2) {
+    insertOpenShiftOffer.run(h2OpenFD.lastInsertRowid, h2AllFD[1].id, 'pending', null, null);
+  }
+
+  // Open: Maintenance Thursday (urgent pool/spa equipment check)
+  const h2ThuDate = addDays(thisMonday, 3);
+  insertOpenShift.run(
+    scheduleIds[`${siteH2}_${thisMonday}`], siteH2,
+    h2ThuDate, '07:00', '15:00', 'Maintenance',
+    JSON.stringify(['pool_certified']),
+    'Pool pump inspection required before weekend — certified tech needed', 'open',
+    h2ThuDate, null, h2Mgr
+  );
+
+  // Claimed: F&B Saturday dinner (beachfront event)
+  const h2SatDate = addDays(thisMonday, 5);
+  const h2OpenFB = insertOpenShift.run(
+    scheduleIds[`${siteH2}_${thisMonday}`], siteH2,
+    h2SatDate, '17:00', '23:00', 'F&B',
+    '[]', 'Beach BBQ event — extra F&B server for outdoor setup', 'claimed',
+    h2SatDate, h2AllFB.length >= 1 ? h2AllFB[0].id : null, h2Mgr
+  );
+  if (h2AllFB.length >= 1) {
+    insertOpenShiftOffer.run(h2OpenFB.lastInsertRowid, h2AllFB[0].id, 'approved',
+      null, 'Approved — thanks! Please coordinate with events team by Thursday.');
+  }
+
+  // Open: Housekeeping Sunday (spring break occupancy spike)
+  const h2SunDate = addDays(thisMonday, 6);
+  const h2OpenHouse = insertOpenShift.run(
+    scheduleIds[`${siteH2}_${thisMonday}`], siteH2,
+    h2SunDate, '09:00', '17:00', 'Housekeeping',
+    '[]', 'Spring break peak — 100% occupancy, all checkouts on Sunday', 'open',
+    h2SunDate, null, h2Mgr
+  );
+  if (h2AllHouse.length >= 2) {
+    insertOpenShiftOffer.run(h2OpenHouse.lastInsertRowid, h2AllHouse[1].id, 'pending', null, null);
+    insertOpenShiftOffer.run(h2OpenHouse.lastInsertRowid, h2AllHouse[0].id, 'pending', null, null);
+  }
+
+  // Expired: Kitchen last Sunday brunch (went unfilled)
+  const h2PastSun = addDays(lastMonday, 6);
+  insertOpenShift.run(
+    scheduleIds[`${siteH2}_${lastMonday}`], siteH2,
+    h2PastSun, '10:00', '14:00', 'Kitchen',
+    '[]', 'Sunday brunch special menu — extra kitchen hand needed', 'expired',
+    h2PastSun, null, h2Mgr
+  );
+
+  // ── 12. Burnout Survey Campaigns & Responses ──────────────────────────────
+
+  // Fetch template IDs by instrument
+  const surveyTemplates = db.prepare('SELECT id, instrument FROM burnout_survey_templates').all() as
+    { id: number; instrument: string }[];
+  const tplByCBI  = surveyTemplates.find(t => t.instrument === 'CBI');
+  const tplByOLBI = surveyTemplates.find(t => t.instrument === 'OLBI');
+  const tplByBAT  = surveyTemplates.find(t => t.instrument === 'BAT');
+
+  const insertCampaign = db.prepare(`
+    INSERT INTO burnout_survey_campaigns
+      (template_id, site_id, title, start_date, end_date, anonymized, min_group_size, status)
+    VALUES (?, ?, ?, ?, ?, 1, 5, ?)
+  `);
+  const insertResponse = db.prepare(`
+    INSERT OR IGNORE INTO burnout_survey_responses (campaign_id, employee_id, responses)
+    VALUES (?, ?, ?)
+  `);
+
+  // Helper: produce a realistic CBI response for an employee given a burnout level
+  // level: 0=low, 1=moderate, 2=high
+  function cbiResponses(level: number, empId: number): Record<string, number> {
+    const base = level === 0 ? 1.5 : level === 1 ? 3 : 4.5;
+    const jitter = (empId % 5) * 0.1 - 0.2; // small deterministic variation
+    const clamp = (v: number) => Math.min(5, Math.max(1, Math.round(v)));
+    return {
+      cbi_p1: clamp(base + jitter),
+      cbi_p2: clamp(base + jitter - 0.2),
+      cbi_p3: clamp(base + jitter + 0.1),
+      cbi_w1: clamp(base + jitter + 0.3),
+      cbi_w2: clamp(base + jitter - 0.1),
+      cbi_w3: clamp(base + jitter),
+      // mediators: low burnout = high schedule control (5), high burnout = low control (1)
+      cbi_m1: clamp(6 - base + jitter),
+      cbi_m2: clamp(base + jitter),
+    };
+  }
+
+  function olbiResponses(level: number, empId: number): Record<string, number> {
+    const base = level === 0 ? 1.5 : level === 1 ? 2.5 : 3.8;
+    const jitter = (empId % 4) * 0.1 - 0.15;
+    const clamp = (v: number) => Math.min(4, Math.max(1, Math.round(v)));
+    return {
+      olbi_e1: clamp(base + jitter),
+      olbi_e2: clamp(base + jitter + 0.2),
+      olbi_e3: clamp(5 - base + jitter), // reversed
+      olbi_d1: clamp(base + jitter - 0.1),
+      olbi_d2: clamp(5 - base + jitter), // reversed
+      olbi_d3: clamp(base + jitter + 0.1),
+      olbi_m1: clamp(5 - base + jitter),
+      olbi_m2: clamp(base + jitter),
+    };
+  }
+
+  function batResponses(level: number, empId: number): Record<string, number> {
+    const base = level === 0 ? 1.5 : level === 1 ? 3 : 4.5;
+    const jitter = (empId % 5) * 0.1 - 0.2;
+    const clamp = (v: number) => Math.min(5, Math.max(1, Math.round(v)));
+    return {
+      bat_e1: clamp(base + jitter),
+      bat_e2: clamp(base + jitter + 0.1),
+      bat_d1: clamp(base + jitter - 0.1),
+      bat_d2: clamp(base + jitter + 0.2),
+      bat_c1: clamp(base + jitter),
+      bat_c2: clamp(base + jitter - 0.2),
+      bat_m1: clamp(6 - base + jitter),
+      bat_m2: clamp(base + jitter + 0.1),
+    };
+  }
+
+  // Assign a deterministic burnout level to each employee based on their role and ID
+  function burnoutLevel(emp: any): number {
+    // Night-heavy roles or high-hours roles trend higher
+    if (['Bar', 'Security', 'Kitchen'].includes(emp.role) && emp.weekly_hours_max >= 40) {
+      return (emp.id % 3 === 0) ? 2 : 1; // mix of high/moderate
+    }
+    if (emp.role === 'Manager') return (emp.id % 4 === 0) ? 2 : 1; // managers moderate/high
+    // Front Desk, Housekeeping, Maintenance: spread across spectrum
+    return emp.id % 3; // 0=low, 1=moderate, 2=high
+  }
+
+  // Helper: pick ~60-70% of employees in a list to simulate realistic participation
+  function pickResponders(emps: any[]): any[] {
+    return emps.filter(e => e.id % 10 < 7); // ~70% participation
+  }
+
+  // ── Bella Napoli campaigns ─────────────────────────────────────────────────
+  if (tplByCBI) {
+    // Closed campaign (prior quarter)
+    const r1ClosedCBI = insertCampaign.run(
+      tplByCBI.id, siteR1,
+      'Q4 2024 Burnout Check-In — Bella Napoli',
+      addDays(lastMonday, -21), addDays(lastMonday, -14), 'closed'
+    );
+    const r1CbiId = r1ClosedCBI.lastInsertRowid as number;
+    for (const emp of pickResponders(empsBySite[siteR1])) {
+      insertResponse.run(r1CbiId, emp.id, JSON.stringify(cbiResponses(burnoutLevel(emp), emp.id)));
+    }
+
+    // Active campaign (current)
+    const r1ActiveCBI = insertCampaign.run(
+      tplByCBI.id, siteR1,
+      'Q1 2025 Wellbeing Survey — Bella Napoli',
+      addDays(thisMonday, -3), addDays(thisMonday, 11), 'active'
+    );
+    const r1ActiveCbiId = r1ActiveCBI.lastInsertRowid as number;
+    // Fewer responses so far (campaign still open)
+    for (const emp of pickResponders(empsBySite[siteR1]).slice(0, Math.ceil(empsBySite[siteR1].length * 0.4))) {
+      insertResponse.run(r1ActiveCbiId, emp.id, JSON.stringify(cbiResponses(burnoutLevel(emp), emp.id)));
+    }
+  }
+
+  // ── The Blue Door campaigns ────────────────────────────────────────────────
+  if (tplByOLBI) {
+    // Closed OLBI campaign
+    const r2ClosedOLBI = insertCampaign.run(
+      tplByOLBI.id, siteR2,
+      'Mid-Season Schedule Wellness Check — The Blue Door',
+      addDays(lastMonday, -14), addDays(lastMonday, -7), 'closed'
+    );
+    const r2OlbiId = r2ClosedOLBI.lastInsertRowid as number;
+    for (const emp of pickResponders(empsBySite[siteR2])) {
+      insertResponse.run(r2OlbiId, emp.id, JSON.stringify(olbiResponses(burnoutLevel(emp), emp.id)));
+    }
+
+    // Active OLBI campaign
+    const r2ActiveOLBI = insertCampaign.run(
+      tplByOLBI.id, siteR2,
+      'Spring 2025 Team Wellbeing Pulse — The Blue Door',
+      addDays(thisMonday, -2), addDays(thisMonday, 12), 'active'
+    );
+    const r2ActiveOlbiId = r2ActiveOLBI.lastInsertRowid as number;
+    for (const emp of pickResponders(empsBySite[siteR2]).slice(0, Math.ceil(empsBySite[siteR2].length * 0.45))) {
+      insertResponse.run(r2ActiveOlbiId, emp.id, JSON.stringify(olbiResponses(burnoutLevel(emp), emp.id)));
+    }
+  }
+
+  // ── Grand Pacific Hotel campaigns ──────────────────────────────────────────
+  if (tplByBAT) {
+    // Closed BAT campaign — high response rate (management pushed it)
+    const h1ClosedBAT = insertCampaign.run(
+      tplByBAT.id, siteH1,
+      'Annual Workforce Wellbeing Survey — Grand Pacific Hotel',
+      addDays(lastMonday, -28), addDays(lastMonday, -14), 'closed'
+    );
+    const h1BatId = h1ClosedBAT.lastInsertRowid as number;
+    for (const emp of pickResponders(empsBySite[siteH1])) {
+      insertResponse.run(h1BatId, emp.id, JSON.stringify(batResponses(burnoutLevel(emp), emp.id)));
+    }
+  }
+  if (tplByCBI) {
+    // Active CBI campaign
+    const h1ActiveCBI = insertCampaign.run(
+      tplByCBI.id, siteH1,
+      'Q1 2025 Staff Burnout Assessment — Grand Pacific Hotel',
+      addDays(thisMonday, -5), addDays(thisMonday, 9), 'active'
+    );
+    const h1ActiveCbiId = h1ActiveCBI.lastInsertRowid as number;
+    for (const emp of pickResponders(empsBySite[siteH1]).slice(0, Math.ceil(empsBySite[siteH1].length * 0.5))) {
+      insertResponse.run(h1ActiveCbiId, emp.id, JSON.stringify(cbiResponses(burnoutLevel(emp), emp.id)));
+    }
+  }
+
+  // ── Seaside Suites & Spa campaigns ────────────────────────────────────────
+  if (tplByOLBI) {
+    // Closed OLBI campaign
+    const h2ClosedOLBI = insertCampaign.run(
+      tplByOLBI.id, siteH2,
+      'Post-Holiday Season Wellbeing Check — Seaside Suites',
+      addDays(lastMonday, -21), addDays(lastMonday, -7), 'closed'
+    );
+    const h2OlbiId = h2ClosedOLBI.lastInsertRowid as number;
+    for (const emp of pickResponders(empsBySite[siteH2])) {
+      insertResponse.run(h2OlbiId, emp.id, JSON.stringify(olbiResponses(burnoutLevel(emp), emp.id)));
+    }
+  }
+  if (tplByBAT) {
+    // Active BAT campaign
+    const h2ActiveBAT = insertCampaign.run(
+      tplByBAT.id, siteH2,
+      'Spring 2025 Burnout Assessment — Seaside Suites & Spa',
+      addDays(thisMonday, -1), addDays(thisMonday, 13), 'active'
+    );
+    const h2ActiveBatId = h2ActiveBAT.lastInsertRowid as number;
+    for (const emp of pickResponders(empsBySite[siteH2]).slice(0, Math.ceil(empsBySite[siteH2].length * 0.55))) {
+      insertResponse.run(h2ActiveBatId, emp.id, JSON.stringify(batResponses(burnoutLevel(emp), emp.id)));
+    }
+  }
+
+  // ── 13. Sanity validation ─────────────────────────────────────────────────
   validateSeedData();
   })(); // end db.transaction
 }
@@ -883,5 +1356,26 @@ export function validateSeedData(): void {
   console.log(
     `✓ Seed validation passed — ${siteCount} sites, ${empCount} employees, ` +
     `all schedules have shifts, all managers have shifts, swap statuses OK`
+  );
+
+  const openShiftCount = (db.prepare('SELECT COUNT(*) as c FROM open_shifts').get() as any).c;
+  if (openShiftCount < 8) throw new Error(`Seed validation: expected ≥ 8 open_shifts, found ${openShiftCount}`);
+
+  const campaignCount = (db.prepare('SELECT COUNT(*) as c FROM burnout_survey_campaigns').get() as any).c;
+  if (campaignCount < 4) throw new Error(`Seed validation: expected ≥ 4 survey campaigns, found ${campaignCount}`);
+
+  const responseCount = (db.prepare('SELECT COUNT(*) as c FROM burnout_survey_responses').get() as any).c;
+  if (responseCount < 10) throw new Error(`Seed validation: expected ≥ 10 survey responses, found ${responseCount}`);
+
+  const campaignStatuses = new Set(
+    (db.prepare('SELECT DISTINCT status FROM burnout_survey_campaigns').all() as any[]).map(s => s.status)
+  );
+  if (!campaignStatuses.has('active') || !campaignStatuses.has('closed')) {
+    throw new Error(`Seed validation: missing campaign statuses; found: ${[...campaignStatuses].join(', ')}`);
+  }
+
+  console.log(
+    `✓ Seed validation passed — ${openShiftCount} open shifts, ${campaignCount} survey campaigns, ` +
+    `${responseCount} survey responses, active+closed campaign statuses OK`
   );
 }
