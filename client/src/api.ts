@@ -139,6 +139,9 @@ export interface Employee {
   photo_url?: string | null;
   hire_date?: string;
   site_id?: number | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_label?: string | null;
   created_at: string;
 }
 
