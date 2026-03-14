@@ -389,3 +389,287 @@ export interface ScheduleIntelligence {
   understaffed_days: number;
   overstaffed_days: number;
 }
+
+// ── Open Shifts ──────────────────────────────────────────────────────────────
+export const getOpenShifts = (params?: { status?: string; date_from?: string; date_to?: string }) => {
+  const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null) as [string, string][]).toString() : '';
+  return request<OpenShift[]>(`/open-shifts${qs}`);
+};
+export const getOpenShift = (id: number) => request<OpenShift & { eligibility?: EligibilityInfo }>(`/open-shifts/${id}`);
+export const createOpenShift = (data: {
+  schedule_id: number; site_id?: number; date: string; start_time: string; end_time: string;
+  role: string; required_certifications?: string[]; reason?: string; deadline?: string;
+}) => request<OpenShift>('/open-shifts', { method: 'POST', body: JSON.stringify(data) });
+export const offerForOpenShift = (id: number) => request<OpenShiftOffer>(`/open-shifts/${id}/offer`, { method: 'POST' });
+export const fillOpenShift = (id: number, data: { employee_id: number; offer_id?: number; manager_override?: boolean; manager_notes?: string }) =>
+  request<{ open_shift: OpenShift; shift_id: number }>(`/open-shifts/${id}/fill`, { method: 'PUT', body: JSON.stringify(data) });
+export const cancelOpenShift = (id: number) => request<{ success: boolean }>(`/open-shifts/${id}`, { method: 'DELETE' });
+
+// ── Callouts ─────────────────────────────────────────────────────────────────
+export const getCallouts = (params?: { status?: string; date_from?: string; date_to?: string }) => {
+  const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null) as [string, string][]).toString() : '';
+  return request<CalloutEvent[]>(`/callouts${qs}`);
+};
+export const reportCallout = (data: { shift_id?: number; employee_id?: number; reason?: string; auto_open_shift?: boolean; manager_notes?: string }) =>
+  request<{ callout: CalloutEvent; open_shift_id: number | null }>('/callouts', { method: 'POST', body: JSON.stringify(data) });
+export const getEligibleReplacements = (calloutId: number) =>
+  request<{ shift: Shift; candidates: EligibleReplacement[] }>(`/callouts/${calloutId}/eligible-replacements`);
+export const resolveCallout = (id: number, data: { replacement_employee_id?: number; replacement_status?: string; manager_notes?: string; manager_override?: boolean }) =>
+  request<CalloutEvent>(`/callouts/${id}/resolve`, { method: 'PUT', body: JSON.stringify(data) });
+
+// ── Surveys ───────────────────────────────────────────────────────────────────
+export const getSurveyTemplates = () => request<SurveyTemplate[]>('/surveys/templates');
+export const getSurveyCampaigns = () => request<SurveyCampaign[]>('/surveys/campaigns');
+export const createSurveyCampaign = (data: { template_id: number; site_id?: number; title: string; start_date: string; end_date: string; anonymized?: boolean; min_group_size?: number }) =>
+  request<SurveyCampaign>('/surveys/campaigns', { method: 'POST', body: JSON.stringify(data) });
+export const getSurveyCampaign = (id: number) => request<SurveyCampaign & { questions: SurveyQuestion[]; already_responded: boolean }>(`/surveys/campaigns/${id}`);
+export const submitSurveyResponse = (id: number, responses: Record<string, number>) =>
+  request<{ success: boolean; message: string }>(`/surveys/campaigns/${id}/respond`, { method: 'POST', body: JSON.stringify({ responses }) });
+export const getSurveyResults = (id: number) => request<SurveyResults>(`/surveys/campaigns/${id}/results`);
+
+// ── Feature Flags ─────────────────────────────────────────────────────────────
+export const getFeatureFlags = () => request<FeatureFlag[]>('/feature-flags');
+export const updateFeatureFlag = (key: string, data: { enabled?: boolean; rollout_pct?: number; site_ids?: number[]; description?: string }) =>
+  request<FeatureFlag>(`/feature-flags/${key}`, { method: 'PUT', body: JSON.stringify(data) });
+
+// ── Fairness Analytics ────────────────────────────────────────────────────────
+export const getFairnessReport = (params: { schedule_id?: number; site_id?: number; week_start?: string; week_end?: string }) => {
+  const qs = '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]) as [string, string][]).toString();
+  return request<FairnessReport>(`/fairness${qs}`);
+};
+export const getInstabilityReport = (params: { schedule_id?: number; site_id?: number; week_start?: string }) => {
+  const qs = '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]) as [string, string][]).toString();
+  return request<InstabilityReport[]>(`/fairness/instability${qs}`);
+};
+
+// ── Schedule Instability (per schedule) ──────────────────────────────────────
+export const getScheduleInstability = (id: number) => request<InstabilityReport>(`/schedules/${id}/instability`);
+
+// ── Change Requests ───────────────────────────────────────────────────────────
+export const getChangeRequests = () => request<ChangeRequest[]>('/change-requests');
+export const createChangeRequest = (data: { shift_id: number; change_type: string; reason_code: string; reason_detail?: string; new_date?: string; new_start_time?: string; new_end_time?: string }) =>
+  request<ChangeRequest>('/change-requests', { method: 'POST', body: JSON.stringify(data) });
+export const consentChangeRequest = (id: number, decision: 'accepted' | 'rejected') =>
+  request<ChangeRequest>(`/change-requests/${id}/consent`, { method: 'PUT', body: JSON.stringify({ decision }) });
+export const approveChangeRequest = (id: number, manager_notes?: string) =>
+  request<ChangeRequest>(`/change-requests/${id}/approve`, { method: 'PUT', body: JSON.stringify({ manager_notes }) });
+export const rejectChangeRequest = (id: number, manager_notes?: string) =>
+  request<ChangeRequest>(`/change-requests/${id}/reject`, { method: 'PUT', body: JSON.stringify({ manager_notes }) });
+
+// ── Publish SLA ───────────────────────────────────────────────────────────────
+export const getPublishSla = () => request<PublishSla[]>('/publish-sla');
+export const upsertPublishSla = (data: { site_id: number; role?: string; advance_days: number }) =>
+  request<PublishSla>('/publish-sla', { method: 'POST', body: JSON.stringify(data) });
+export const deletePublishSla = (id: number) => request<{ success: boolean }>(`/publish-sla/${id}`, { method: 'DELETE' });
+
+// ── New Types ─────────────────────────────────────────────────────────────────
+export interface OpenShift {
+  id: number;
+  schedule_id: number;
+  site_id: number | null;
+  date: string;
+  start_time: string;
+  end_time: string;
+  role: string;
+  required_certifications: string;
+  reason: string | null;
+  status: 'open' | 'claimed' | 'cancelled' | 'expired';
+  deadline: string | null;
+  claimed_by: number | null;
+  claimed_by_name: string | null;
+  offer_count?: number;
+  created_at: string;
+}
+
+export interface OpenShiftOffer {
+  id: number;
+  open_shift_id: number;
+  employee_id: number;
+  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn' | 'ineligible';
+  ineligibility_reason: string | null;
+  manager_notes: string | null;
+  created_at: string;
+}
+
+export interface EligibilityInfo {
+  eligible: boolean;
+  reason: string | null;
+  explanation: string;
+}
+
+export interface CalloutEvent {
+  id: number;
+  shift_id: number | null;
+  employee_id: number;
+  employee_name?: string;
+  employee_role?: string;
+  replacement_name?: string;
+  shift_date?: string;
+  start_time?: string;
+  end_time?: string;
+  shift_role?: string;
+  callout_time: string;
+  reason: string | null;
+  replacement_employee_id: number | null;
+  replacement_status: 'none' | 'searching' | 'found' | 'not_found';
+  open_shift_id: number | null;
+  manager_override: number;
+  manager_notes: string | null;
+  created_at: string;
+}
+
+export interface EligibleReplacement {
+  employee: Employee;
+  eligible: boolean;
+  reason: string | null;
+  current_weekly_hours?: number;
+}
+
+export interface SurveyTemplate {
+  id: number;
+  instrument: string;
+  name: string;
+  description: string;
+  questions: string;
+  active: number;
+  created_at: string;
+}
+
+export interface SurveyQuestion {
+  id: string;
+  text: string;
+  scale: number;
+  subscale: string;
+  reversed?: boolean;
+}
+
+export interface SurveyCampaign {
+  id: number;
+  template_id: number;
+  site_id: number | null;
+  title: string;
+  instrument?: string;
+  template_name?: string;
+  description?: string;
+  questions?: string;
+  start_date: string;
+  end_date: string;
+  anonymized: number;
+  min_group_size: number;
+  status: 'active' | 'closed' | 'draft';
+  response_count?: number;
+  already_responded?: boolean;
+  responded_at?: string | null;
+  created_at: string;
+}
+
+export interface SurveySubscaleResult {
+  subscale: string;
+  avg_score: number | null;
+  item_count: number;
+  interpretation: string;
+}
+
+export interface SurveyResults {
+  campaign_id: number;
+  instrument?: string;
+  response_count: number;
+  min_group_size: number;
+  results_available: boolean;
+  message?: string;
+  subscale_results?: SurveySubscaleResult[];
+  purpose_limitation: string;
+  data_governance?: string;
+}
+
+export interface FeatureFlag {
+  id: number;
+  flag_key: string;
+  description: string;
+  enabled: number;
+  rollout_pct: number;
+  site_ids: string;
+  active_for_user?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FairnessEmployee {
+  employee_id: number;
+  employee_name: string;
+  role: string;
+  total_shifts: number;
+  total_hours: number;
+  night_shifts: number;
+  weekend_shifts: number;
+  overtime_hours: number;
+  fairness_flags: string[];
+}
+
+export interface RoleFairnessStats {
+  role: string;
+  employee_count: number;
+  avg_hours: number;
+  avg_night_shifts: number;
+  avg_weekend_shifts: number;
+  hours_std_dev: number;
+  fairness_score: 'equitable' | 'moderate' | 'inequitable';
+}
+
+export interface FairnessReport {
+  employees: FairnessEmployee[];
+  role_stats: RoleFairnessStats[];
+  summary: { total_employees: number; total_shifts: number; employees_with_flags: number } | null;
+}
+
+export interface InstabilityReport {
+  schedule_id: number;
+  week_start: string;
+  site_id?: number | null;
+  status?: string;
+  total_shifts: number;
+  active_shifts: number;
+  cancelled_shifts: number;
+  cancellation_rate_pct: number;
+  change_requests: number;
+  late_change_count: number;
+  quick_returns: number;
+  callout_count: number;
+  days_advance_published: number;
+  required_advance_days: number;
+  predictability_pay_exposure_count: number;
+  instability_score: number;
+  instability_level: 'stable' | 'moderate' | 'volatile';
+}
+
+export interface ChangeRequest {
+  id: number;
+  shift_id: number;
+  requested_by: number;
+  change_type: string;
+  reason_code: string;
+  reason_detail: string | null;
+  original_date: string | null;
+  original_start_time: string | null;
+  original_end_time: string | null;
+  new_date: string | null;
+  new_start_time: string | null;
+  new_end_time: string | null;
+  worker_consent: 'pending' | 'accepted' | 'rejected' | 'not_required';
+  status: 'pending' | 'approved' | 'rejected';
+  manager_notes: string | null;
+  employee_name?: string;
+  employee_role?: string;
+  shift_date?: string;
+  shift_start?: string;
+  shift_end?: string;
+  created_at: string;
+}
+
+export interface PublishSla {
+  id: number;
+  site_id: number;
+  role: string | null;
+  advance_days: number;
+  created_at: string;
+}
