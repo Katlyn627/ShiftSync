@@ -38,6 +38,9 @@
 | 💰 | **Real-Time Labor Cost Tracking** | Live budget vs. actual comparisons with daily and per-role breakdowns |
 | 📊 | **Demand-Based Staffing** | Recommends staffing levels per day based on revenue forecasts |
 | 📈 | **Profitability Metrics** | Prime cost, RevPASH, table turnover rate, sales by day, and turnover risk on the manager dashboard |
+| 🏪 | **Open Shift Marketplace** | Post uncovered shifts; employees self-claim with automatic eligibility checks (role, certifications, rest, overtime) |
+| 📋 | **Burnout Surveys** | Validated WHO-aligned burnout measurement campaigns with anonymized, aggregated results |
+| ⚖️ | **Workforce Fairness** | Monitor equitable distribution of hours, night shifts, and weekends with schedule instability tracking |
 | 🔐 | **Role-Based Access** | Manager and employee views with Google OAuth or username/password login |
 
 ---
@@ -47,7 +50,7 @@
 ### Login
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/77632fcc-3772-4220-ae90-8e128007d206" alt="Login page" width="800" />
+  <img src="https://github.com/user-attachments/assets/222d9020-e6c3-447d-a290-e16c74015574" alt="Login page" width="800" />
   <br/>
   <em>Sign in with Google OAuth or username/password — see <a href="docs/demo-data.md">docs/demo-data.md</a> for the full list of pre-loaded accounts.</em>
 </div>
@@ -57,7 +60,7 @@
 ### Manager Dashboard
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/b67f1c96-c5e7-4532-a2a4-f35d398d8d13" alt="Manager Dashboard" width="800" />
+  <img src="https://github.com/user-attachments/assets/342e9822-1601-4276-bea7-1237fd9ff9e4" alt="Manager Dashboard" width="800" />
   <br/>
   <em>Weekly KPIs at a glance: projected cost vs. budget, burnout-risk counts, profitability metrics (prime cost, RevPASH, table turnover, sales by day), revenue distribution by daypart, and sales-by-day chart.</em>
 </div>
@@ -67,25 +70,25 @@
 ### Schedule Builder
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/a3198fcd-4ba0-4b45-a7c7-57404a9fb4d5" alt="Schedule Builder" width="800" />
+  <img src="https://github.com/user-attachments/assets/ec4abed0-8318-43ae-9d88-42170ff065ba" alt="Schedule Builder" width="800" />
   <br/>
   <em>One-click schedule generation with drag-and-drop reassignment, shift-time editing, and publish/draft toggling. Intelligence filters highlight short-staff risk, overstaffed days, burnout alerts, and budget status at the top of the grid.</em>
 </div>
 
 ---
 
-### Employees & Shift Management
+### Employees & Shift Swaps
 
 <div align="center">
   <table>
     <tr>
       <td align="center" width="50%">
-        <img src="https://github.com/user-attachments/assets/b251cbf3-32ea-4f4a-91ca-962d004bc145" alt="Employees page" width="100%" />
+        <img src="https://github.com/user-attachments/assets/2dd1542e-fdec-41d5-8044-bea88ad5e85c" alt="Employees page" width="100%" />
         <br/>
         <em><strong>Employees</strong> <em>(Manager only)</em> — Add, edit, or remove team members. Each row shows role, department, site, hourly rate, and weekly-hour cap with color-coded role badges.</em>
       </td>
       <td align="center" width="50%">
-        <img src="https://github.com/user-attachments/assets/89912b18-2051-4abf-bf6e-fcd01a603cd7" alt="Shift Swaps page" width="100%" />
+        <img src="https://github.com/user-attachments/assets/de27c966-e90d-43ac-9993-8b406d6b9c1f" alt="Shift Swaps page" width="100%" />
         <br/>
         <em><strong>Shift Swaps</strong> — Employees request swaps directly from the schedule. Managers review each request with automatic guardrails (role match, overtime limit, availability) before approving or rejecting.</em>
       </td>
@@ -95,18 +98,46 @@
 
 ---
 
-### Time-Off & Profile
+### Open Shifts & Surveys
 
 <div align="center">
   <table>
     <tr>
       <td align="center" width="50%">
-        <img src="https://github.com/user-attachments/assets/4d6914d8-8823-4e86-81f5-45ce65244c8c" alt="Time-Off Approvals page" width="100%" />
+        <img src="https://github.com/user-attachments/assets/4d08ebe5-8cce-4085-a96b-25c6383e447a" alt="Open Shifts page" width="100%" />
+        <br/>
+        <em><strong>Open Shift Marketplace</strong> — Post uncovered shifts with reason and certification requirements. Employees self-claim and managers review offers with automatic eligibility checks.</em>
+      </td>
+      <td align="center" width="50%">
+        <img src="https://github.com/user-attachments/assets/a2e3d85f-e592-4f88-b93b-e6711ed5a2bd" alt="Burnout Surveys page" width="100%" />
+        <br/>
+        <em><strong>Burnout Surveys</strong> — Create and manage validated burnout measurement campaigns. Results are anonymized and aggregated (min. group size of 5) — never used punitively.</em>
+      </td>
+    </tr>
+  </table>
+</div>
+
+---
+
+### Fairness, Time-Off & Profile
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center" width="50%">
+        <img src="https://github.com/user-attachments/assets/e827db7c-f11e-45eb-ba1f-1b4d1999fcfe" alt="Workforce Fairness page" width="100%" />
+        <br/>
+        <em><strong>Workforce Fairness</strong> <em>(Manager only)</em> — Monitor equitable distribution of hours, night shifts, and weekend assignments with per-role breakdowns and fairness flags.</em>
+      </td>
+      <td align="center" width="50%">
+        <img src="https://github.com/user-attachments/assets/773997ab-3737-4df0-a30b-c43a143139bf" alt="Time-Off Approvals page" width="100%" />
         <br/>
         <em><strong>Time-Off Approvals</strong> <em>(Manager only)</em> — Review pending requests, approve or deny with optional notes, and filter by status.</em>
       </td>
-      <td align="center" width="50%">
-        <img src="https://github.com/user-attachments/assets/e52a96f0-0fa9-4917-a6c7-50ac6bea0356" alt="Profile page" width="100%" />
+    </tr>
+    <tr>
+      <td align="center" width="50%" colspan="2">
+        <img src="https://github.com/user-attachments/assets/c572354f-4a9d-4e88-813b-76df9a887de0" alt="Profile page" width="50%" />
         <br/>
         <em><strong>My Profile</strong> — Each employee manages their own availability windows, submits time-off requests, and views team-contact info — all in one place.</em>
       </td>
