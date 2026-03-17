@@ -3,7 +3,7 @@ import { getDb } from '../db';
 import { generateSchedule, computeWeeklyStaffingNeeds } from '../scheduler';
 import { getLaborCostSummary } from '../laborCost';
 import { calculateBurnoutRisks } from '../burnout';
-import { getProfitabilityMetrics } from '../metrics';
+import { getProfitabilityMetrics, getRestaurantSettings } from '../metrics';
 import { getScheduleCoverageReport } from '../coverage';
 import { getScheduleIntelligence } from '../intelligence';
 import { requireManager, requireAuth } from '../middleware/auth';
@@ -36,6 +36,93 @@ router.post('/generate', requireManager, (req, res) => {
       details: { week_start, labor_budget: labor_budget ?? 5000, site_id: siteId },
     });
     res.status(201).json(schedule);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Returns a preview of the forecast and profitability data that will drive
+ * schedule generation for the given week. Call this before auto-generating
+ * to show the user what revenue, covers, and metrics the algorithm will use.
+ */
+router.get('/generate-preview', requireManager, async (req, res) => {
+  const { week_start } = req.query;
+  if (!week_start || typeof week_start !== 'string') {
+    return res.status(400).json({ error: 'week_start query parameter is required' });
+  }
+  try {
+    const db = getDb();
+    const siteId = req.user?.siteId ?? null;
+    const settings = getRestaurantSettings();
+
+    // Build week dates
+    const startDate = new Date(week_start);
+    const weekDates: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+      weekDates.push(d.toISOString().split('T')[0]);
+    }
+
+    const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    // Fetch per-day forecasts
+    const forecastRows = weekDates.map(date => {
+      const row = siteId
+        ? (db.prepare('SELECT * FROM forecasts WHERE date = ? AND site_id = ?').get(date, siteId) as any)
+        : (db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as any);
+      const [year, month, day] = date.split('-').map(Number);
+      const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+      return {
+        date,
+        day_name: DAY_ABBR[dayOfWeek],
+        expected_revenue: row?.expected_revenue ?? 0,
+        expected_covers: row?.expected_covers ?? 0,
+        has_data: row !== null && row !== undefined,
+      };
+    });
+
+    const totalExpectedRevenue = forecastRows.reduce((s, f) => s + f.expected_revenue, 0);
+    const totalExpectedCovers  = forecastRows.reduce((s, f) => s + f.expected_covers,  0);
+
+    // Compute profitability preview metrics
+    const totalServicePeriods = settings.tables * 7 * 2;
+    const tableTurnoverRate   = totalServicePeriods > 0 ? totalExpectedCovers / totalServicePeriods : 0;
+    const avgCheckPerHead     = totalExpectedCovers > 0 ? totalExpectedRevenue / totalExpectedCovers : 0;
+    const estimatedLaborCost  = totalExpectedRevenue * (settings.target_labor_pct / 100);
+    const estimatedCogs       = totalExpectedRevenue * (settings.cogs_pct / 100);
+    const estimatedPrimeCost  = estimatedLaborCost + estimatedCogs;
+    const primeCostPct        = totalExpectedRevenue > 0 ? (estimatedPrimeCost / totalExpectedRevenue) * 100 : 0;
+    const totalOperatingHours = settings.operating_hours_per_day * 7;
+    const revpash = settings.seats > 0 && totalOperatingHours > 0
+      ? totalExpectedRevenue / (settings.seats * totalOperatingHours)
+      : 0;
+
+    // Check whether any POS integration has been synced recently (last 24 h)
+    const recentSync = siteId
+      ? (db.prepare(
+          "SELECT platform_name, last_synced_at FROM pos_integrations WHERE site_id = ? AND last_sync_status = 'success' AND last_synced_at >= datetime('now', '-1 day') ORDER BY last_synced_at DESC LIMIT 1"
+        ).get(siteId) as any)
+      : null;
+
+    res.json({
+      week_start,
+      site_id: siteId,
+      forecasts: forecastRows,
+      total_expected_revenue:  Math.round(totalExpectedRevenue * 100) / 100,
+      total_expected_covers:   totalExpectedCovers,
+      avg_check_per_head:      Math.round(avgCheckPerHead * 100) / 100,
+      table_turnover_rate:     Math.round(tableTurnoverRate * 10) / 10,
+      estimated_labor_cost:    Math.round(estimatedLaborCost * 100) / 100,
+      estimated_cogs:          Math.round(estimatedCogs * 100) / 100,
+      estimated_prime_cost:    Math.round(estimatedPrimeCost * 100) / 100,
+      prime_cost_pct:          Math.round(primeCostPct * 10) / 10,
+      revpash:                 Math.round(revpash * 100) / 100,
+      settings,
+      has_forecast_data:       forecastRows.some(f => f.has_data),
+      pos_last_synced:         recentSync ? { platform: recentSync.platform_name, at: recentSync.last_synced_at } : null,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

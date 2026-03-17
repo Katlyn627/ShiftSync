@@ -2,9 +2,10 @@ import { useEffect, useState, CSSProperties } from 'react';
 import {
   getSchedules, generateSchedule, getScheduleShifts, updateSchedule, deleteSchedule,
   getEmployees, createSwap, updateShift, createShift, deleteShift, getBurnoutRisks, getAvailability,
-  getScheduleCoverage, getScheduleIntelligence,
+  getScheduleCoverage, getScheduleIntelligence, getGeneratePreview, getPosIntegrations,
+  createPosIntegration, deletePosIntegration, syncPosIntegration,
   Schedule, ShiftWithEmployee, Employee, BurnoutRisk, Availability, ScheduleCoverageReport,
-  DayIntelligence, ScheduleIntelligence,
+  DayIntelligence, ScheduleIntelligence, GeneratePreview, PosIntegration,
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Button, Input, Card, Badge, NATIVE_SELECT_CLASS } from '../components/ui';
@@ -90,6 +91,27 @@ export default function SchedulePage() {
   const [availabilityByEmployee, setAvailabilityByEmployee] = useState<Record<number, Availability[]>>({});
   const [dropLoadingShiftId, setDropLoadingShiftId] = useState<number | null>(null);
 
+  // ── Data preview (forecast + profitability metrics for selected week) ──────
+  const [weekPreview, setWeekPreview]       = useState<GeneratePreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  // ── POS Integrations ──────────────────────────────────────────────────────
+  const [posIntegrations, setPosIntegrations]         = useState<PosIntegration[]>([]);
+  const [showPosPanel, setShowPosPanel]               = useState(false);
+  const [addingPosForm, setAddingPosForm]             = useState({ platform_name: 'square', display_name: '', api_key: '' });
+  const [posAddLoading, setPosAddLoading]             = useState(false);
+  const [posSyncingId, setPosSyncingId]               = useState<number | null>(null);
+  const [posSyncMsg, setPosSyncMsg]                   = useState<string | null>(null);
+
+  const POS_PLATFORMS = [
+    { value: 'square',     label: 'Square' },
+    { value: 'toast',      label: 'Toast' },
+    { value: 'clover',     label: 'Clover' },
+    { value: 'lightspeed', label: 'Lightspeed' },
+    { value: 'revel',      label: 'Revel Systems' },
+    { value: 'other',      label: 'Other' },
+  ];
+
   // ── Manager filter state ──────────────────────────────────────────────────
   type ActiveFilter = 'understaffed' | 'overstaffed' | 'burnout' | 'budget_flexible' | null;
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>(null);
@@ -116,6 +138,23 @@ export default function SchedulePage() {
     }
   };
 
+  // Load POS integrations once when manager opens the page
+  useEffect(() => {
+    if (isManager) {
+      getPosIntegrations().then(setPosIntegrations).catch(() => {});
+    }
+  }, [isManager]);
+
+  // Fetch the generate preview whenever the manager changes the week
+  useEffect(() => {
+    if (!isManager || !weekStart) return;
+    setPreviewLoading(true);
+    getGeneratePreview(weekStart)
+      .then(data => setWeekPreview(data))
+      .catch(() => setWeekPreview(null))
+      .finally(() => setPreviewLoading(false));
+  }, [weekStart, isManager]);
+
   useEffect(() => { load(); }, []);
   useEffect(() => {
     getEmployees().then(async data => {
@@ -136,6 +175,52 @@ export default function SchedulePage() {
       getScheduleIntelligence(selectedId).then(setIntelligence).catch(() => setIntelligence(null));
     }
   }, [selectedId, isManager]);
+
+  // ── POS integration handlers ──────────────────────────────────────────────
+  const handleAddPosIntegration = async () => {
+    if (!addingPosForm.platform_name) return;
+    setPosAddLoading(true);
+    try {
+      const integration = await createPosIntegration({
+        platform_name: addingPosForm.platform_name,
+        display_name: addingPosForm.display_name || undefined,
+        api_key: addingPosForm.api_key || undefined,
+      });
+      setPosIntegrations(prev => [integration, ...prev]);
+      setAddingPosForm({ platform_name: 'square', display_name: '', api_key: '' });
+    } catch (err: any) {
+      alert('Error adding integration: ' + err.message);
+    } finally {
+      setPosAddLoading(false);
+    }
+  };
+
+  const handleDeletePosIntegration = async (id: number) => {
+    if (!confirm('Remove this POS integration?')) return;
+    try {
+      await deletePosIntegration(id);
+      setPosIntegrations(prev => prev.filter(p => p.id !== id));
+    } catch (err: any) {
+      alert('Error removing integration: ' + err.message);
+    }
+  };
+
+  const handleSyncPos = async (id: number) => {
+    setPosSyncingId(id);
+    setPosSyncMsg(null);
+    try {
+      const result = await syncPosIntegration(id);
+      setPosIntegrations(prev => prev.map(p => p.id === id ? result.integration : p));
+      setPosSyncMsg(`Synced ${result.synced_dates} days · $${result.total_revenue_synced.toLocaleString()} revenue imported`);
+      // Refresh the week preview after POS sync updates forecasts
+      const preview = await getGeneratePreview(weekStart).catch(() => null);
+      if (preview) setWeekPreview(preview);
+    } catch (err: any) {
+      alert('Sync failed: ' + err.message);
+    } finally {
+      setPosSyncingId(null);
+    }
+  };
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -454,6 +539,189 @@ export default function SchedulePage() {
           </>
         )}
       </div>
+
+      {/* ── Forecast Data Preview (drives schedule generation) ── */}
+      {isManager && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-semibold text-foreground text-sm">Profitability Data Preview</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Revenue forecasts, table turnover, and profitability metrics that will drive auto-generation
+                {weekPreview?.pos_last_synced && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-emerald-600">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                    POS synced via {weekPreview.pos_last_synced.platform}
+                  </span>
+                )}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="text-xs h-7 px-3"
+              onClick={() => setShowPosPanel(v => !v)}
+            >
+              {showPosPanel ? 'Hide POS' : `POS Integrations${posIntegrations.length > 0 ? ` (${posIntegrations.length})` : ''}`}
+            </Button>
+          </div>
+
+          {previewLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              Loading forecast data…
+            </div>
+          ) : weekPreview ? (
+            <>
+              {/* Summary KPIs */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+                {[
+                  { label: 'Expected Revenue', value: `$${weekPreview.total_expected_revenue.toLocaleString()}`, sub: 'week total' },
+                  { label: 'Expected Covers', value: weekPreview.total_expected_covers.toLocaleString(), sub: 'guests' },
+                  { label: 'Avg Check / Head', value: `$${weekPreview.avg_check_per_head.toFixed(2)}`, sub: 'per guest' },
+                  { label: 'Table Turnover', value: `${weekPreview.table_turnover_rate}×`, sub: 'per service period' },
+                  { label: 'Est. Labor Cost', value: `$${weekPreview.estimated_labor_cost.toLocaleString()}`, sub: `${weekPreview.settings.target_labor_pct}% target` },
+                  { label: 'Prime Cost %', value: `${weekPreview.prime_cost_pct}%`, sub: weekPreview.prime_cost_pct <= 60 ? '✓ good' : weekPreview.prime_cost_pct <= 65 ? '⚠ warning' : '✗ over' },
+                ].map(kpi => (
+                  <div key={kpi.label} className="bg-muted/40 rounded-lg p-2.5 text-center">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">{kpi.label}</p>
+                    <p className="text-base font-bold text-foreground">{kpi.value}</p>
+                    <p className="text-[10px] text-muted-foreground">{kpi.sub}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Per-day revenue bar */}
+              {weekPreview.has_forecast_data && (
+                <div>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Daily Revenue Forecast</p>
+                  <div className="flex items-end gap-1.5 h-16">
+                    {weekPreview.forecasts.map(f => {
+                      const maxRev = Math.max(...weekPreview.forecasts.map(d => d.expected_revenue), 1);
+                      const heightPct = maxRev > 0 ? (f.expected_revenue / maxRev) * 100 : 0;
+                      return (
+                        <div key={f.date} className="flex-1 flex flex-col items-center gap-0.5">
+                          <span className="text-[9px] text-muted-foreground">${(f.expected_revenue / 1000).toFixed(1)}k</span>
+                          <div
+                            className="w-full rounded-t bg-primary/70 transition-all"
+                            style={{ height: `${Math.max(heightPct, 4)}%` }}
+                            title={`${f.day_name}: $${f.expected_revenue.toLocaleString()} · ${f.expected_covers} covers`}
+                          />
+                          <span className="text-[9px] text-muted-foreground">{f.day_name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {!weekPreview.has_forecast_data && (
+                <p className="text-xs text-amber-600 mt-1">
+                  ⚠ No forecast data found for this week. The algorithm will use default revenue estimates.
+                  {posIntegrations.length > 0 ? ' Sync your POS integration to import data.' : ' Add a POS integration below to import live data.'}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground py-2">Select a week to preview forecast data.</p>
+          )}
+
+          {/* ── POS Integration Panel ── */}
+          {showPosPanel && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <h4 className="text-sm font-semibold text-foreground mb-1">Point-of-Sale Integrations</h4>
+              <p className="text-xs text-muted-foreground mb-3">
+                Connect your POS system to import live sales data into the forecast. The schedule algorithm
+                uses this data to optimize staffing around actual revenue, table turnover, and covers.
+              </p>
+
+              {/* Existing integrations */}
+              {posIntegrations.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  {posIntegrations.map(p => (
+                    <div key={p.id} className="flex items-center justify-between bg-muted/30 rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.last_sync_status === 'success' ? 'bg-emerald-500' : p.last_sync_status === 'error' ? 'bg-red-500' : 'bg-gray-400'}`} />
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{p.display_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {p.last_synced_at
+                              ? `Last synced ${new Date(p.last_synced_at).toLocaleString()}${p.last_sync_revenue ? ` · $${p.last_sync_revenue.toLocaleString()} avg/week` : ''}`
+                              : 'Not yet synced'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          className="text-xs h-7 px-2.5"
+                          onClick={() => handleSyncPos(p.id)}
+                          disabled={posSyncingId === p.id}
+                          isLoading={posSyncingId === p.id}
+                        >
+                          Sync Now
+                        </Button>
+                        <button
+                          onClick={() => handleDeletePosIntegration(p.id)}
+                          className="text-muted-foreground hover:text-red-600 transition-colors"
+                          title="Remove integration"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {posSyncMsg && (
+                    <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                      {posSyncMsg}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Add new integration form */}
+              <div className="flex flex-wrap gap-2 items-end">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-muted-foreground">Platform</label>
+                  <select
+                    className={NATIVE_SELECT_CLASS}
+                    value={addingPosForm.platform_name}
+                    onChange={e => setAddingPosForm(f => ({ ...f, platform_name: e.target.value }))}
+                  >
+                    {POS_PLATFORMS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                  </select>
+                </div>
+                <Input
+                  label="Display Name (optional)"
+                  className="w-40"
+                  value={addingPosForm.display_name}
+                  onChange={e => setAddingPosForm(f => ({ ...f, display_name: e.target.value }))}
+                  placeholder="e.g. Main Location"
+                />
+                <Input
+                  label="API Key / Token"
+                  className="w-44"
+                  value={addingPosForm.api_key}
+                  onChange={e => setAddingPosForm(f => ({ ...f, api_key: e.target.value }))}
+                  placeholder="sk-••••••••"
+                />
+                <Button
+                  variant="default"
+                  className="self-end"
+                  onClick={handleAddPosIntegration}
+                  disabled={posAddLoading}
+                  isLoading={posAddLoading}
+                >
+                  Connect
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* ── Schedule Status Banner ── */}
       {selectedSchedule && (

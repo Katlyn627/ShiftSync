@@ -30,6 +30,7 @@ import featureFlagsRouter from './routes/feature-flags';
 import fairnessRouter from './routes/fairness';
 import changeRequestsRouter from './routes/change-requests';
 import publishSlaRouter from './routes/publish-sla';
+import posIntegrationsRouter from './routes/pos-integrations';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -86,6 +87,7 @@ app.use('/api/feature-flags', featureFlagsRouter);
 app.use('/api/fairness', fairnessRouter);
 app.use('/api/change-requests', changeRequestsRouter);
 app.use('/api/publish-sla', publishSlaRouter);
+app.use('/api/pos-integrations', posIntegrationsRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

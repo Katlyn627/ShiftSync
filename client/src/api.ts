@@ -80,6 +80,8 @@ export const upsertForecast = (data: Omit<Forecast, 'id'>) =>
   request<Forecast>('/forecasts', { method: 'POST', body: JSON.stringify(data) });
 export const getStaffingSuggestions = (week_start: string) =>
   request<DailyStaffingSuggestion[]>(`/schedules/staffing-suggestions?week_start=${week_start}`);
+export const getGeneratePreview = (week_start: string) =>
+  request<GeneratePreview>(`/schedules/generate-preview?week_start=${week_start}`);
 
 // Time-off requests
 export const getTimeOffRequests = () => request<TimeOffRequest[]>('/time-off');
@@ -116,6 +118,15 @@ export const getScheduleCoverage = (scheduleId: number) =>
 // Schedule Intelligence (manager-only)
 export const getScheduleIntelligence = (scheduleId: number) =>
   request<ScheduleIntelligence>(`/schedules/${scheduleId}/intelligence`);
+
+// POS Integrations
+export const getPosIntegrations = () => request<PosIntegration[]>('/pos-integrations');
+export const createPosIntegration = (data: { platform_name: string; display_name?: string; api_key?: string }) =>
+  request<PosIntegration>('/pos-integrations', { method: 'POST', body: JSON.stringify(data) });
+export const deletePosIntegration = (id: number) =>
+  request<{ success: boolean }>(`/pos-integrations/${id}`, { method: 'DELETE' });
+export const syncPosIntegration = (id: number) =>
+  request<PosIntegrationSyncResult>(`/pos-integrations/${id}/sync`, { method: 'POST' });
 
 // Types
 export interface Site {
@@ -676,4 +687,52 @@ export interface PublishSla {
   role: string | null;
   advance_days: number;
   created_at: string;
+}
+
+export interface PosIntegration {
+  id: number;
+  site_id: number | null;
+  platform_name: 'square' | 'toast' | 'clover' | 'lightspeed' | 'revel' | 'other';
+  display_name: string;
+  status: 'connected' | 'error' | 'disconnected';
+  api_key_masked: string;
+  webhook_url: string | null;
+  last_synced_at: string | null;
+  last_sync_status: 'success' | 'error' | null;
+  last_sync_revenue: number | null;
+  last_sync_covers: number | null;
+  created_at: string;
+}
+
+export interface PosIntegrationSyncResult {
+  integration: PosIntegration;
+  synced_dates: number;
+  total_revenue_synced: number;
+  total_covers_synced: number;
+}
+
+export interface GeneratePreviewForecast {
+  date: string;
+  day_name: string;
+  expected_revenue: number;
+  expected_covers: number;
+  has_data: boolean;
+}
+
+export interface GeneratePreview {
+  week_start: string;
+  site_id: number | null;
+  forecasts: GeneratePreviewForecast[];
+  total_expected_revenue: number;
+  total_expected_covers: number;
+  avg_check_per_head: number;
+  table_turnover_rate: number;
+  estimated_labor_cost: number;
+  estimated_cogs: number;
+  estimated_prime_cost: number;
+  prime_cost_pct: number;
+  revpash: number;
+  settings: RestaurantSettings;
+  has_forecast_data: boolean;
+  pos_last_synced: { platform: string; at: string } | null;
 }
