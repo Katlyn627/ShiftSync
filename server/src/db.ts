@@ -293,6 +293,21 @@ function initSchema(db: Database.Database): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS pos_integrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      site_id INTEGER REFERENCES sites(id) ON DELETE CASCADE,
+      platform_name TEXT NOT NULL,        -- square | toast | clover | lightspeed | revel | other
+      display_name TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'connected', -- connected | error | disconnected
+      api_key_masked TEXT NOT NULL DEFAULT '',
+      webhook_url TEXT DEFAULT NULL,
+      last_synced_at TEXT DEFAULT NULL,
+      last_sync_status TEXT DEFAULT NULL,  -- success | error | NULL
+      last_sync_revenue REAL DEFAULT NULL,
+      last_sync_covers INTEGER DEFAULT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migrate existing databases: add google_id column if absent
