@@ -92,6 +92,20 @@ export function getProfitabilityMetrics(scheduleId: number): ProfitabilityMetric
   // Select daypart profile appropriate for this business type
   const DAYPARTS = siteType === 'hotel' ? HOTEL_DAYPARTS : RESTAURANT_DAYPARTS;
 
+  // Look up the most recently synced POS integration for this site (if any)
+  const posRow = siteId !== null
+    ? db.prepare(`
+        SELECT platform_name, display_name, last_synced_at
+        FROM pos_integrations
+        WHERE site_id = ? AND last_sync_status = 'success' AND last_synced_at IS NOT NULL
+        ORDER BY last_synced_at DESC
+        LIMIT 1
+      `).get(siteId) as any
+    : null;
+  const pos_last_synced = posRow
+    ? { platform: posRow.platform_name as string, display_name: posRow.display_name as string, at: posRow.last_synced_at as string }
+    : null;
+
   // Helper: look up a forecast for a date, scoped to the schedule's site when available
   function getForecast(date: string): any {
     if (siteId !== null) {
@@ -240,5 +254,6 @@ export function getProfitabilityMetrics(scheduleId: number): ProfitabilityMetric
     sales_by_daypart:         salesByDaypart,
     high_turnover_risk_count: highTurnoverCount,
     turnover_risk_pct:        Math.round(turnoverRiskPct * 10) / 10,
+    pos_last_synced,
   };
 }

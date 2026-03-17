@@ -76,6 +76,10 @@ function shouldReseed(db: Database.Database): boolean {
   const schedulesWithSite = (db.prepare('SELECT COUNT(*) as c FROM schedules WHERE site_id IS NOT NULL').get() as any).c;
   if (schedulesWithSite < EXPECTED_SITE_NAMES.length) return true;
 
+  // Must have seeded POS integrations (one per canonical site)
+  const posIntCount = (db.prepare('SELECT COUNT(*) as c FROM pos_integrations WHERE site_id IS NOT NULL').get() as any).c;
+  if (posIntCount < EXPECTED_SITE_NAMES.length) return true;
+
   return false;
 }
 
@@ -94,6 +98,7 @@ function clearSeedData(db: Database.Database): void {
     DELETE FROM schedules;
     DELETE FROM availability;
     DELETE FROM forecasts;
+    DELETE FROM pos_integrations;
     DELETE FROM time_off_requests;
     DELETE FROM users;
     DELETE FROM employees;
@@ -460,8 +465,9 @@ export function seedDemoData(): void {
   );
 
   // Revenue by day offset (Mon=0 … Sun=6)
-  // Restaurants: higher Fri/Sat
-  const restaurantRevByOffset = [2800, 3200, 3800, 4500, 7200, 8500, 5500];
+  // Restaurants: follows typical full-service industry patterns sourced from Toast POS benchmarks
+  // (Mon 8 %, Tue 9 %, Wed 11 %, Thu 14 %, Fri 20 %, Sat 24 %, Sun 14 %)
+  const restaurantRevByOffset = [4800, 5400, 6600, 8400, 12000, 14400, 8400];
   // Hotels: higher Thu–Sat (business + leisure)
   const hotelRevByOffset      = [32000, 38000, 45000, 55000, 62000, 68000, 44000];
 
@@ -498,8 +504,10 @@ export function seedDemoData(): void {
           const rooms = hotelRooms[siteId] ?? DEFAULT_HOTEL_ROOM_COUNT;
           covers = Math.round(rooms * hotelOccupancyByOffset[d] * weekMult);
         } else {
-          // For restaurants, covers derived from avg check (~$42 BN, ~$38 BD)
-          const avgCheck = siteId === siteR1 ? 42 : 38;
+          // For restaurants, covers derived from avg check
+          // Bella Napoli: $58 avg check (full-service Italian, per Toast benchmarks)
+          // The Blue Door: $44 avg check (casual Austin dining)
+          const avgCheck = siteId === siteR1 ? 58 : 44;
           covers = Math.floor(revenue / avgCheck);
         }
         insertForecast.run(dateStr, siteId, revenue, covers);
@@ -507,7 +515,45 @@ export function seedDemoData(): void {
     }
   }
 
-  // ── 5. Schedules (2 per site) ────────────────────────────────────────────────
+  // ── 5. POS Integrations (one per site, pre-synced with sample data) ──────────
+  // Each demo site has a connected POS integration that last synced 2 hours ago.
+  // This populates the profitability metrics with data attributed to each platform.
+  const insertPos = db.prepare(`
+    INSERT INTO pos_integrations
+      (site_id, platform_name, display_name, api_key_masked, status,
+       last_synced_at, last_sync_status, last_sync_revenue, last_sync_covers)
+    VALUES (?, ?, ?, ?, 'connected', datetime('now', '-2 hours'), 'success', ?, ?)
+  `);
+
+  // Weekly revenue per site (current-week baseline, used as last_sync_revenue)
+  const posRevBySite: Record<number, number> = {
+    [siteR1]: Math.round(restaurantRevByOffset.reduce((s, r) => s + r, 0) * siteRevMultiplier[siteR1] * 1.05),
+    [siteR2]: Math.round(restaurantRevByOffset.reduce((s, r) => s + r, 0) * siteRevMultiplier[siteR2] * 1.05),
+    [siteH1]: Math.round(hotelRevByOffset.reduce((s, r) => s + r, 0) * siteRevMultiplier[siteH1] * 1.05),
+    [siteH2]: Math.round(hotelRevByOffset.reduce((s, r) => s + r, 0) * siteRevMultiplier[siteH2] * 1.05),
+  };
+
+  // Approximate Average Daily Rate (ADR) per hotel — used to derive weekly room-night cover counts.
+  // Grand Pacific Hotel (luxury NY): ~$650 ADR; Seaside Suites (boutique Miami): ~$550 ADR.
+  const hotelAdrBySite: Record<number, number> = {
+    [siteH1]: 650,
+    [siteH2]: 550,
+  };
+
+  // Bella Napoli → Toast (leading restaurant POS)
+  insertPos.run(siteR1, 'toast', 'Toast - Bella Napoli', 'tk_bn****8f2a',
+    posRevBySite[siteR1], Math.round(posRevBySite[siteR1] / 58));
+  // The Blue Door → Square (popular with independent restaurants)
+  insertPos.run(siteR2, 'square', 'Square - The Blue Door', 'sq_bd****4c9e',
+    posRevBySite[siteR2], Math.round(posRevBySite[siteR2] / 44));
+  // Grand Pacific Hotel → Lightspeed (used by full-service hotels)
+  insertPos.run(siteH1, 'lightspeed', 'Lightspeed - Grand Pacific Hotel', 'ls_gp****7b3d',
+    posRevBySite[siteH1], Math.round(posRevBySite[siteH1] / hotelAdrBySite[siteH1]));
+  // Seaside Suites → Clover (common in boutique hospitality)
+  insertPos.run(siteH2, 'clover', 'Clover - Seaside Suites & Spa', 'cl_ss****2e1f',
+    posRevBySite[siteH2], Math.round(posRevBySite[siteH2] / hotelAdrBySite[siteH2]));
+
+  // ── 6. Schedules (2 per site) ────────────────────────────────────────────────
   const budgetBySite: Record<number, number> = {
     [siteR1]: 14000, [siteR2]: 11000, [siteH1]: 58000, [siteH2]: 44000,
   };
@@ -524,7 +570,7 @@ export function seedDemoData(): void {
     }
   }
 
-  // ── 6. Employees by site ─────────────────────────────────────────────────
+  // ── 7. Employees by site ─────────────────────────────────────────────────
   const empsBySite: Record<number, any[]> = {};
   for (const siteId of siteIds) {
     empsBySite[siteId] = db.prepare('SELECT * FROM employees WHERE site_id = ?').all(siteId) as any[];
@@ -545,7 +591,7 @@ export function seedDemoData(): void {
     return dayOffset !== off1 && dayOffset !== off2;
   }
 
-  // ── 7. Shifts ─────────────────────────────────────────────────────────────
+  // ── 8. Shifts ─────────────────────────────────────────────────────────────
 
   function seedRestaurantWeek(siteId: number, weekStart: string) {
     const scheduleId = scheduleIds[`${siteId}_${weekStart}`];
@@ -692,7 +738,7 @@ export function seedDemoData(): void {
     seedHotelWeek(siteId, thisMonday);
   }
 
-  // ── 8. Overtime records for prior week ──────────────────────────────────
+  // ── 9. Overtime records for prior week ──────────────────────────────────
   const priorShifts = db.prepare(`
     SELECT s.employee_id, s.start_time, s.end_time, e.hourly_rate
     FROM shifts s
@@ -726,7 +772,7 @@ export function seedDemoData(): void {
     insertOT.run(parseInt(empIdStr), lastMonday, regularHours, overtimeHours, overtimePay);
   }
 
-  // ── 9. Users ─────────────────────────────────────────────────────────────
+  // ── 10. Users ─────────────────────────────────────────────────────────────
   const insertUser = db.prepare(
     'INSERT OR IGNORE INTO users (username, password_hash, employee_id, is_manager) VALUES (?, ?, ?, ?)'
   );
@@ -748,7 +794,7 @@ export function seedDemoData(): void {
     insertUser.run(username, hash, emp.id, isManager);
   }
 
-  // ── 10. Shift swap requests ───────────────────────────────────────────────
+  // ── 11. Shift swap requests ───────────────────────────────────────────────
   const insertSwap = db.prepare(
     'INSERT INTO shift_swaps (shift_id, requester_id, target_id, reason, status, manager_notes) VALUES (?, ?, ?, ?, ?, ?)'
   );
@@ -825,7 +871,7 @@ export function seedDemoData(): void {
       'Denied — Amy is already at max hours this week.');
   }
 
-  // ── 11. Open Shifts & Offers ──────────────────────────────────────────────
+  // ── 12. Open Shifts & Offers ──────────────────────────────────────────────
 
   // Fetch manager user IDs (needed for created_by on open_shifts)
   const managerUsers = db.prepare(`
@@ -1104,7 +1150,7 @@ export function seedDemoData(): void {
     h2PastSun, null, h2Mgr
   );
 
-  // ── 12. Burnout Survey Campaigns & Responses ──────────────────────────────
+  // ── 13. Burnout Survey Campaigns & Responses ──────────────────────────────
 
   // Fetch template IDs by instrument
   const surveyTemplates = db.prepare('SELECT id, instrument FROM burnout_survey_templates').all() as
