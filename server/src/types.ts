@@ -242,6 +242,8 @@ export interface ProfitabilityMetrics {
   // Employee Turnover Risk
   high_turnover_risk_count: number;
   turnover_risk_pct: number;       // high-risk employees / total scheduled
+  // POS data source (populated when a POS integration has been synced for this site)
+  pos_last_synced: { platform: string; display_name: string; at: string } | null;
 }
 
 export interface StandbyAssignment {
