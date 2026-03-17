@@ -336,6 +336,8 @@ export interface ProfitabilityMetrics {
   sales_by_daypart: DaypartRevenue[];
   high_turnover_risk_count: number;
   turnover_risk_pct: number;
+  /** POS integration that last synced data for this site, or null if no sync has occurred */
+  pos_last_synced: { platform: string; display_name: string; at: string } | null;
 }
 
 export interface StandbyAssignment {

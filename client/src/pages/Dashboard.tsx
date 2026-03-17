@@ -341,7 +341,15 @@ export default function Dashboard() {
                 <h2 className="text-sm font-semibold text-foreground">Profitability Metrics</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">Key metrics for profitable scheduling (target: Prime Cost ≤ 65%)</p>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {profitabilityMetrics.pos_last_synced && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1 bg-muted/40 border border-border/60 px-2 py-0.5 rounded-full">
+                    <svg className="w-3 h-3 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                    </svg>
+                    {profitabilityMetrics.pos_last_synced.display_name}
+                  </span>
+                )}
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                   profitabilityMetrics.prime_cost_status === 'good'    ? 'bg-emerald-100 text-emerald-700' :
                   profitabilityMetrics.prime_cost_status === 'warning' ? 'bg-amber-100 text-amber-700'    :
