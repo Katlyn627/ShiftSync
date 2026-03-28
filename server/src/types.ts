@@ -4,7 +4,7 @@ export interface Site {
   city: string;
   state: string;
   timezone: string;
-  site_type: 'restaurant' | 'hotel';
+  site_type: 'restaurant' | 'hotel' | 'retail' | 'healthcare' | 'fitness' | 'salon_spa' | 'warehouse' | 'education' | 'childcare' | 'security' | 'office' | 'other';
   /** Jurisdiction code used to select applicable compliance rules, e.g. 'default', 'eu', 'us-ca' */
   jurisdiction: string;
   created_at: string;
@@ -213,7 +213,7 @@ export interface ProfitabilityMetrics {
   schedule_id: number;
   week_start: string;
   // Business type (drives daypart labels & terminology)
-  site_type: 'restaurant' | 'hotel';
+  site_type: 'restaurant' | 'hotel' | 'retail' | 'healthcare' | 'fitness' | 'salon_spa' | 'warehouse' | 'education' | 'childcare' | 'security' | 'office' | 'other';
   // Prime Cost
   prime_cost: number;
   prime_cost_pct: number;         // (labor + COGS) / revenue × 100

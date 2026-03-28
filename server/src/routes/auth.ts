@@ -254,6 +254,111 @@ router.get(
     : googleNotConfigured
 );
 
+// ── Manager self-registration (creates a new business/site + manager account) ─
+router.post('/register-manager', (req, res) => {
+  const {
+    // Business info
+    businessName,
+    city,
+    state,
+    timezone,
+    industry,
+    // Manager personal info
+    managerName,
+    username,
+    password,
+    // Initial positions (JSON array of role name strings)
+    positions,
+  } = req.body;
+
+  if (!businessName || !city || !state || !timezone || !industry) {
+    return res.status(400).json({ error: 'businessName, city, state, timezone, and industry are required' });
+  }
+  if (!managerName || !username || !password) {
+    return res.status(400).json({ error: 'managerName, username, and password are required' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+
+  const db = getDb();
+
+  // Ensure username is unique
+  const taken = db.prepare('SELECT id FROM users WHERE username = ?').get(username) as any;
+  if (taken) {
+    return res.status(409).json({ error: 'Username already taken.' });
+  }
+
+  const allowedIndustries = [
+    'restaurant', 'hotel', 'retail', 'healthcare', 'fitness',
+    'salon_spa', 'warehouse', 'education', 'childcare', 'security', 'office', 'other',
+  ];
+  if (!allowedIndustries.includes(industry)) {
+    return res.status(400).json({ error: `industry must be one of: ${allowedIndustries.join(', ')}` });
+  }
+
+  const hash = bcrypt.hashSync(
+    password,
+    Math.max(4, Math.min(31, parseInt(process.env.BCRYPT_ROUNDS ?? '10', 10) || 10))
+  );
+
+  const createAll = db.transaction(() => {
+    // 1. Create site
+    const siteResult = db
+      .prepare(
+        `INSERT INTO sites (name, city, state, timezone, site_type, jurisdiction)
+         VALUES (?, ?, ?, ?, ?, 'default')`
+      )
+      .run(businessName, city, state, timezone, industry);
+    const siteId = siteResult.lastInsertRowid as number;
+
+    // 2. Create manager employee record
+    const [firstName, ...rest] = managerName.trim().split(' ');
+    const lastName = rest.join(' ');
+    const empResult = db
+      .prepare(
+        `INSERT INTO employees (name, first_name, last_name, role, role_title, department, pay_type, hourly_rate, weekly_hours_max, site_id)
+         VALUES (?, ?, ?, 'Manager', 'Manager', 'Management', 'salaried', 0, 40, ?)`
+      )
+      .run(managerName.trim(), firstName, lastName || '', siteId);
+    const employeeId = empResult.lastInsertRowid as number;
+
+    // 3. Create user account
+    const userResult = db
+      .prepare(
+        'INSERT INTO users (username, password_hash, employee_id, is_manager) VALUES (?, ?, ?, 1)'
+      )
+      .run(username, hash, employeeId);
+    const userId = userResult.lastInsertRowid as number;
+
+    return { siteId, employeeId, userId };
+  });
+
+  try {
+    const { siteId, employeeId, userId } = createAll();
+
+    const payload: AuthPayload = {
+      userId,
+      username,
+      employeeId,
+      isManager: true,
+      employeeName: managerName.trim(),
+      employeeRole: 'Manager',
+      siteId,
+    };
+
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    res.status(201).json({
+      token,
+      user: { ...payload, photoUrl: null },
+      positions: Array.isArray(positions) ? positions : [],
+    });
+  } catch (err: any) {
+    console.error('register-manager error:', err);
+    res.status(500).json({ error: 'Failed to create business account. Please try again.' });
+  }
+});
+
 router.get('/me', (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {

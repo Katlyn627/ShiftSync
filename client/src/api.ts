@@ -25,6 +25,22 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const registerEmployee = (data: { employeeName: string; username: string; password: string }) =>
   request<{ token: string; user: any }>('/auth/register', { method: 'POST', body: JSON.stringify(data) });
 
+export const registerManager = (data: {
+  businessName: string;
+  city: string;
+  state: string;
+  timezone: string;
+  industry: string;
+  managerName: string;
+  username: string;
+  password: string;
+  positions?: string[];
+}) =>
+  request<{ token: string; user: any; positions: string[] }>('/auth/register-manager', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
 // Employees
 export const getEmployees = () => request<Employee[]>('/employees');
 export const createEmployee = (data: Omit<Employee, 'id' | 'created_at'>) =>
@@ -129,13 +145,17 @@ export const syncPosIntegration = (id: number) =>
   request<PosIntegrationSyncResult>(`/pos-integrations/${id}/sync`, { method: 'POST' });
 
 // Types
+export type SiteType =
+  | 'restaurant' | 'hotel' | 'retail' | 'healthcare' | 'fitness'
+  | 'salon_spa' | 'warehouse' | 'education' | 'childcare' | 'security' | 'office' | 'other';
+
 export interface Site {
   id: number;
   name: string;
   city: string;
   state: string;
   timezone: string;
-  site_type: 'restaurant' | 'hotel';
+  site_type: SiteType;
   created_at: string;
 }
 
@@ -317,7 +337,7 @@ export interface DayRevenue {
 export interface ProfitabilityMetrics {
   schedule_id: number;
   week_start: string;
-  site_type: 'restaurant' | 'hotel';
+  site_type: SiteType;
   prime_cost: number;
   prime_cost_pct: number;
   prime_cost_target_pct: number;

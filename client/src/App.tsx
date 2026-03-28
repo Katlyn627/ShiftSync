@@ -2,6 +2,7 @@ import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext';
 import { useState, useEffect } from 'react';
 import LoginPage from './pages/LoginPage';
+import RegisterBusinessPage from './pages/RegisterBusinessPage';
 import Dashboard from './pages/Dashboard';
 import SchedulePage from './pages/SchedulePage';
 import EmployeesPage from './pages/EmployeesPage';
@@ -114,7 +115,14 @@ export default function App() {
     );
   }
 
-  if (!user) return <LoginPage />;
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/register-business" element={<RegisterBusinessPage />} />
+        <Route path="*" element={<LoginPage />} />
+      </Routes>
+    );
+  }
 
   const NAV_ITEMS = [
     { to: '/',          label: 'Dashboard', icon: <DashboardIcon /> },
