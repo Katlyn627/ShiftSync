@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: shiftsync
+    env: node
+    buildCommand: >-
+      npm install --prefix server &&
+      npm run build --prefix server &&
+      npm install --prefix client &&
+      npm run build --prefix client
+    startCommand: npm start --prefix server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CALLBACK_URL
+        sync: false
