@@ -308,6 +308,16 @@ function initSchema(db: Database.Database): void {
       last_sync_covers INTEGER DEFAULT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS site_positions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(site_id, name)
+    );
   `);
 
   // Migrate existing databases: add google_id column if absent

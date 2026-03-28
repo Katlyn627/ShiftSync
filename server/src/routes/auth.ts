@@ -6,6 +6,60 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { getDb } from '../db';
 import type { AuthPayload } from '../middleware/auth';
 
+// Default positions per industry (mirrors the frontend INDUSTRIES definitions)
+const INDUSTRY_DEFAULT_POSITIONS: Record<string, string[]> = {
+  restaurant: [
+    'General Manager', 'Assistant Manager', 'Executive Chef', 'Sous Chef',
+    'Line Cook', 'Prep Cook', 'Dishwasher', 'Server', 'Lead Server',
+    'Bartender', 'Barback', 'Host', 'Busser',
+  ],
+  hotel: [
+    'General Manager', 'Front Desk Supervisor', 'Front Desk Agent', 'Night Auditor',
+    'Concierge', 'Housekeeping Supervisor', 'Room Attendant', 'Laundry Attendant',
+    'Maintenance Technician', 'Security Officer', 'Bellhop', 'Valet',
+  ],
+  retail: [
+    'Store Manager', 'Assistant Manager', 'Shift Supervisor', 'Sales Associate',
+    'Cashier', 'Stock Associate', 'Inventory Clerk', 'Loss Prevention Officer',
+    'Visual Merchandiser', 'Customer Service Rep',
+  ],
+  healthcare: [
+    'Medical Director', 'Physician', 'Registered Nurse', 'Licensed Practical Nurse',
+    'Medical Assistant', 'Receptionist', 'Medical Records Clerk', 'Pharmacy Technician',
+    'Lab Technician', 'Physical Therapist',
+  ],
+  fitness: [
+    'Gym Manager', 'Personal Trainer', 'Group Fitness Instructor', 'Front Desk Associate',
+    'Membership Advisor', 'Maintenance Technician', 'Childcare Attendant',
+  ],
+  salon_spa: [
+    'Salon Manager', 'Hair Stylist', 'Colorist', 'Esthetician',
+    'Nail Technician', 'Massage Therapist', 'Receptionist', 'Shampoo Assistant',
+  ],
+  warehouse: [
+    'Warehouse Manager', 'Shift Supervisor', 'Warehouse Associate', 'Forklift Operator',
+    'Picker', 'Packer', 'Receiving Clerk', 'Shipping Clerk', 'Quality Control Inspector',
+  ],
+  education: [
+    'Principal', 'Assistant Principal', 'Teacher', 'Teaching Assistant',
+    'Substitute Teacher', 'School Counselor', 'Administrative Assistant',
+    'Custodian', 'Security Guard',
+  ],
+  childcare: [
+    'Center Director', 'Lead Teacher', 'Assistant Teacher', 'Floater',
+    'Administrative Coordinator', 'Cook', 'Bus Driver',
+  ],
+  security: [
+    'Security Director', 'Site Supervisor', 'Security Officer', 'Patrol Officer',
+    'Dispatcher', 'Access Control Officer', 'Mobile Patrol Officer',
+  ],
+  office: [
+    'Office Manager', 'Administrative Assistant', 'Receptionist', 'HR Coordinator',
+    'Accounting Clerk', 'IT Support Specialist', 'Data Entry Clerk', 'Executive Assistant',
+  ],
+  other: ['Manager', 'Supervisor', 'Team Lead', 'Employee'],
+};
+
 const router = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'shiftsync-secret-key-change-in-production';
@@ -331,11 +385,21 @@ router.post('/register-manager', (req, res) => {
       .run(username, hash, employeeId);
     const userId = userResult.lastInsertRowid as number;
 
-    return { siteId, employeeId, userId };
+    // 4. Persist positions for the site
+    const positionList: string[] =
+      Array.isArray(positions) && positions.length > 0
+        ? positions
+        : (INDUSTRY_DEFAULT_POSITIONS[industry] ?? []);
+    const insertPos = db.prepare(
+      'INSERT OR IGNORE INTO site_positions (site_id, name, sort_order) VALUES (?, ?, ?)'
+    );
+    positionList.forEach((name, idx) => insertPos.run(siteId, name, idx));
+
+    return { siteId, employeeId, userId, positionList };
   });
 
   try {
-    const { siteId, employeeId, userId } = createAll();
+    const { siteId, employeeId, userId, positionList } = createAll();
 
     const payload: AuthPayload = {
       userId,
@@ -351,7 +415,7 @@ router.post('/register-manager', (req, res) => {
     res.status(201).json({
       token,
       user: { ...payload, photoUrl: null },
-      positions: Array.isArray(positions) ? positions : [],
+      positions: positionList,
     });
   } catch (err: any) {
     console.error('register-manager error:', err);

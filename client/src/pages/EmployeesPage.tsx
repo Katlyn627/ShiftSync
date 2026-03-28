@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { getEmployees, getSites, createEmployee, updateEmployee, deleteEmployee, Employee, Site } from '../api';
+import { getEmployees, getSites, createEmployee, updateEmployee, deleteEmployee, getPositions, Employee, Site, Position } from '../api';
 import { useAuth } from '../AuthContext';
 import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
-const ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager', 'Front Desk', 'Housekeeping', 'F&B', 'Maintenance'];
+const FALLBACK_ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager', 'Front Desk', 'Housekeeping', 'F&B', 'Maintenance'];
 
 function roleVariant(role: string): BadgeVariant {
   const map: Record<string, BadgeVariant> = {
@@ -33,17 +33,31 @@ export default function EmployeesPage() {
   const { user } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [sites, setSites]         = useState<Site[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm]           = useState({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
+  const [form, setForm]           = useState({ name: '', role: '', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
 
   const [error, setError] = useState<string | null>(null);
+
+  const roleOptions = positions.filter(p => p.is_active).map(p => p.name);
+  const roles = roleOptions.length > 0 ? roleOptions : FALLBACK_ROLES;
 
   const load = () => Promise.all([
     getEmployees(),
     getSites(),
-  ]).then(([emps, s]) => { setEmployees(emps); setSites(s); setLoading(false); });
+    getPositions().catch(() => [] as Position[]),
+  ]).then(([emps, s, pos]) => {
+    setEmployees(emps);
+    setSites(s);
+    setPositions(pos);
+    // Set default role from fetched positions if form role is still empty
+    const activeRoles = pos.filter((p: Position) => p.is_active).map((p: Position) => p.name);
+    const defaultRole = (activeRoles.length > 0 ? activeRoles : FALLBACK_ROLES)[0] ?? '';
+    setForm(f => f.role === '' ? { ...f, role: defaultRole } : f);
+    setLoading(false);
+  });
   useEffect(() => { load(); }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,7 +72,7 @@ export default function EmployeesPage() {
     }
     setShowForm(false);
     setEditingId(null);
-    setForm({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
+    setForm({ name: '', role: roles[0] ?? '', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
     load();
   };
 
@@ -113,7 +127,7 @@ export default function EmployeesPage() {
             onClick={() => {
               setShowForm(true);
               setEditingId(null);
-              setForm({ name: '', role: 'Server', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
+              setForm({ name: '', role: roles[0] ?? '', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
             }}
           >
             + Add Employee
@@ -144,7 +158,7 @@ export default function EmployeesPage() {
                 value={form.role}
                 onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
               >
-                {ROLES.map(r => <option key={r}>{r}</option>)}
+                {roles.map(r => <option key={r}>{r}</option>)}
               </select>
             </div>
             <Input
