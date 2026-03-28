@@ -6,7 +6,7 @@
  * create an open shift in the marketplace. Manager overrides are
  * explicitly recorded in the audit trail.
  */
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 import { logAudit } from './audit';
@@ -14,7 +14,7 @@ import { logAudit } from './audit';
 const router = Router();
 
 /** GET /api/callouts — list callout events */
-router.get('/', requireManager, (req, res) => {
+router.get('/', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const siteId = req.user?.siteId ?? null;
   const { status, date_from, date_to } = req.query as Record<string, string | undefined>;
@@ -43,7 +43,7 @@ router.get('/', requireManager, (req, res) => {
 });
 
 /** POST /api/callouts — report a callout/absence */
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, (req: Request, res: Response) => {
   const { shift_id, employee_id, reason, manager_notes, auto_open_shift } = req.body;
   const reportingEmployeeId = employee_id ?? req.user?.employeeId;
   if (!reportingEmployeeId) return res.status(400).json({ error: 'employee_id is required' });
@@ -105,7 +105,7 @@ router.post('/', requireAuth, (req, res) => {
 });
 
 /** GET /api/callouts/:id/eligible-replacements — find eligible replacements */
-router.get('/:id/eligible-replacements', requireManager, (req, res) => {
+router.get('/:id/eligible-replacements', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const callout = db.prepare('SELECT * FROM callout_events WHERE id = ?').get(req.params.id) as any;
   if (!callout) return res.status(404).json({ error: 'Callout not found' });
@@ -154,7 +154,7 @@ router.get('/:id/eligible-replacements', requireManager, (req, res) => {
 });
 
 /** PUT /api/callouts/:id/resolve — manager resolves a callout (found/not found) */
-router.put('/:id/resolve', requireManager, (req, res) => {
+router.put('/:id/resolve', requireManager, (req: Request, res: Response) => {
   const { replacement_employee_id, replacement_status, manager_notes, manager_override } = req.body;
   const db = getDb();
   const callout = db.prepare('SELECT * FROM callout_events WHERE id = ?').get(req.params.id) as any;

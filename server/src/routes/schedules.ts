@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { generateSchedule, computeWeeklyStaffingNeeds } from '../scheduler';
 import { getLaborCostSummary } from '../laborCost';
@@ -11,7 +11,7 @@ import { logAudit } from './audit';
 
 const router = Router();
 
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const siteId = req.user?.siteId ?? null;
   const schedules = siteId
@@ -20,7 +20,7 @@ router.get('/', requireAuth, (req, res) => {
   res.json(schedules);
 });
 
-router.post('/generate', requireManager, (req, res) => {
+router.post('/generate', requireManager, (req: Request, res: Response) => {
   const { week_start, labor_budget } = req.body;
   if (!week_start) return res.status(400).json({ error: 'week_start is required' });
   try {
@@ -46,7 +46,7 @@ router.post('/generate', requireManager, (req, res) => {
  * schedule generation for the given week. Call this before auto-generating
  * to show the user what revenue, covers, and metrics the algorithm will use.
  */
-router.get('/generate-preview', requireManager, async (req, res) => {
+router.get('/generate-preview', requireManager, async (req: Request, res: Response) => {
   const { week_start } = req.query;
   if (!week_start || typeof week_start !== 'string') {
     return res.status(400).json({ error: 'week_start query parameter is required' });
@@ -128,7 +128,7 @@ router.get('/generate-preview', requireManager, async (req, res) => {
   }
 });
 
-router.get('/staffing-suggestions', requireManager, (req, res) => {
+router.get('/staffing-suggestions', requireManager, (req: Request, res: Response) => {
   const { week_start } = req.query;
   if (!week_start || typeof week_start !== 'string') {
     return res.status(400).json({ error: 'week_start query parameter is required' });
@@ -142,14 +142,14 @@ router.get('/staffing-suggestions', requireManager, (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', (req: Request, res: Response) => {
   const db = getDb();
   const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id);
   if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
   res.json(schedule);
 });
 
-router.put('/:id', requireManager, (req, res) => {
+router.put('/:id', requireManager, (req: Request, res: Response) => {
   const { status } = req.body;
   const db = getDb();
   const existing = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id) as any;
@@ -189,7 +189,7 @@ router.put('/:id', requireManager, (req, res) => {
   res.json(updated);
 });
 
-router.delete('/:id', requireManager, (req, res) => {
+router.delete('/:id', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const existing = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id) as any;
   if (!existing) return res.status(404).json({ error: 'Schedule not found' });
@@ -197,7 +197,7 @@ router.delete('/:id', requireManager, (req, res) => {
   res.json({ success: true });
 });
 
-router.get('/:id/shifts', (req, res) => {
+router.get('/:id/shifts', (req: Request, res: Response) => {
   const db = getDb();
   const shifts = db.prepare(`
     SELECT s.*, e.name as employee_name, e.role as employee_role, e.hourly_rate
@@ -209,7 +209,7 @@ router.get('/:id/shifts', (req, res) => {
   res.json(shifts);
 });
 
-router.get('/:id/labor-cost', requireManager, (req, res) => {
+router.get('/:id/labor-cost', requireManager, (req: Request, res: Response) => {
   try {
     const summary = getLaborCostSummary(parseInt(req.params.id));
     res.json(summary);
@@ -218,7 +218,7 @@ router.get('/:id/labor-cost', requireManager, (req, res) => {
   }
 });
 
-router.get('/:id/burnout-risks', requireAuth, (req, res) => {
+router.get('/:id/burnout-risks', requireAuth, (req: Request, res: Response) => {
   try {
     const risks = calculateBurnoutRisks(parseInt(req.params.id));
     const isManager = req.user?.isManager;
@@ -251,7 +251,7 @@ router.get('/:id/burnout-risks', requireAuth, (req, res) => {
   }
 });
 
-router.get('/:id/profitability-metrics', requireManager, (req, res) => {
+router.get('/:id/profitability-metrics', requireManager, (req: Request, res: Response) => {
   try {
     const metrics = getProfitabilityMetrics(parseInt(req.params.id));
     res.json(metrics);
@@ -260,7 +260,7 @@ router.get('/:id/profitability-metrics', requireManager, (req, res) => {
   }
 });
 
-router.get('/:id/coverage', (req, res) => {
+router.get('/:id/coverage', (req: Request, res: Response) => {
   try {
     const report = getScheduleCoverageReport(parseInt(req.params.id));
     res.json(report);
@@ -269,7 +269,7 @@ router.get('/:id/coverage', (req, res) => {
   }
 });
 
-router.get('/:id/intelligence', requireManager, (req, res) => {
+router.get('/:id/intelligence', requireManager, (req: Request, res: Response) => {
   try {
     const intel = getScheduleIntelligence(parseInt(req.params.id));
     res.json(intel);
@@ -278,7 +278,7 @@ router.get('/:id/intelligence', requireManager, (req, res) => {
   }
 });
 
-router.get('/:id/instability', requireManager, (req, res) => {
+router.get('/:id/instability', requireManager, (req: Request, res: Response) => {
   try {
     const db = getDb();
     const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id) as any;

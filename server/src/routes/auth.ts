@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
@@ -175,7 +175,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
 }
 
 // ── Local login ────────────────────────────────────────────────────────────
-router.post('/login', (req, res) => {
+router.post('/login', (req: Request, res: Response) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'username and password are required' });
@@ -220,7 +220,7 @@ router.post('/login', (req, res) => {
 // ── Register (new employee self-service) ───────────────────────────────────
 // An employee must already exist in the employees table (added by a manager)
 // before they can create a login account.
-router.post('/register', (req, res) => {
+router.post('/register', (req: Request, res: Response) => {
   const { employeeName, username, password } = req.body;
   if (!employeeName || !username || !password) {
     return res.status(400).json({ error: 'employeeName, username, and password are required' });
@@ -309,7 +309,7 @@ router.get(
 );
 
 // ── Manager self-registration (creates a new business/site + manager account) ─
-router.post('/register-manager', (req, res) => {
+router.post('/register-manager', (req: Request, res: Response) => {
   const {
     // Business info
     businessName,
@@ -423,7 +423,7 @@ router.post('/register-manager', (req, res) => {
   }
 });
 
-router.get('/me', (req, res) => {
+router.get('/me', (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token provided' });

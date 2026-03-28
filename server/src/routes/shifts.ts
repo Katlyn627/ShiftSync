@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
 
-router.put('/:id', requireManager, (req, res) => {
+router.put('/:id', requireManager, (req: Request, res: Response) => {
   const { start_time, end_time, status, employee_id } = req.body;
   const db = getDb();
   const existing = db.prepare('SELECT * FROM shifts WHERE id = ?').get(req.params.id) as any;
@@ -61,7 +61,7 @@ router.put('/:id', requireManager, (req, res) => {
 });
 
 // POST /shifts — create a new shift manually (manager only)
-router.post('/', requireManager, (req, res) => {
+router.post('/', requireManager, (req: Request, res: Response) => {
   const { schedule_id, employee_id, date, start_time, end_time, role } = req.body;
   if (!schedule_id || !date || !start_time || !end_time || !role) {
     return res.status(400).json({ error: 'schedule_id, date, start_time, end_time, and role are required' });
@@ -118,7 +118,7 @@ router.post('/', requireManager, (req, res) => {
   res.status(201).json(created);
 });
 
-router.delete('/:id', requireAuth, (req, res) => {
+router.delete('/:id', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   // Managers can hard-delete; employees can only cancel their own shifts
   const existing = db.prepare('SELECT * FROM shifts WHERE id = ?').get(req.params.id) as any;

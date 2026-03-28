@@ -6,7 +6,7 @@
  * (skills/certifications, availability, rest windows, overtime caps) and deadline
  * escalation. Includes a "manager override" mechanism with explicit audit trail.
  */
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 import { logAudit } from './audit';
@@ -139,7 +139,7 @@ function checkEligibility(
 }
 
 /** GET /api/open-shifts — list open shifts for the user's site */
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const siteId = req.user?.siteId ?? null;
   const { status, date_from, date_to } = req.query as Record<string, string | undefined>;
@@ -166,7 +166,7 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 /** POST /api/open-shifts — manager creates an open shift */
-router.post('/', requireManager, (req, res) => {
+router.post('/', requireManager, (req: Request, res: Response) => {
   const { schedule_id, site_id, date, start_time, end_time, role, required_certifications, reason, deadline } = req.body;
   if (!schedule_id || !date || !start_time || !end_time || !role) {
     return res.status(400).json({ error: 'schedule_id, date, start_time, end_time, and role are required' });
@@ -193,7 +193,7 @@ router.post('/', requireManager, (req, res) => {
 });
 
 /** GET /api/open-shifts/:id — single open shift with eligibility info for the current user */
-router.get('/:id', requireAuth, (req, res) => {
+router.get('/:id', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const openShift = db.prepare('SELECT * FROM open_shifts WHERE id = ?').get(req.params.id) as any;
   if (!openShift) return res.status(404).json({ error: 'Open shift not found' });
@@ -226,7 +226,7 @@ router.get('/:id', requireAuth, (req, res) => {
 });
 
 /** POST /api/open-shifts/:id/offer — employee offers to claim a shift */
-router.post('/:id/offer', requireAuth, (req, res) => {
+router.post('/:id/offer', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const openShift = db.prepare('SELECT * FROM open_shifts WHERE id = ?').get(req.params.id) as any;
   if (!openShift) return res.status(404).json({ error: 'Open shift not found' });
@@ -268,7 +268,7 @@ router.post('/:id/offer', requireAuth, (req, res) => {
 });
 
 /** PUT /api/open-shifts/:id/fill — manager accepts an offer (or manager override) */
-router.put('/:id/fill', requireManager, (req, res) => {
+router.put('/:id/fill', requireManager, (req: Request, res: Response) => {
   const { employee_id, offer_id, manager_override, manager_notes } = req.body;
   if (!employee_id) return res.status(400).json({ error: 'employee_id is required' });
 
@@ -325,7 +325,7 @@ router.put('/:id/fill', requireManager, (req, res) => {
 });
 
 /** DELETE /api/open-shifts/:id — manager cancels an open shift */
-router.delete('/:id', requireManager, (req, res) => {
+router.delete('/:id', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const openShift = db.prepare('SELECT * FROM open_shifts WHERE id = ?').get(req.params.id) as any;
   if (!openShift) return res.status(404).json({ error: 'Open shift not found' });

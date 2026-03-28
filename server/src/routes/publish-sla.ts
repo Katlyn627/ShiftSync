@@ -5,7 +5,7 @@
  * in advance, per site and optionally per role. This drives the
  * predictability-pay exposure calculation in the instability analytics.
  */
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireManager } from '../middleware/auth';
 import { logAudit } from './audit';
@@ -13,7 +13,7 @@ import { logAudit } from './audit';
 const router = Router();
 
 /** GET /api/publish-sla — list SLA configs for the manager's site */
-router.get('/', requireManager, (req, res) => {
+router.get('/', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const siteId = req.user?.siteId ?? null;
   const rows = siteId
@@ -23,7 +23,7 @@ router.get('/', requireManager, (req, res) => {
 });
 
 /** POST /api/publish-sla — create or update SLA for a site/role */
-router.post('/', requireManager, (req, res) => {
+router.post('/', requireManager, (req: Request, res: Response) => {
   const { site_id, role, advance_days } = req.body;
   if (!site_id || advance_days === undefined) {
     return res.status(400).json({ error: 'site_id and advance_days are required' });
@@ -48,7 +48,7 @@ router.post('/', requireManager, (req, res) => {
 });
 
 /** DELETE /api/publish-sla/:id — remove an SLA config */
-router.delete('/:id', requireManager, (req, res) => {
+router.delete('/:id', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   db.prepare('DELETE FROM publish_ahead_sla WHERE id = ?').run(req.params.id);
   res.json({ success: true });

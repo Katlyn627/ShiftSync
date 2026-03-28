@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const siteId = req.user?.siteId;
   const employees = siteId
@@ -13,7 +13,7 @@ router.get('/', requireAuth, (req, res) => {
   res.json(employees);
 });
 
-router.post('/', requireManager, (req, res) => {
+router.post('/', requireManager, (req: Request, res: Response) => {
   const { name, role, hourly_rate, weekly_hours_max, email, phone, pay_type, certifications, is_minor, union_member } = req.body;
   if (!name || !role) return res.status(400).json({ error: 'name and role are required' });
   const db = getDb();
@@ -38,7 +38,7 @@ router.post('/', requireManager, (req, res) => {
 });
 
 // Allow managers to update any employee; allow employees to update their own profile fields
-router.put('/:id', requireAuth, (req, res) => {
+router.put('/:id', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const existing = db.prepare('SELECT * FROM employees WHERE id = ?').get(req.params.id) as any;
   if (!existing) return res.status(404).json({ error: 'Employee not found' });
@@ -93,7 +93,7 @@ router.put('/:id', requireAuth, (req, res) => {
   res.json(updated);
 });
 
-router.delete('/:id', requireManager, (req, res) => {
+router.delete('/:id', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const result = db.prepare('DELETE FROM employees WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Employee not found' });
@@ -101,13 +101,13 @@ router.delete('/:id', requireManager, (req, res) => {
 });
 
 // Availability
-router.get('/:id/availability', requireAuth, (req, res) => {
+router.get('/:id/availability', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const availability = db.prepare('SELECT * FROM availability WHERE employee_id = ? ORDER BY day_of_week').all(req.params.id);
   res.json(availability);
 });
 
-router.post('/:id/availability', requireAuth, (req, res) => {
+router.post('/:id/availability', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const employeeId = parseInt(req.params.id);
   const isManager = req.user?.isManager;
@@ -146,7 +146,7 @@ router.post('/:id/availability', requireAuth, (req, res) => {
   res.status(201).json(avail);
 });
 
-router.delete('/:id/availability/:day', requireAuth, (req, res) => {
+router.delete('/:id/availability/:day', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const employeeId = parseInt(req.params.id);
   const isManager = req.user?.isManager;

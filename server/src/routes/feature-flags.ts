@@ -4,7 +4,7 @@
  * Supports phased rollouts, A/B experiments, and site-cluster randomization.
  * Only managers can modify flags; all authenticated users can read them.
  */
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 import { logAudit } from './audit';
@@ -12,7 +12,7 @@ import { logAudit } from './audit';
 const router = Router();
 
 /** GET /api/feature-flags — list all flags (respects site/rollout filtering) */
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const flags = db.prepare('SELECT * FROM feature_flags ORDER BY flag_key').all() as any[];
   const siteId = req.user?.siteId;
@@ -41,7 +41,7 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 /** GET /api/feature-flags/:key — single flag */
-router.get('/:key', requireAuth, (req, res) => {
+router.get('/:key', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const flag = db.prepare('SELECT * FROM feature_flags WHERE flag_key = ?').get(req.params.key);
   if (!flag) return res.status(404).json({ error: 'Feature flag not found' });
@@ -49,7 +49,7 @@ router.get('/:key', requireAuth, (req, res) => {
 });
 
 /** PUT /api/feature-flags/:key — update a flag */
-router.put('/:key', requireManager, (req, res) => {
+router.put('/:key', requireManager, (req: Request, res: Response) => {
   const { enabled, rollout_pct, site_ids, description } = req.body;
   const db = getDb();
   const flag = db.prepare('SELECT * FROM feature_flags WHERE flag_key = ?').get(req.params.key) as any;

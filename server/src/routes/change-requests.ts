@@ -7,7 +7,7 @@
  * - Audit trail records every state transition
  * - Predictability-pay exposure is tracked
  */
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 import { logAudit } from './audit';
@@ -18,7 +18,7 @@ const VALID_REASON_CODES = ['operational', 'personal', 'weather', 'event', 'call
 const VALID_CHANGE_TYPES = ['reschedule', 'cancel', 'role_change', 'time_adjustment'] as const;
 
 /** GET /api/change-requests — list change requests */
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const siteId = req.user?.siteId ?? null;
   const isManager = req.user?.isManager;
@@ -52,7 +52,7 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 /** POST /api/change-requests — manager submits a change request */
-router.post('/', requireManager, (req, res) => {
+router.post('/', requireManager, (req: Request, res: Response) => {
   const {
     shift_id, change_type, reason_code, reason_detail,
     new_date, new_start_time, new_end_time,
@@ -102,7 +102,7 @@ router.post('/', requireManager, (req, res) => {
 });
 
 /** PUT /api/change-requests/:id/consent — worker acknowledges/consents/rejects */
-router.put('/:id/consent', requireAuth, (req, res) => {
+router.put('/:id/consent', requireAuth, (req: Request, res: Response) => {
   const { decision } = req.body; // 'accepted' | 'rejected'
   if (!['accepted', 'rejected'].includes(decision)) {
     return res.status(400).json({ error: 'decision must be "accepted" or "rejected"' });
@@ -136,7 +136,7 @@ router.put('/:id/consent', requireAuth, (req, res) => {
 });
 
 /** PUT /api/change-requests/:id/approve — manager approves and applies the change */
-router.put('/:id/approve', requireManager, (req, res) => {
+router.put('/:id/approve', requireManager, (req: Request, res: Response) => {
   const { manager_notes } = req.body;
   const db = getDb();
   const cr = db.prepare('SELECT * FROM schedule_change_requests WHERE id = ?').get(req.params.id) as any;
@@ -170,7 +170,7 @@ router.put('/:id/approve', requireManager, (req, res) => {
 });
 
 /** PUT /api/change-requests/:id/reject — manager rejects */
-router.put('/:id/reject', requireManager, (req, res) => {
+router.put('/:id/reject', requireManager, (req: Request, res: Response) => {
   const { manager_notes } = req.body;
   const db = getDb();
   const cr = db.prepare('SELECT * FROM schedule_change_requests WHERE id = ?').get(req.params.id) as any;

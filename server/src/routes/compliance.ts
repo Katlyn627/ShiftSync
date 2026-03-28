@@ -6,7 +6,7 @@
  * Read endpoints are accessible to all authenticated users so the scheduler and UI can
  * surface the rules that apply to each worksite.
  */
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 import { ComplianceRule } from '../types';
@@ -14,7 +14,7 @@ import { ComplianceRule } from '../types';
 const router = Router();
 
 /** GET /api/compliance — list all rules, optionally filtered by ?jurisdiction=<code> */
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const { jurisdiction } = req.query as { jurisdiction?: string };
   const rules: ComplianceRule[] = jurisdiction
@@ -28,7 +28,7 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 /** GET /api/compliance/jurisdictions — list distinct jurisdiction codes present in the DB */
-router.get('/jurisdictions', requireAuth, (_req, res) => {
+router.get('/jurisdictions', requireAuth, (_req: Request, res: Response) => {
   const db = getDb();
   const rows = db.prepare(
     'SELECT DISTINCT jurisdiction FROM compliance_rules ORDER BY jurisdiction'
@@ -37,7 +37,7 @@ router.get('/jurisdictions', requireAuth, (_req, res) => {
 });
 
 /** GET /api/compliance/:id — single rule detail */
-router.get('/:id', requireAuth, (req, res) => {
+router.get('/:id', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const rule = db.prepare('SELECT * FROM compliance_rules WHERE id = ?').get(req.params.id) as ComplianceRule | undefined;
   if (!rule) return res.status(404).json({ error: 'Compliance rule not found' });
@@ -45,7 +45,7 @@ router.get('/:id', requireAuth, (req, res) => {
 });
 
 /** POST /api/compliance — create a new rule (manager only) */
-router.post('/', requireManager, (req, res) => {
+router.post('/', requireManager, (req: Request, res: Response) => {
   const { jurisdiction, rule_type, rule_value, description } = req.body as Partial<ComplianceRule>;
   if (!jurisdiction || !rule_type || rule_value === undefined) {
     return res.status(400).json({ error: 'jurisdiction, rule_type, and rule_value are required' });
@@ -66,7 +66,7 @@ router.post('/', requireManager, (req, res) => {
 });
 
 /** PUT /api/compliance/:id — update rule_value, description, or enabled flag (manager only) */
-router.put('/:id', requireManager, (req, res) => {
+router.put('/:id', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const existing = db.prepare('SELECT * FROM compliance_rules WHERE id = ?').get(req.params.id) as ComplianceRule | undefined;
   if (!existing) return res.status(404).json({ error: 'Compliance rule not found' });
@@ -85,7 +85,7 @@ router.put('/:id', requireManager, (req, res) => {
 });
 
 /** DELETE /api/compliance/:id — remove a rule (manager only) */
-router.delete('/:id', requireManager, (req, res) => {
+router.delete('/:id', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const result = db.prepare('DELETE FROM compliance_rules WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Compliance rule not found' });
