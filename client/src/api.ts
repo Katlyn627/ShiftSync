@@ -144,10 +144,28 @@ export const deletePosIntegration = (id: number) =>
 export const syncPosIntegration = (id: number) =>
   request<PosIntegrationSyncResult>(`/pos-integrations/${id}/sync`, { method: 'POST' });
 
+// Positions
+export const getPositions = () => request<Position[]>('/positions');
+export const createPosition = (name: string) =>
+  request<Position>('/positions', { method: 'POST', body: JSON.stringify({ name }) });
+export const updatePosition = (id: number, data: { name?: string; is_active?: boolean }) =>
+  request<Position>(`/positions/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deletePosition = (id: number) =>
+  request<{ success: boolean }>(`/positions/${id}`, { method: 'DELETE' });
+
 // Types
 export type SiteType =
   | 'restaurant' | 'hotel' | 'retail' | 'healthcare' | 'fitness'
   | 'salon_spa' | 'warehouse' | 'education' | 'childcare' | 'security' | 'office' | 'other';
+
+export interface Position {
+  id: number;
+  site_id: number;
+  name: string;
+  is_active: number;
+  sort_order: number;
+  created_at: string;
+}
 
 export interface Site {
   id: number;
