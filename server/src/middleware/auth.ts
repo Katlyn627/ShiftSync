@@ -13,11 +13,14 @@ export interface AuthPayload {
   siteId: number | null;
 }
 
-// Extend passport's User type to include our fields
+// Extend Express Request and passport's User type to include our fields
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface User extends AuthPayload {}
+    interface Request {
+      user?: AuthPayload;
+    }
   }
 }
 
