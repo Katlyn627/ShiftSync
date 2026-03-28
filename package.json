@@ -12,6 +12,8 @@
     "wait-on": "^9.0.4"
   },
   "dependencies": {
-    "server": "^1.0.42"
+    "audit": "^0.0.6",
+    "fix": "^0.0.3",
+    "server": "^0.0.3"
   }
 }
