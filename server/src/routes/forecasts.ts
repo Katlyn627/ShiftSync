@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const siteId = req.user?.siteId ?? null;
   const forecasts = siteId
@@ -13,7 +13,7 @@ router.get('/', requireAuth, (req, res) => {
   res.json(forecasts);
 });
 
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, (req: Request, res: Response) => {
   const { date, expected_revenue, expected_covers } = req.body;
   if (!date || expected_revenue === undefined) {
     return res.status(400).json({ error: 'date and expected_revenue are required' });

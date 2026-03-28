@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 import { logAudit } from './audit';
@@ -12,7 +12,7 @@ function twoWeeksFromNow(): string {
 }
 
 // GET /time-off — managers see all from their site; employees see their own
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   if (req.user?.isManager) {
     const siteId = req.user?.siteId ?? null;
@@ -45,7 +45,7 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // POST /time-off — create a time-off request; start_date must be >= 2 weeks from today
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, (req: Request, res: Response) => {
   const empId = req.user?.employeeId;
   if (!empId && !req.user?.isManager) {
     return res.status(400).json({ error: 'No employee record linked to your account' });
@@ -84,7 +84,7 @@ router.post('/', requireAuth, (req, res) => {
 });
 
 // PUT /time-off/:id/approve — manager only
-router.put('/:id/approve', requireManager, (req, res) => {
+router.put('/:id/approve', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const existing = db.prepare('SELECT * FROM time_off_requests WHERE id = ?').get(req.params.id) as any;
   if (!existing) return res.status(404).json({ error: 'Time-off request not found' });
@@ -112,7 +112,7 @@ router.put('/:id/approve', requireManager, (req, res) => {
 });
 
 // PUT /time-off/:id/reject — manager only
-router.put('/:id/reject', requireManager, (req, res) => {
+router.put('/:id/reject', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const existing = db.prepare('SELECT * FROM time_off_requests WHERE id = ?').get(req.params.id) as any;
   if (!existing) return res.status(404).json({ error: 'Time-off request not found' });
@@ -140,7 +140,7 @@ router.put('/:id/reject', requireManager, (req, res) => {
 });
 
 // DELETE /time-off/:id — employee can delete their own pending request; manager can delete any
-router.delete('/:id', requireAuth, (req, res) => {
+router.delete('/:id', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const existing = db.prepare('SELECT * FROM time_off_requests WHERE id = ?').get(req.params.id) as any;
   if (!existing) return res.status(404).json({ error: 'Time-off request not found' });

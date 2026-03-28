@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
 
 /** GET /api/positions — list all active positions for the authenticated user's site */
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, (req: Request, res: Response) => {
   const siteId = req.user!.siteId;
   if (!siteId) {
     return res.status(400).json({ error: 'No site associated with your account' });
@@ -23,7 +23,7 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 /** POST /api/positions — add a new position to the site (manager only) */
-router.post('/', requireManager, (req, res) => {
+router.post('/', requireManager, (req: Request, res: Response) => {
   const siteId = req.user!.siteId;
   if (!siteId) {
     return res.status(400).json({ error: 'No site associated with your account' });
@@ -60,7 +60,7 @@ router.post('/', requireManager, (req, res) => {
 });
 
 /** PUT /api/positions/:id — rename or toggle a position (manager only) */
-router.put('/:id', requireManager, (req, res) => {
+router.put('/:id', requireManager, (req: Request, res: Response) => {
   const siteId = req.user!.siteId;
   const db = getDb();
   const existing = db
@@ -89,7 +89,7 @@ router.put('/:id', requireManager, (req, res) => {
 });
 
 /** DELETE /api/positions/:id — remove a position (manager only) */
-router.delete('/:id', requireManager, (req, res) => {
+router.delete('/:id', requireManager, (req: Request, res: Response) => {
   const siteId = req.user!.siteId;
   const db = getDb();
   const existing = db

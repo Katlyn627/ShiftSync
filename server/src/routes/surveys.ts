@@ -10,7 +10,7 @@
  * Purpose limitation: survey results are used only for schedule quality
  * improvement, not for performance management or punitive decisions.
  */
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 import { logAudit } from './audit';
@@ -18,14 +18,14 @@ import { logAudit } from './audit';
 const router = Router();
 
 /** GET /api/surveys/templates — list available survey instruments */
-router.get('/templates', requireAuth, (_req, res) => {
+router.get('/templates', requireAuth, (_req: Request, res: Response) => {
   const db = getDb();
   const templates = db.prepare('SELECT * FROM burnout_survey_templates WHERE active = 1 ORDER BY instrument').all();
   res.json(templates);
 });
 
 /** GET /api/surveys/campaigns — list active/closed campaigns */
-router.get('/campaigns', requireAuth, (req, res) => {
+router.get('/campaigns', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const siteId = req.user?.siteId ?? null;
   const rows = siteId
@@ -48,7 +48,7 @@ router.get('/campaigns', requireAuth, (req, res) => {
 });
 
 /** POST /api/surveys/campaigns — manager creates a new survey campaign */
-router.post('/campaigns', requireManager, (req, res) => {
+router.post('/campaigns', requireManager, (req: Request, res: Response) => {
   const { template_id, site_id, title, start_date, end_date, anonymized, min_group_size } = req.body;
   if (!template_id || !title || !start_date || !end_date) {
     return res.status(400).json({ error: 'template_id, title, start_date, and end_date are required' });
@@ -80,7 +80,7 @@ router.post('/campaigns', requireManager, (req, res) => {
 });
 
 /** GET /api/surveys/campaigns/:id — campaign details + my response status */
-router.get('/campaigns/:id', requireAuth, (req, res) => {
+router.get('/campaigns/:id', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const campaign = db.prepare(`
     SELECT sc.*, bst.instrument, bst.name as template_name, bst.description, bst.questions
@@ -99,7 +99,7 @@ router.get('/campaigns/:id', requireAuth, (req, res) => {
 });
 
 /** POST /api/surveys/campaigns/:id/respond — employee submits survey responses */
-router.post('/campaigns/:id/respond', requireAuth, (req, res) => {
+router.post('/campaigns/:id/respond', requireAuth, (req: Request, res: Response) => {
   const { responses } = req.body;
   if (!responses || typeof responses !== 'object') {
     return res.status(400).json({ error: 'responses object is required' });
@@ -148,7 +148,7 @@ router.post('/campaigns/:id/respond', requireAuth, (req, res) => {
  *
  * Purpose limitation notice is included in the response.
  */
-router.get('/campaigns/:id/results', requireManager, (req, res) => {
+router.get('/campaigns/:id/results', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const campaign = db.prepare(`
     SELECT sc.*, bst.instrument, bst.questions

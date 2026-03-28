@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getRestaurantSettings, saveRestaurantSettings } from '../metrics';
 import { requireManager } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', requireManager, (_req, res) => {
+router.get('/', requireManager, (_req: Request, res: Response) => {
   try {
     res.json(getRestaurantSettings());
   } catch (err: any) {
@@ -12,7 +12,7 @@ router.get('/', requireManager, (_req, res) => {
   }
 });
 
-router.put('/', requireManager, (req, res) => {
+router.put('/', requireManager, (req: Request, res: Response) => {
   const { seats, tables, cogs_pct, target_labor_pct, operating_hours_per_day } = req.body;
   const partial: Record<string, number> = {};
   if (seats               !== undefined) partial.seats               = Number(seats);

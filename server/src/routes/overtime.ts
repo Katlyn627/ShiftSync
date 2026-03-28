@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const overtime = db.prepare(`
     SELECT wo.*, e.name as employee_name, e.role, e.site_id
@@ -15,7 +15,7 @@ router.get('/', requireAuth, (req, res) => {
   res.json(overtime);
 });
 
-router.get('/employee/:id', requireAuth, (req, res) => {
+router.get('/employee/:id', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const overtime = db.prepare(`
     SELECT wo.*, e.name as employee_name, e.role

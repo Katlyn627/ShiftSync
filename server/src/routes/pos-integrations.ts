@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireManager } from '../middleware/auth';
 import { logAudit } from './audit';
@@ -32,7 +32,7 @@ function currentWeekMonday(): string {
 }
 
 // List all POS integrations for the current site
-router.get('/', requireManager, (req, res) => {
+router.get('/', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const siteId = req.user?.siteId ?? null;
   const integrations = siteId
@@ -42,7 +42,7 @@ router.get('/', requireManager, (req, res) => {
 });
 
 // Add a new POS integration
-router.post('/', requireManager, (req, res) => {
+router.post('/', requireManager, (req: Request, res: Response) => {
   const { platform_name, display_name, api_key } = req.body;
   if (!platform_name || !SUPPORTED_PLATFORMS.includes(platform_name)) {
     return res.status(400).json({ error: `platform_name must be one of: ${SUPPORTED_PLATFORMS.join(', ')}` });
@@ -73,7 +73,7 @@ router.post('/', requireManager, (req, res) => {
 });
 
 // Delete a POS integration
-router.delete('/:id', requireManager, (req, res) => {
+router.delete('/:id', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const integration = db.prepare('SELECT * FROM pos_integrations WHERE id = ?').get(req.params.id) as any;
   if (!integration) return res.status(404).json({ error: 'Integration not found' });
@@ -97,7 +97,7 @@ router.delete('/:id', requireManager, (req, res) => {
  * - Upserts forecast rows for the current week and the next week
  * This keeps the schedule generation algorithm driven by realistic, up-to-date revenue figures.
  */
-router.post('/:id/sync', requireManager, (req, res) => {
+router.post('/:id/sync', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const integration = db.prepare('SELECT * FROM pos_integrations WHERE id = ?').get(req.params.id) as any;
   if (!integration) return res.status(404).json({ error: 'Integration not found' });

@@ -11,7 +11,7 @@
  * Supports the "Why was this shift offered to me?" and fairness dashboard
  * requirements from the product spec.
  */
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireManager } from '../middleware/auth';
 
@@ -35,7 +35,7 @@ function isWeekend(dateStr: string): boolean {
  * GET /api/fairness?site_id=&week_start=
  * Returns per-employee distribution metrics for the given schedule or date range.
  */
-router.get('/', requireManager, (req, res) => {
+router.get('/', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const { site_id, schedule_id, week_start, week_end } = req.query as Record<string, string | undefined>;
 
@@ -142,7 +142,7 @@ router.get('/', requireManager, (req, res) => {
  * Schedule instability analytics: volatility, canceled shifts, timing changes,
  * quick returns, concentrated overtime, predictability-pay exposure.
  */
-router.get('/instability', requireManager, (req, res) => {
+router.get('/instability', requireManager, (req: Request, res: Response) => {
   const db = getDb();
   const { schedule_id, site_id, week_start } = req.query as Record<string, string | undefined>;
   const siteId = site_id ? parseInt(site_id, 10) : (req.user?.siteId ?? null);
