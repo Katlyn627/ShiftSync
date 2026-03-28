@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { Button, Input } from '../components/ui';
 
 export default function LoginPage() {
   const { login, loginWithToken, register } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -204,6 +206,18 @@ export default function LoginPage() {
             </>
           )}
         </div>
+
+        {/* Register business link */}
+        <p className="text-center text-sm text-muted-foreground">
+          Are you a manager setting up a new business?{' '}
+          <button
+            type="button"
+            onClick={() => navigate('/register-business')}
+            className="text-primary hover:underline font-medium"
+          >
+            Register your business →
+          </button>
+        </p>
 
       </div>
     </div>
