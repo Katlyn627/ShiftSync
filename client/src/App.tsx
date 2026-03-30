@@ -1,6 +1,6 @@
 import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import LoginPage from './pages/LoginPage';
 import RegisterBusinessPage from './pages/RegisterBusinessPage';
 import Dashboard from './pages/Dashboard';
@@ -25,6 +25,26 @@ function roleVariant(role: string): BadgeVariant {
     Host:    'host',
   };
   return map[role] ?? 'default';
+}
+
+/* ── ShiftSync brand logo mark (sync arrows) ── */
+function ShiftSyncLogo({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="ShiftSync logo">
+      <rect width="32" height="32" rx="9" fill="url(#logo-grad)" />
+      <path d="M9.5 12.5C10.8 9.5 13.7 7.5 17 7.5c3 0 5.6 1.6 7 4" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none"/>
+      <polyline points="21,10 24,11.5 22.5,8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <path d="M22.5 19.5C21.2 22.5 18.3 24.5 15 24.5c-3 0-5.6-1.6-7-4" stroke="#22D3EE" strokeWidth="2" strokeLinecap="round" fill="none"/>
+      <polyline points="11,22 8,20.5 9.5,24" stroke="#22D3EE" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <defs>
+        <linearGradient id="logo-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#5046E4"/>
+          <stop offset="60%" stopColor="#7C3AED"/>
+          <stop offset="100%" stopColor="#0891B2"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  );
 }
 
 /* ── Nav icon components ── */
@@ -64,7 +84,6 @@ function SwapIcon() {
     </svg>
   );
 }
-
 function ProfileIcon() {
   return (
     <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -73,7 +92,6 @@ function ProfileIcon() {
     </svg>
   );
 }
-
 function TimeOffIcon() {
   return (
     <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -83,11 +101,63 @@ function TimeOffIcon() {
     </svg>
   );
 }
+function SunIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="5"/>
+      <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  );
+}
+function MoonIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>
+  );
+}
+function MenuIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  );
+}
+function CloseIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+  );
+}
+
+export { ShiftSyncLogo };
 
 export default function App() {
   const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
   const [currentSite, setCurrentSite] = useState<Site | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('shiftsync-theme') === 'dark' ||
+        (!localStorage.getItem('shiftsync-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('shiftsync-theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('shiftsync-theme', 'light');
+    }
+  }, [darkMode]);
 
   useEffect(() => {
     if (user?.siteId) {
@@ -100,16 +170,16 @@ export default function App() {
     }
   }, [user?.siteId]);
 
+  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center animate-pulse">
-            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
+          <div className="animate-pulse">
+            <ShiftSyncLogo size={48} />
           </div>
-          <p className="text-sm text-muted-foreground">Loading ShiftSync…</p>
+          <p className="text-sm text-muted-foreground font-medium">Loading ShiftSync…</p>
         </div>
       </div>
     );
@@ -131,7 +201,7 @@ export default function App() {
     { to: '/swaps',      label: 'Shift Swaps', icon: <SwapIcon /> },
     { to: '/open-shifts', label: 'Open Shifts', icon: <SwapIcon /> },
     { to: '/surveys',   label: 'Surveys', icon: <ProfileIcon /> },
-    ...(user.isManager ? [{ to: '/time-off-approvals', label: 'Time-Off Approvals', icon: <TimeOffIcon /> }] : []),
+    ...(user.isManager ? [{ to: '/time-off-approvals', label: 'Time-Off', icon: <TimeOffIcon /> }] : []),
     ...(user.isManager ? [{ to: '/fairness', label: 'Fairness', icon: <DashboardIcon /> }] : []),
   ];
 
@@ -146,37 +216,33 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-background">
 
       {/* ── Top Navigation Bar ── */}
-      <header className="bg-white border-b border-border sticky top-0 z-40">
-        <div className="max-w-[1280px] mx-auto px-6 h-14 flex items-center justify-between gap-6">
+      <header className="bg-card border-b border-border sticky top-0 z-40 shadow-sm shadow-border/50">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
 
           {/* Brand */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shadow-sm shadow-primary/30">
-              <svg className="w-4.5 h-4.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-              </svg>
-            </div>
+            <ShiftSyncLogo size={32} />
             <div className="flex flex-col leading-none">
-              <span className="text-base font-bold text-foreground tracking-tight">ShiftSync</span>
+              <span className="text-base font-extrabold text-foreground tracking-tight">ShiftSync</span>
               {currentSite && (
-                <span className="text-xs text-muted-foreground font-medium truncate max-w-[160px]">
+                <span className="text-[11px] text-muted-foreground font-medium truncate max-w-[140px] hidden sm:block">
                   {currentSite.name} · {currentSite.city}, {currentSite.state}
                 </span>
               )}
             </div>
           </div>
 
-          {/* Nav links */}
-          <nav className="flex items-center gap-1 overflow-x-auto">
+          {/* Desktop nav links */}
+          <nav className="hidden md:flex items-center gap-0.5 overflow-x-auto flex-1 justify-center">
             {NAV_ITEMS.map(item => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.to === '/'}
                 className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                     isActive
-                      ? 'bg-primary/10 text-primary'
+                      ? 'bg-primary/10 text-primary font-semibold'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                   }`
                 }
@@ -187,17 +253,30 @@ export default function App() {
             ))}
           </nav>
 
-          {/* User section */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Right section: dark mode + user */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Dark mode toggle */}
+            <button
+              onClick={() => setDarkMode(d => !d)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {darkMode ? <SunIcon /> : <MoonIcon />}
+            </button>
+
+            {/* User info (desktop) */}
             <div className="hidden sm:flex items-center gap-2">
               {user.employeeRole && (
                 <Badge variant={roleVariant(user.employeeRole)} className="text-xs">{user.employeeRole}</Badge>
               )}
-              <span className="text-sm font-medium text-foreground">{user.employeeName || user.username}</span>
+              <span className="text-sm font-medium text-foreground max-w-[100px] truncate">{user.employeeName || user.username}</span>
             </div>
+
+            {/* Profile avatar */}
             <button
-              onClick={() => navigate('/profile')}
-              className="w-8 h-8 rounded-full overflow-hidden border border-primary/20 hover:opacity-90 transition-opacity shrink-0"
+              onClick={() => { navigate('/profile'); closeMobileMenu(); }}
+              className="w-8 h-8 rounded-full overflow-hidden border-2 border-primary/30 hover:border-primary/60 transition-all shrink-0"
               title="View profile"
             >
               {user.photoUrl ? (
@@ -208,20 +287,70 @@ export default function App() {
                 </div>
               )}
             </button>
+
+            {/* Sign out (desktop) */}
             <button
               onClick={logout}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/60"
+              className="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/60"
               title="Sign out"
             >
               Sign out
             </button>
+
+            {/* Mobile hamburger */}
+            <button
+              onClick={() => setMobileMenuOpen(o => !o)}
+              className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+              aria-label="Toggle navigation menu"
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <CloseIcon /> : <MenuIcon />}
+            </button>
           </div>
 
         </div>
+
+        {/* ── Mobile slide-down menu ── */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-border bg-card px-4 py-3 space-y-1 shadow-lg">
+            {NAV_ITEMS.map(item => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === '/'}
+                onClick={closeMobileMenu}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-primary/10 text-primary font-semibold'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  }`
+                }
+              >
+                <span className="w-5 flex justify-center">{item.icon}</span>
+                {item.label}
+              </NavLink>
+            ))}
+            <div className="pt-2 border-t border-border flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {user.employeeRole && (
+                  <Badge variant={roleVariant(user.employeeRole)} className="text-xs">{user.employeeRole}</Badge>
+                )}
+                <span className="text-sm font-medium text-foreground">{user.employeeName || user.username}</span>
+              </div>
+              <button
+                onClick={() => { logout(); closeMobileMenu(); }}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-muted/60"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* ── Main Content ── */}
-      <main className="flex-1 max-w-[1280px] mx-auto w-full px-6 py-6">
+      <main className="flex-1 max-w-[1280px] mx-auto w-full px-4 sm:px-6 py-6">
         <Routes>
           <Route path="/"           element={<Dashboard />} />
           <Route path="/schedule"   element={<SchedulePage />} />
@@ -236,10 +365,13 @@ export default function App() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-border bg-white">
-        <div className="max-w-[1280px] mx-auto px-6 h-10 flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">ShiftSync © 2025</span>
-          <span className="text-xs text-muted-foreground">Smart scheduling for hospitality</span>
+      <footer className="border-t border-border bg-card">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-10 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShiftSyncLogo size={16} />
+            <span className="text-xs text-muted-foreground font-medium">ShiftSync © 2025</span>
+          </div>
+          <span className="text-xs text-muted-foreground hidden sm:block">Smart scheduling for hospitality</span>
         </div>
       </footer>
 
