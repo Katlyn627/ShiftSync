@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import { Strategy as GoogleStrategy, Profile, VerifyCallback } from 'passport-google-oauth20';
 import { getDb } from '../db';
 import type { AuthPayload } from '../middleware/auth';
 
@@ -102,7 +102,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         // HTTPS reverse-proxy (Heroku, Render, AWS ALB, nginx, …).
         proxy: true,
       },
-      (_accessToken, _refreshToken, profile, done) => {
+      (_accessToken: string, _refreshToken: string, profile: Profile, done: VerifyCallback) => {
         try {
           const db = getDb();
           const googleId = profile.id;
