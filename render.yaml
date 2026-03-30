@@ -3,9 +3,9 @@ services:
     name: shiftsync
     env: node
     buildCommand: >-
-      npm install --prefix server &&
+      npm install --include=dev --prefix server &&
       npm run build --prefix server &&
-      npm install --prefix client &&
+      npm install --include=dev --prefix client &&
       npm run build --prefix client
     startCommand: npm start --prefix server
     envVars:

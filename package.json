@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "build": "npm install --prefix server && npm run build --prefix server && npm install --prefix client && npm run build --prefix client",
+    "build": "npm install --include=dev --prefix server && npm run build --prefix server && npm install --include=dev --prefix client && npm run build --prefix client",
     "predev": "node scripts/setup-env.js",
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev:client\"",
     "dev:client": "wait-on http-get://localhost:3001/api/health && npm run dev --prefix client",
