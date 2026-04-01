@@ -5,6 +5,7 @@ import {
   getSchedules,
   OpenShift, Schedule,
 } from '../api';
+import { PageHeader } from '../components/ui';
 
 export default function OpenShiftsPage() {
   const { user } = useAuth();
@@ -109,25 +110,25 @@ export default function OpenShiftsPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Open Shift Marketplace</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {user?.isManager
-              ? 'Post open shifts and review employee offers. Eligibility is automatically checked for role, certifications, rest windows, and overtime.'
-              : 'Browse available shifts. Only shifts you are eligible for (role, certifications, rest, hours) can be claimed.'}
-          </p>
-        </div>
-        {user?.isManager && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700"
-          >
-            + Post Open Shift
-          </button>
-        )}
-      </div>
+    <div className="max-w-5xl mx-auto space-y-6">
+      <PageHeader
+        title="Open Shift Marketplace"
+        subtitle={user?.isManager
+          ? 'Post open shifts and review employee offers. Eligibility is automatically checked for role, certifications, rest windows, and overtime.'
+          : 'Browse available shifts. Only shifts you are eligible for (role, certifications, rest, hours) can be claimed.'}
+        color="#0EA5E9"
+        icon="🏪"
+        actions={user?.isManager
+          ? (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="bg-sky-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-sky-600 transition-colors"
+            >
+              + Post Open Shift
+            </button>
+          )
+          : undefined}
+      />
 
       {/* Filter */}
       <div className="flex gap-2 mb-4">

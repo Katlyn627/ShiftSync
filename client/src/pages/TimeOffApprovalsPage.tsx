@@ -4,7 +4,7 @@ import {
   TimeOffRequest,
 } from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Card, Badge } from '../components/ui';
+import { Button, Card, Badge, PageHeader } from '../components/ui';
 
 const STATUS_COLORS: Record<string, string> = {
   pending:  'bg-yellow-100 text-yellow-800',
@@ -95,17 +95,15 @@ export default function TimeOffApprovalsPage() {
   return (
     <div className="space-y-5">
       {/* ── Page header ── */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Time-Off Approvals</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Review and approve or deny employee time-off requests
-          </p>
-        </div>
-        {pendingCount > 0 && (
-          <Badge variant="warning">{pendingCount} pending</Badge>
-        )}
-      </div>
+      <PageHeader
+        title="Time-Off Approvals"
+        subtitle="Review and approve or deny employee time-off requests"
+        color="#059669"
+        icon="🌿"
+        actions={pendingCount > 0
+          ? <Badge variant="warning">{pendingCount} pending</Badge>
+          : undefined}
+      />
 
       {/* ── Filter tabs ── */}
       <div className="flex gap-1 p-1 bg-muted/40 rounded-lg w-fit">

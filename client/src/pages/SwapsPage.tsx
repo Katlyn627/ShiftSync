@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getSwaps, approveSwap, rejectSwap, SwapWithDetails } from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Card, Badge, Input } from '../components/ui';
+import { Button, Card, Badge, Input, PageHeader } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
 function statusVariant(status: string): BadgeVariant {
@@ -43,19 +43,17 @@ export default function SwapsPage() {
     <div className="space-y-6">
 
       {/* ── Page header ── */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Shift Swaps</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {pending.length > 0
-              ? `${pending.length} pending request${pending.length > 1 ? 's' : ''} awaiting review`
-              : 'No pending swap requests'}
-          </p>
-        </div>
-        {pending.length > 0 && (
-          <Badge variant="warning" className="text-sm px-3 py-1">{pending.length} Pending</Badge>
-        )}
-      </div>
+      <PageHeader
+        title="Shift Swaps"
+        subtitle={pending.length > 0
+          ? `${pending.length} pending request${pending.length > 1 ? 's' : ''} awaiting review`
+          : 'No pending swap requests'}
+        color="#F97316"
+        icon="🔄"
+        actions={pending.length > 0
+          ? <Badge variant="warning" className="text-sm px-3 py-1">{pending.length} Pending</Badge>
+          : undefined}
+      />
 
       {/* ── Pending ── */}
       {pending.length > 0 && (

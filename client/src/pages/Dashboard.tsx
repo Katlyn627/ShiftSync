@@ -8,7 +8,7 @@ import {
   ProfitabilityMetrics, RestaurantSettings, DayRevenue, DaypartRevenue, Site,
 } from '../api';
 import { useAuth } from '../AuthContext';
-import { Card, Badge, Modal, NATIVE_SELECT_CLASS } from '../components/ui';
+import { Card, Badge, Modal, NATIVE_SELECT_CLASS, PageHeader } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
 const RISK_COLORS: Record<string, string> = {
@@ -256,43 +256,40 @@ export default function Dashboard() {
     <div className="space-y-6">
 
       {/* ── Page header ── */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
-          <div className="flex items-center gap-2 mt-0.5">
-            <p className="text-sm text-muted-foreground">Weekly overview and insights</p>
-            {currentSite && (
-              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                {currentSite.name} · {currentSite.city}, {currentSite.state}
-              </span>
+      <PageHeader
+        title="Dashboard"
+        subtitle={currentSite
+          ? `${currentSite.name} · ${currentSite.city}, ${currentSite.state} — weekly overview and insights`
+          : 'Weekly overview and insights'}
+        color="#5046E4"
+        icon="📊"
+        actions={
+          <div className="flex items-center gap-2">
+            {isManager && (
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted border border-border hover:bg-muted/80 transition-colors text-foreground"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+                </svg>
+                Settings
+              </button>
             )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {isManager && (
-            <button
-              onClick={() => setShowSettingsModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted border border-border hover:bg-muted/80 transition-colors text-foreground"
+            <select
+              className={NATIVE_SELECT_CLASS}
+              value={selectedId ?? ''}
+              onChange={e => setSelectedId(Number(e.target.value))}
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-              </svg>
-              Settings
-            </button>
-          )}
-          <select
-            className={NATIVE_SELECT_CLASS}
-            value={selectedId ?? ''}
-            onChange={e => setSelectedId(Number(e.target.value))}
-          >
-            {schedules.map(s => (
-              <option key={s.id} value={s.id}>
-                Week of {s.week_start} ({s.status})
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+              {schedules.map(s => (
+                <option key={s.id} value={s.id}>
+                  Week of {s.week_start} ({s.status})
+                </option>
+              ))}
+            </select>
+          </div>
+        }
+      />
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

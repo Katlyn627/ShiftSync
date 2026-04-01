@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getEmployees, getSites, createEmployee, updateEmployee, deleteEmployee, getPositions, Employee, Site, Position } from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS } from '../components/ui';
+import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS, PageHeader } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
 const FALLBACK_ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager', 'Front Desk', 'Housekeeping', 'F&B', 'Maintenance'];
@@ -108,19 +108,12 @@ export default function EmployeesPage() {
     <div className="space-y-5">
 
       {/* ── Page header ── */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Employees</h1>
-          <div className="flex items-center gap-2 mt-0.5">
-            <p className="text-sm text-muted-foreground">{visibleEmployees.length} team member{visibleEmployees.length !== 1 ? 's' : ''}</p>
-            {currentSite && (
-              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                {currentSite.name} · {currentSite.city}, {currentSite.state}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
+      <PageHeader
+        title="Employees"
+        subtitle={`${visibleEmployees.length} team member${visibleEmployees.length !== 1 ? 's' : ''}${currentSite ? ` · ${currentSite.name}` : ''}`}
+        color="#7C3AED"
+        icon="👥"
+        actions={
           <Button
             variant="default"
             size="sm"
@@ -132,8 +125,8 @@ export default function EmployeesPage() {
           >
             + Add Employee
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* ── Add / Edit Form ── */}
       {showForm && (
