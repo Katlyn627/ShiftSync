@@ -195,14 +195,14 @@ export default function App() {
   }
 
   const NAV_ITEMS = [
-    { to: '/',          label: 'Dashboard', icon: <DashboardIcon /> },
-    { to: '/schedule',  label: 'Schedule',  icon: <ScheduleIcon /> },
-    ...(user.isManager ? [{ to: '/employees', label: 'Employees', icon: <EmployeesIcon /> }] : []),
-    { to: '/swaps',      label: 'Shift Swaps', icon: <SwapIcon /> },
-    { to: '/open-shifts', label: 'Open Shifts', icon: <SwapIcon /> },
-    { to: '/surveys',   label: 'Surveys', icon: <ProfileIcon /> },
-    ...(user.isManager ? [{ to: '/time-off-approvals', label: 'Time-Off', icon: <TimeOffIcon /> }] : []),
-    ...(user.isManager ? [{ to: '/fairness', label: 'Fairness', icon: <DashboardIcon /> }] : []),
+    { to: '/',                    label: 'Dashboard',   icon: <DashboardIcon />, color: '#5046E4' },
+    { to: '/schedule',            label: 'Schedule',    icon: <ScheduleIcon />,  color: '#0D9488' },
+    ...(user.isManager ? [{ to: '/employees',           label: 'Employees',   icon: <EmployeesIcon />, color: '#7C3AED' }] : []),
+    { to: '/swaps',               label: 'Shift Swaps', icon: <SwapIcon />,      color: '#F97316' },
+    { to: '/open-shifts',         label: 'Open Shifts', icon: <SwapIcon />,      color: '#0EA5E9' },
+    { to: '/surveys',             label: 'Surveys',     icon: <ProfileIcon />,   color: '#EC4899' },
+    ...(user.isManager ? [{ to: '/time-off-approvals',  label: 'Time-Off',    icon: <TimeOffIcon />,   color: '#059669' }] : []),
+    ...(user.isManager ? [{ to: '/fairness',            label: 'Fairness',    icon: <DashboardIcon />, color: '#8B5CF6' }] : []),
   ];
 
   const initials = (user.employeeName || user.username)
@@ -216,14 +216,14 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-background">
 
       {/* ── Top Navigation Bar ── */}
-      <header className="bg-card border-b border-border sticky top-0 z-40 shadow-sm shadow-border/50">
+      <header className="bg-card border-b border-border sticky top-0 z-40 shadow-sm shadow-border/40">
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
 
           {/* Brand */}
           <div className="flex items-center gap-2.5 shrink-0">
             <ShiftSyncLogo size={32} />
             <div className="flex flex-col leading-none">
-              <span className="text-base font-extrabold text-foreground tracking-tight">ShiftSync</span>
+              <span className="text-base font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>ShiftSync</span>
               {currentSite && (
                 <span className="text-[11px] text-muted-foreground font-medium truncate max-w-[140px] hidden sm:block">
                   {currentSite.name} · {currentSite.city}, {currentSite.state}
@@ -242,9 +242,14 @@ export default function App() {
                 className={({ isActive }) =>
                   `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                     isActive
-                      ? 'bg-primary/10 text-primary font-semibold'
+                      ? 'font-semibold'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                   }`
+                }
+                style={({ isActive }) =>
+                  isActive
+                    ? { color: item.color, background: `${item.color}18` }
+                    : {}
                 }
               >
                 {item.icon}
@@ -309,45 +314,94 @@ export default function App() {
           </div>
 
         </div>
+      </header>
 
-        {/* ── Mobile slide-down menu ── */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-border bg-card px-4 py-3 space-y-1 shadow-lg">
-            {NAV_ITEMS.map(item => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === '/'}
+      {/* ── Mobile Overlay Drawer ── */}
+      {mobileMenuOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="mobile-drawer-overlay md:hidden"
+            onClick={closeMobileMenu}
+            aria-hidden="true"
+          />
+          {/* Drawer panel */}
+          <div className="mobile-drawer md:hidden flex flex-col">
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <ShiftSyncLogo size={28} />
+                <span className="text-base font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>ShiftSync</span>
+              </div>
+              <button
                 onClick={closeMobileMenu}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-primary/10 text-primary font-semibold'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                  }`
-                }
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                aria-label="Close menu"
               >
-                <span className="w-5 flex justify-center">{item.icon}</span>
-                {item.label}
-              </NavLink>
-            ))}
-            <div className="pt-2 border-t border-border flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {user.employeeRole && (
-                  <Badge variant={roleVariant(user.employeeRole)} className="text-xs">{user.employeeRole}</Badge>
-                )}
-                <span className="text-sm font-medium text-foreground">{user.employeeName || user.username}</span>
+                <CloseIcon />
+              </button>
+            </div>
+
+            {/* Nav links */}
+            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+              {NAV_ITEMS.map(item => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === '/'}
+                  onClick={closeMobileMenu}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                      isActive ? 'font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    }`
+                  }
+                  style={({ isActive }) =>
+                    isActive
+                      ? { color: item.color, background: `${item.color}15` }
+                      : {}
+                  }
+                >
+                  {/* Color dot indicator */}
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0 opacity-80"
+                    style={{ background: item.color }}
+                    aria-hidden="true"
+                  />
+                  <span className="w-5 flex justify-center shrink-0">{item.icon}</span>
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+
+            {/* Drawer footer: user info + sign out */}
+            <div className="px-4 pb-6 pt-3 border-t border-border space-y-3">
+              <div className="flex items-center gap-3 px-1">
+                <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30 shrink-0">
+                  {user.photoUrl ? (
+                    <img src={user.photoUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">
+                      {initials}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{user.employeeName || user.username}</p>
+                  {user.employeeRole && (
+                    <Badge variant={roleVariant(user.employeeRole)} className="text-xs mt-0.5">{user.employeeRole}</Badge>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => { logout(); closeMobileMenu(); }}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-muted/60"
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors border border-border"
               >
                 Sign out
               </button>
             </div>
           </div>
-        )}
-      </header>
+        </>
+      )}
 
       {/* ── Main Content ── */}
       <main className="flex-1 max-w-[1280px] mx-auto w-full px-4 sm:px-6 py-6">
@@ -369,7 +423,7 @@ export default function App() {
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-10 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShiftSyncLogo size={16} />
-            <span className="text-xs text-muted-foreground font-medium">ShiftSync © 2025</span>
+            <span className="text-xs text-muted-foreground font-medium" style={{ fontFamily: 'var(--font-heading)' }}>ShiftSync © 2025</span>
           </div>
           <span className="text-xs text-muted-foreground hidden sm:block">Smart scheduling for hospitality</span>
         </div>

@@ -4,6 +4,7 @@ import {
   getFairnessReport, getInstabilityReport, getSchedules,
   FairnessReport, InstabilityReport, Schedule,
 } from '../api';
+import { PageHeader, NATIVE_SELECT_CLASS } from '../components/ui';
 
 export default function FairnessPage() {
   const { user } = useAuth();
@@ -81,30 +82,34 @@ export default function FairnessPage() {
 
   if (!user?.isManager) {
     return (
-      <div className="max-w-2xl mx-auto p-6 text-center">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Workforce Analytics</h1>
-        <p className="text-gray-500">This section is available to managers only.</p>
+      <div className="max-w-2xl mx-auto space-y-6">
+        <PageHeader
+          title="Workforce Analytics"
+          subtitle="This section is available to managers only."
+          color="#8B5CF6"
+          icon="⚖️"
+        />
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Workforce Fairness &amp; Schedule Instability</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Monitor equitable distribution of schedule burden and identify schedule instability/predictability-pay exposure.
-        </p>
-      </div>
+    <div className="max-w-6xl mx-auto space-y-6">
+      <PageHeader
+        title="Workforce Fairness & Schedule Instability"
+        subtitle="Monitor equitable distribution of schedule burden and identify schedule instability/predictability-pay exposure."
+        color="#8B5CF6"
+        icon="⚖️"
+      />
 
       {/* Schedule selector */}
       <div className="flex flex-wrap gap-4 mb-6 items-center">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Schedule</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">Schedule</label>
           <select
             value={selectedScheduleId ?? ''}
             onChange={e => setSelectedScheduleId(parseInt(e.target.value))}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+            className={NATIVE_SELECT_CLASS}
           >
             {schedules.map(s => <option key={s.id} value={s.id}>{s.week_start} ({s.status})</option>)}
           </select>
@@ -114,7 +119,8 @@ export default function FairnessPage() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === tab ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === tab ? 'text-white' : 'bg-muted border border-border text-muted-foreground hover:text-foreground hover:bg-muted/80'}`}
+              style={activeTab === tab ? { background: '#8B5CF6' } : {}}
             >
               {tab === 'fairness' ? '⚖️ Fairness Distribution' : '📊 Schedule Instability'}
             </button>

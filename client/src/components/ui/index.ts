@@ -28,4 +28,7 @@ export { Separator } from './Separator';
 export { Skeleton } from './Skeleton';
 export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from './Table';
 
+export { PageHeader } from './PageHeader';
+export type { PageHeaderProps } from './PageHeader';
+
 export { cn, NATIVE_SELECT_CLASS } from './utils';

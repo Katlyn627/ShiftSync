@@ -5,7 +5,7 @@ import {
   Employee, Availability, TimeOffRequest,
 } from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Card, Badge, Input } from '../components/ui';
+import { Button, Card, Badge, Input, PageHeader } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -330,10 +330,12 @@ export default function ProfilePage() {
   if (!myEmployee && !isManager) {
     return (
       <div className="space-y-6 max-w-2xl mx-auto">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">My Profile</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Your account details</p>
-        </div>
+        <PageHeader
+          title="My Profile"
+          subtitle="Your account details"
+          color="#6366F1"
+          icon="👤"
+        />
         <Card className="p-5">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-primary/10 text-primary text-lg font-bold flex items-center justify-center border border-primary/20">
@@ -358,10 +360,12 @@ export default function ProfilePage() {
     <div className="space-y-6 max-w-2xl mx-auto">
 
       {/* ── Page header ── */}
-      <div>
-        <h1 className="text-xl font-bold text-foreground">My Profile</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">View and update your profile, availability, and contact info</p>
-      </div>
+      <PageHeader
+        title="My Profile"
+        subtitle="View and update your profile, availability, and contact info"
+        color="#6366F1"
+        icon="👤"
+      />
 
       {/* ── Account card for managers without a linked employee record ── */}
       {!myEmployee && isManager && (

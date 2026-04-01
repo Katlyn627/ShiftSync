@@ -8,7 +8,7 @@ import {
   DayIntelligence, ScheduleIntelligence, GeneratePreview, PosIntegration,
 } from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Input, Card, Badge, NATIVE_SELECT_CLASS } from '../components/ui';
+import { Button, Input, Card, Badge, NATIVE_SELECT_CLASS, PageHeader } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -473,10 +473,12 @@ export default function SchedulePage() {
     <div className="space-y-5">
 
       {/* ── Page header ── */}
-      <div>
-        <h1 className="text-xl font-bold text-foreground">Schedule Builder</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Generate, view, and publish weekly schedules</p>
-      </div>
+      <PageHeader
+        title="Schedule Builder"
+        subtitle="Generate, view, and publish weekly schedules"
+        color="#0D9488"
+        icon="📅"
+      />
 
       {/* ── Controls Bar ── */}
       <div className="flex flex-wrap items-end gap-3 p-4 bg-white rounded-xl border border-border shadow-sm">
