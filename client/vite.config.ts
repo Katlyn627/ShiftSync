@@ -17,7 +17,7 @@ export default defineConfig({
               const response = res as import('http').ServerResponse;
               if (!response.headersSent) {
                 response.writeHead(503, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'Backend server is unavailable. Start it with: npm run dev:server' }));
+                response.end(JSON.stringify({ error: 'Backend server is unavailable. Start it with: npm run dev (from the project root)' }));
               }
             }
           });
