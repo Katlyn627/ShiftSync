@@ -273,14 +273,14 @@ export default function App() {
           </div>
 
           {/* Desktop nav links */}
-          <nav className="hidden md:flex items-center gap-0.5 overflow-x-auto flex-1 justify-center">
+          <nav className="hidden md:flex items-center gap-0.5 flex-1 justify-center">
             {NAV_ITEMS.map(item => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.to === '/'}
                 className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                  `flex items-center gap-1.5 px-2.5 py-1.5 lg:px-3 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                     isActive
                       ? 'font-semibold'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
@@ -291,9 +291,11 @@ export default function App() {
                     ? { color: item.color, background: `${item.color}18` }
                     : {}
                 }
+                title={item.label}
+                aria-label={item.label}
               >
                 {item.icon}
-                {item.label}
+                <span className="hidden lg:inline">{item.label}</span>
               </NavLink>
             ))}
           </nav>
@@ -528,6 +530,8 @@ export default function App() {
           <Route path="/messages"   element={<MessagingPage />} />
           <Route path="/surveys"    element={<SurveysPage />} />
           <Route path="/fairness"   element={user.isManager ? <FairnessPage /> : <Navigate to="/" replace />} />
+          {/* Catch-all: redirect unknown/post-login URLs (e.g. /login) to Dashboard */}
+          <Route path="*"           element={<Navigate to="/" replace />} />
         </Routes>
       </main>
 
