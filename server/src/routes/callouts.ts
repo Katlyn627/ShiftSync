@@ -10,6 +10,7 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 import { logAudit } from './audit';
+import { createNotification } from './notifications';
 
 const router = Router();
 
@@ -89,6 +90,9 @@ router.post('/', requireAuth, (req: Request, res: Response) => {
       openShiftId = osResult.lastInsertRowid as number;
       db.prepare('UPDATE callout_events SET open_shift_id=?, replacement_status=? WHERE id=?')
         .run(openShiftId, 'searching', calloutId);
+
+      // Notify eligible replacements about the coverage opportunity
+      notifyEligibleReplacements(db, shift, openShiftId, calloutId);
     }
   }
 
@@ -192,3 +196,59 @@ router.put('/:id/resolve', requireManager, (req: Request, res: Response) => {
 });
 
 export default router;
+
+/**
+ * Notify eligible co-workers about a coverage opportunity created by a callout.
+ * Finds all same-role employees at the same site who pass basic availability
+ * and overtime checks, then creates an in-app notification for each.
+ */
+function notifyEligibleReplacements(
+  db: ReturnType<typeof import('../db').getDb>,
+  shift: any,
+  openShiftId: number,
+  calloutId: number
+): void {
+  function toMinutes(t: string): number { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+  function shiftHoursLocal(start: string, end: string): number {
+    let s = toMinutes(start); let e = toMinutes(end);
+    if (e <= s) e += 24 * 60; return (e - s) / 60;
+  }
+
+  const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(shift.schedule_id) as any;
+  const siteId = schedule?.site_id ?? null;
+
+  const candidates: any[] = siteId
+    ? db.prepare("SELECT * FROM employees WHERE role = ? AND site_id = ?").all(shift.role, siteId) as any[]
+    : db.prepare("SELECT * FROM employees WHERE role = ?").all(shift.role) as any[];
+
+  const dayOfWeek = new Date(shift.date + 'T12:00:00').getDay();
+  const shiftLabel = `${shift.date} ${shift.start_time}–${shift.end_time}`;
+
+  for (const emp of candidates) {
+    // Skip if unavailable on that day
+    const avail = db.prepare(
+      'SELECT * FROM availability WHERE employee_id = ? AND day_of_week = ?'
+    ).get(emp.id, dayOfWeek) as any;
+    if (avail?.availability_type === 'unavailable') continue;
+
+    // Skip if overtime cap would be exceeded
+    if (schedule) {
+      const weekEnd = new Date(new Date(schedule.week_start + 'T00:00:00').getTime() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const weekShifts = db.prepare(
+        "SELECT * FROM shifts WHERE employee_id = ? AND date >= ? AND date < ? AND status != 'cancelled'"
+      ).all(emp.id, schedule.week_start, weekEnd) as any[];
+      const totalHours = weekShifts.reduce((sum: number, s: any) => sum + shiftHoursLocal(s.start_time, s.end_time), 0);
+      const newHours = shiftHoursLocal(shift.start_time, shift.end_time);
+      if (totalHours + newHours > emp.weekly_hours_max) continue;
+    }
+
+    createNotification({
+      employee_id: emp.id,
+      type: 'coverage_needed',
+      title: '🚨 Coverage Needed – Can You Help?',
+      body: `A co-worker called out. The ${shift.role} shift on ${shiftLabel} needs coverage. Tap to view and claim it.`,
+      link: `/open-shifts`,
+      data: { open_shift_id: openShiftId, callout_id: calloutId, shift_date: shift.date, shift_role: shift.role },
+    });
+  }
+}

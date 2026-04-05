@@ -776,3 +776,74 @@ export interface GeneratePreview {
   has_forecast_data: boolean;
   pos_last_synced: { platform: string; at: string } | null;
 }
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+export const getNotifications = (params?: { unread_only?: boolean }) => {
+  const qs = params?.unread_only ? '?unread_only=true' : '';
+  return request<{ notifications: AppNotification[]; unread_count: number }>(`/notifications${qs}`);
+};
+export const markNotificationRead = (id: number) =>
+  request<AppNotification>(`/notifications/${id}/read`, { method: 'PUT' });
+export const markAllNotificationsRead = () =>
+  request<{ success: boolean }>('/notifications/read-all', { method: 'PUT' });
+
+// ── Messaging ─────────────────────────────────────────────────────────────────
+export const getConversations = () =>
+  request<ConversationWithDetails[]>('/messages/conversations');
+export const createConversation = (data: { member_ids: number[]; title?: string; type?: 'direct' | 'group' }) =>
+  request<Conversation>('/messages/conversations', { method: 'POST', body: JSON.stringify(data) });
+export const getConversationMessages = (id: number) =>
+  request<{ conversation: Conversation; messages: Message[]; members: ConversationMember[] }>(`/messages/conversations/${id}`);
+export const sendMessage = (conversationId: number, body: string) =>
+  request<Message>(`/messages/conversations/${conversationId}`, { method: 'POST', body: JSON.stringify({ body }) });
+export const markConversationRead = (id: number) =>
+  request<{ success: boolean }>(`/messages/conversations/${id}/read`, { method: 'PUT' });
+
+// ── Notification & Message Types ──────────────────────────────────────────────
+export interface AppNotification {
+  id: number;
+  employee_id: number;
+  type: string;
+  title: string;
+  body: string;
+  link: string | null;
+  data: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface Conversation {
+  id: number;
+  type: 'direct' | 'group';
+  title: string | null;
+  site_id: number | null;
+  created_by: number | null;
+  created_at: string;
+  last_message_at: string;
+}
+
+export interface ConversationWithDetails extends Conversation {
+  message_count: number;
+  unread_count: number;
+  last_message: string | null;
+  members: ConversationMember[];
+}
+
+export interface ConversationMember {
+  id: number;
+  name: string;
+  role: string;
+  photo_url: string | null;
+  last_read_at: string | null;
+}
+
+export interface Message {
+  id: number;
+  conversation_id: number;
+  sender_id: number;
+  sender_name: string;
+  sender_role: string;
+  sender_photo: string | null;
+  body: string;
+  created_at: string;
+}

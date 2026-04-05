@@ -32,6 +32,8 @@ import changeRequestsRouter from './routes/change-requests';
 import publishSlaRouter from './routes/publish-sla';
 import posIntegrationsRouter from './routes/pos-integrations';
 import positionsRouter from './routes/positions';
+import notificationsRouter from './routes/notifications';
+import messagesRouter from './routes/messages';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -90,6 +92,8 @@ app.use('/api/change-requests', changeRequestsRouter);
 app.use('/api/publish-sla', publishSlaRouter);
 app.use('/api/pos-integrations', posIntegrationsRouter);
 app.use('/api/positions', positionsRouter);
+app.use('/api/notifications', notificationsRouter);
+app.use('/api/messages', messagesRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

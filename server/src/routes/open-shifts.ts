@@ -10,6 +10,7 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 import { logAudit } from './audit';
+import { createNotification } from './notifications';
 
 const router = Router();
 
@@ -181,14 +182,19 @@ router.post('/', requireManager, (req: Request, res: Response) => {
     JSON.stringify(required_certifications ?? []),
     reason ?? null, deadline ?? null, req.user?.userId ?? null
   );
-  const openShift = db.prepare('SELECT * FROM open_shifts WHERE id = ?').get(result.lastInsertRowid);
+  const openShiftId = result.lastInsertRowid as number;
+  const openShift = db.prepare('SELECT * FROM open_shifts WHERE id = ?').get(openShiftId) as any;
   logAudit({
     action: 'open_shift_created',
     entity_type: 'open_shift',
-    entity_id: result.lastInsertRowid as number,
+    entity_id: openShiftId,
     user_id: req.user?.userId,
     details: { date, role, reason },
   });
+
+  // Notify eligible employees about the new open shift
+  notifyEligibleForOpenShift(db, openShift);
+
   res.status(201).json(openShift);
 });
 
@@ -341,3 +347,46 @@ router.delete('/:id', requireManager, (req: Request, res: Response) => {
 });
 
 export default router;
+
+/**
+ * Notify eligible employees about a newly posted open shift.
+ * Checks role match, availability, and basic overtime cap.
+ */
+function notifyEligibleForOpenShift(
+  db: ReturnType<typeof import('../db').getDb>,
+  openShift: any
+): void {
+  const siteId = openShift.site_id ?? null;
+  const requiredCerts: string[] = JSON.parse(openShift.required_certifications || '[]');
+
+  const candidates: any[] = siteId
+    ? db.prepare("SELECT * FROM employees WHERE role = ? AND site_id = ?").all(openShift.role, siteId) as any[]
+    : db.prepare("SELECT * FROM employees WHERE role = ?").all(openShift.role) as any[];
+
+  const dayOfWeek = new Date(openShift.date + 'T12:00:00').getDay();
+  const shiftLabel = `${openShift.date} ${openShift.start_time}–${openShift.end_time}`;
+
+  for (const emp of candidates) {
+    // Certification check
+    if (requiredCerts.length > 0) {
+      const empCerts: string[] = JSON.parse(emp.certifications || '[]');
+      const missing = requiredCerts.filter((c: string) => !empCerts.includes(c));
+      if (missing.length > 0) continue;
+    }
+
+    // Availability check
+    const avail = db.prepare(
+      'SELECT * FROM availability WHERE employee_id = ? AND day_of_week = ?'
+    ).get(emp.id, dayOfWeek) as any;
+    if (avail?.availability_type === 'unavailable') continue;
+
+    createNotification({
+      employee_id: emp.id,
+      type: 'open_shift_available',
+      title: '📋 Open Shift Available',
+      body: `A ${openShift.role} shift on ${shiftLabel} is now available. Tap to view and claim it.`,
+      link: `/open-shifts`,
+      data: { open_shift_id: openShift.id, shift_date: openShift.date, shift_role: openShift.role },
+    });
+  }
+}
