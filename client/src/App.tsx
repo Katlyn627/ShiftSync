@@ -1,6 +1,6 @@
 import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import LoginPage from './pages/LoginPage';
 import RegisterBusinessPage from './pages/RegisterBusinessPage';
 import Dashboard from './pages/Dashboard';
@@ -12,9 +12,10 @@ import TimeOffApprovalsPage from './pages/TimeOffApprovalsPage';
 import OpenShiftsPage from './pages/OpenShiftsPage';
 import FairnessPage from './pages/FairnessPage';
 import SurveysPage from './pages/SurveysPage';
+import MessagingPage from './pages/MessagingPage';
 import { Badge } from './components/ui';
 import type { BadgeVariant } from './components/ui';
-import { getSites, Site } from './api';
+import { getSites, Site, getNotifications, markAllNotificationsRead, markNotificationRead, AppNotification } from './api';
 
 function roleVariant(role: string): BadgeVariant {
   const map: Record<string, BadgeVariant> = {
@@ -133,6 +134,13 @@ function CloseIcon() {
     </svg>
   );
 }
+function MessagesIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 4.5A1.5 1.5 0 013.5 3h13A1.5 1.5 0 0118 4.5v8A1.5 1.5 0 0116.5 14H11l-3 3v-3H3.5A1.5 1.5 0 012 12.5v-8z"/>
+    </svg>
+  );
+}
 
 export { ShiftSyncLogo };
 
@@ -148,6 +156,11 @@ export default function App() {
     }
     return false;
   });
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const notifPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (darkMode) {
@@ -169,6 +182,31 @@ export default function App() {
       setCurrentSite(null);
     }
   }, [user?.siteId]);
+
+  // Poll for notifications every 15 seconds
+  useEffect(() => {
+    if (!user) return;
+    const fetchNotifs = () => {
+      getNotifications().then(({ notifications: n, unread_count: uc }) => {
+        setNotifications(n);
+        setUnreadCount(uc);
+      }).catch(() => {});
+    };
+    fetchNotifs();
+    notifPollRef.current = setInterval(fetchNotifs, 15000);
+    return () => { if (notifPollRef.current) clearInterval(notifPollRef.current); };
+  }, [user]);
+
+  // Close notification dropdown when clicking outside
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
 
@@ -200,6 +238,7 @@ export default function App() {
     ...(user.isManager ? [{ to: '/employees',           label: 'Employees',   icon: <EmployeesIcon />, color: '#7C3AED' }] : []),
     { to: '/swaps',               label: 'Shift Swaps', icon: <SwapIcon />,      color: '#F97316' },
     { to: '/open-shifts',         label: 'Open Shifts', icon: <SwapIcon />,      color: '#0EA5E9' },
+    { to: '/messages',            label: 'Messages',    icon: <MessagesIcon />,  color: '#8B5CF6' },
     { to: '/surveys',             label: 'Surveys',     icon: <ProfileIcon />,   color: '#EC4899' },
     ...(user.isManager ? [{ to: '/time-off-approvals',  label: 'Time-Off',    icon: <TimeOffIcon />,   color: '#059669' }] : []),
     ...(user.isManager ? [{ to: '/fairness',            label: 'Fairness',    icon: <DashboardIcon />, color: '#8B5CF6' }] : []),
@@ -269,6 +308,78 @@ export default function App() {
             >
               {darkMode ? <SunIcon /> : <MoonIcon />}
             </button>
+
+            {/* Notification bell */}
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => setNotifOpen(o => !o)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors relative"
+                title="Notifications"
+                aria-label="Notifications"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
+                  <path d="M10 2a6 6 0 00-6 6v2.586l-1.707 1.707A1 1 0 003 14h14a1 1 0 00.707-1.707L16 10.586V8a6 6 0 00-6-6z"/>
+                  <path d="M8 14a2 2 0 004 0"/>
+                </svg>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification dropdown */}
+              {notifOpen && (
+                <div className="absolute right-0 top-10 w-80 bg-card border rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 border-b">
+                    <span className="font-semibold text-sm">Notifications</span>
+                    {unreadCount > 0 && (
+                      <button
+                        className="text-xs text-primary hover:underline"
+                        onClick={() => {
+                          markAllNotificationsRead().then(() => {
+                            setUnreadCount(0);
+                            setNotifications(prev => prev.map(n => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })));
+                          });
+                        }}
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-80 overflow-y-auto divide-y">
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-muted-foreground text-sm">No notifications</div>
+                    ) : (
+                      notifications.slice(0, 20).map(n => (
+                        <button
+                          key={n.id}
+                          className={`w-full text-left px-4 py-3 hover:bg-muted/60 transition-colors flex gap-3 items-start ${!n.read_at ? 'bg-primary/5' : ''}`}
+                          onClick={() => {
+                            if (!n.read_at) {
+                              markNotificationRead(n.id).then(() => {
+                                setUnreadCount(prev => Math.max(0, prev - 1));
+                                setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
+                              });
+                            }
+                            if (n.link) { navigate(n.link); setNotifOpen(false); }
+                          }}
+                        >
+                          <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${!n.read_at ? 'bg-primary' : 'bg-transparent'}`} />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium leading-snug">{n.title}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-2">{n.body}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">
+                              {new Date(n.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* User info (desktop) */}
             <div className="hidden sm:flex items-center gap-2">
@@ -413,6 +524,7 @@ export default function App() {
           <Route path="/profile"    element={<ProfilePage />} />
           {user.isManager && <Route path="/time-off-approvals" element={<TimeOffApprovalsPage />} />}
           <Route path="/open-shifts" element={<OpenShiftsPage />} />
+          <Route path="/messages"   element={<MessagingPage />} />
           <Route path="/surveys"    element={<SurveysPage />} />
           <Route path="/fairness"   element={user.isManager ? <FairnessPage /> : <Navigate to="/" replace />} />
         </Routes>
