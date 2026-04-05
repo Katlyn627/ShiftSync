@@ -1,8 +1,7 @@
-import dotenv from 'dotenv';
+// Must be the very first import so that dotenv populates process.env before
+// any other module reads environment variables at module-initialisation time.
+import './env';
 import path from 'path';
-// __dirname is server/src (ts-node-dev) or server/dist (compiled), so ../
-// always resolves to server/ — the directory that contains the .env file.
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
