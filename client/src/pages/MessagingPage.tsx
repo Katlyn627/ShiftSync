@@ -31,6 +31,7 @@ function ConversationTitle(conv: ConversationWithDetails, currentEmployeeId: num
 }
 
 export default function MessagingPage() {
+  const MESSAGE_POLL_INTERVAL_MS = 5000;
   const { user } = useAuth();
   const [conversations, setConversations] = useState<ConversationWithDetails[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -75,7 +76,7 @@ export default function MessagingPage() {
           setMembers(data.members);
           loadConversations();
         } catch { /* ignore */ }
-      }, 5000);
+      }, MESSAGE_POLL_INTERVAL_MS);
     }
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [selectedId, loadConversations]);

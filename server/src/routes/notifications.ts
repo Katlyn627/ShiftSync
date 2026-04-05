@@ -15,6 +15,8 @@ import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
+const MAX_NOTIFICATIONS_PER_QUERY = 100;
+
 /** GET /api/notifications — list notifications for the current user */
 router.get('/', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
@@ -28,7 +30,7 @@ router.get('/', requireAuth, (req: Request, res: Response) => {
     WHERE employee_id = ?
     ${unread_only === 'true' ? 'AND read_at IS NULL' : ''}
     ORDER BY created_at DESC
-    LIMIT 100
+    LIMIT ${MAX_NOTIFICATIONS_PER_QUERY}
   `).all(employeeId);
 
   const unreadCount = (db.prepare(

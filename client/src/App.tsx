@@ -185,6 +185,7 @@ export default function App() {
 
   // Poll for notifications every 15 seconds
   useEffect(() => {
+    const NOTIFICATION_POLL_INTERVAL_MS = 15000;
     if (!user) return;
     const fetchNotifs = () => {
       getNotifications().then(({ notifications: n, unread_count: uc }) => {
@@ -193,7 +194,7 @@ export default function App() {
       }).catch(() => {});
     };
     fetchNotifs();
-    notifPollRef.current = setInterval(fetchNotifs, 15000);
+    notifPollRef.current = setInterval(fetchNotifs, NOTIFICATION_POLL_INTERVAL_MS);
     return () => { if (notifPollRef.current) clearInterval(notifPollRef.current); };
   }, [user]);
 
