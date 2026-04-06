@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import {
   getSchedules, getLaborCost, getBurnoutRisks, getStaffingSuggestions,
   getEmployees, getScheduleShifts, getAvailability,
   getProfitabilityMetrics, getRestaurantSettings, updateRestaurantSettings, getSites,
+  getConversations, getSwaps, getSurveyCampaigns,
   Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee, Availability,
   ProfitabilityMetrics, RestaurantSettings, DayRevenue, DaypartRevenue, Site,
+  ConversationWithDetails, SwapWithDetails, SurveyCampaign,
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Card, Badge, Modal, NATIVE_SELECT_CLASS, PageHeader } from '../components/ui';
@@ -139,6 +142,7 @@ function UsersIcon() {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isManager = user?.isManager ?? false;
   const [schedules, setSchedules]                   = useState<Schedule[]>([]);
   const [selectedId, setSelectedId]                 = useState<number | null>(null);
@@ -158,6 +162,9 @@ export default function Dashboard() {
   });
   const [settingsSaving, setSettingsSaving]         = useState(false);
   const [currentSite, setCurrentSite]               = useState<Site | null>(null);
+  const [conversations, setConversations]           = useState<ConversationWithDetails[]>([]);
+  const [pendingSwaps, setPendingSwaps]             = useState<SwapWithDetails[]>([]);
+  const [activeSurveys, setActiveSurveys]           = useState<SurveyCampaign[]>([]);
 
   useEffect(() => {
     getSchedules().then(s => {
@@ -202,6 +209,17 @@ export default function Dashboard() {
       .catch(() => setStaffingSuggestions([]));
   }, [selectedId, schedules, isManager]);
 
+  // Fetch employee hub data (conversations, swaps, surveys) for all users
+  useEffect(() => {
+    getConversations().then(setConversations).catch(() => setConversations([]));
+    getSwaps().then(swaps => {
+      setPendingSwaps(swaps.filter(s => s.status === 'pending'));
+    }).catch(() => setPendingSwaps([]));
+    getSurveyCampaigns().then(campaigns => {
+      setActiveSurveys(campaigns.filter(c => c.status === 'active'));
+    }).catch(() => setActiveSurveys([]));
+  }, []);
+
   function handleSaveSettings(e: React.FormEvent) {
     e.preventDefault();
     setSettingsSaving(true);
@@ -229,24 +247,17 @@ export default function Dashboard() {
     );
   }
 
-  if (schedules.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-2">
-        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-            <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
-          </svg>
-        </div>
-        <p className="text-foreground font-semibold">No schedules yet</p>
-        <p className="text-sm text-muted-foreground">Go to the Schedule tab to generate your first schedule.</p>
-      </div>
-    );
-  }
-
+  const noSchedules = schedules.length === 0;
   const highRisk   = burnout.filter(b => b.risk_level === 'high');
   const mediumRisk = burnout.filter(b => b.risk_level === 'medium');
   const budgetPct  = laborCost ? (laborCost.projected_cost / laborCost.labor_budget) * 100 : 0;
   const overBudget = laborCost && laborCost.variance > 0;
+  const myShifts   = scheduleShifts.filter(s => s.employee_id === user?.employeeId);
+
+  const totalUnread       = conversations.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+  const unreadFromManagers = conversations
+    .filter(c => c.members.some(m => m.role === 'Manager' && m.id !== user?.employeeId))
+    .reduce((sum, c) => sum + (c.unread_count || 0), 0);
 
   const primeCostColor =
     profitabilityMetrics?.prime_cost_status === 'good'    ? 'text-emerald-600' :
@@ -257,10 +268,10 @@ export default function Dashboard() {
 
       {/* ── Page header ── */}
       <PageHeader
-        title="Dashboard"
+        title={isManager ? 'Manager Dashboard' : 'Dashboard'}
         subtitle={currentSite
-          ? `${currentSite.name} · ${currentSite.city}, ${currentSite.state} — weekly overview and insights`
-          : 'Weekly overview and insights'}
+          ? `${currentSite.name} · ${currentSite.city}, ${currentSite.state}${isManager ? ' — overview & insights' : ''}`
+          : isManager ? 'Overview & insights' : `Welcome back, ${user?.employeeName?.split(' ')[0] || user?.username}`}
         color="#5046E4"
         icon="📊"
         actions={
@@ -276,22 +287,175 @@ export default function Dashboard() {
                 Settings
               </button>
             )}
-            <select
-              className={NATIVE_SELECT_CLASS}
-              value={selectedId ?? ''}
-              onChange={e => setSelectedId(Number(e.target.value))}
-            >
-              {schedules.map(s => (
-                <option key={s.id} value={s.id}>
-                  Week of {s.week_start} ({s.status})
-                </option>
-              ))}
-            </select>
+            {isManager && (
+              <select
+                className={NATIVE_SELECT_CLASS}
+                value={selectedId ?? ''}
+                onChange={e => setSelectedId(Number(e.target.value))}
+              >
+                {schedules.map(s => (
+                  <option key={s.id} value={s.id}>
+                    Week of {s.week_start} ({s.status})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         }
       />
 
-      {/* ── KPI Cards ── */}
+      {/* ── Employee Quick-Access Hub (non-managers only) ── */}
+      {!isManager && (
+        <div className="space-y-4">
+          {/* Quick-access cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+            {/* Messages */}
+            <button
+              onClick={() => navigate('/messages')}
+              className="group text-left p-4 rounded-2xl bg-card border border-border hover:border-[#8B5CF6]/40 hover:bg-[#8B5CF6]/5 transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Messages</span>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base" style={{ background: '#8B5CF622', color: '#8B5CF6' }}>
+                  <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 4.5A1.5 1.5 0 013.5 3h13A1.5 1.5 0 0118 4.5v8A1.5 1.5 0 0116.5 14H11l-3 3v-3H3.5A1.5 1.5 0 012 12.5v-8z"/>
+                  </svg>
+                </div>
+              </div>
+              <p className="text-2xl font-bold text-foreground leading-none">{totalUnread}</p>
+              <p className="text-xs text-muted-foreground mt-1">unread message{totalUnread !== 1 ? 's' : ''}</p>
+              {unreadFromManagers > 0 && (
+                <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-amber-600">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
+                  {unreadFromManagers} from management
+                </div>
+              )}
+              <p className="mt-3 text-xs font-semibold group-hover:underline" style={{ color: '#8B5CF6' }}>Open Messages →</p>
+            </button>
+
+            {/* Shift Swaps */}
+            <button
+              onClick={() => navigate('/swaps')}
+              className="group text-left p-4 rounded-2xl bg-card border border-border hover:border-[#F97316]/40 hover:bg-[#F97316]/5 transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Shift Swaps</span>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#F9731622', color: '#F97316' }}>
+                  <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 6h12M4 6l3-3M4 6l3 3"/><path d="M16 14H4M16 14l-3-3M16 14l-3 3"/>
+                  </svg>
+                </div>
+              </div>
+              <p className="text-2xl font-bold text-foreground leading-none">{pendingSwaps.length}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {pendingSwaps.length === 0 ? 'no pending swaps' : `pending swap request${pendingSwaps.length !== 1 ? 's' : ''}`}
+              </p>
+              <p className="mt-3 text-xs font-semibold group-hover:underline" style={{ color: '#F97316' }}>View Swaps →</p>
+            </button>
+
+            {/* Weekly Survey */}
+            <button
+              onClick={() => navigate('/surveys')}
+              className="group text-left p-4 rounded-2xl bg-card border border-border hover:border-[#EC4899]/40 hover:bg-[#EC4899]/5 transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Weekly Survey</span>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#EC489922', color: '#EC4899' }}>
+                  <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h6M7 10h6M7 13h4"/>
+                  </svg>
+                </div>
+              </div>
+              <p className="text-2xl font-bold text-foreground leading-none">{activeSurveys.length}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {activeSurveys.length === 0 ? 'no surveys right now' : `active survey${activeSurveys.length !== 1 ? 's' : ''} available`}
+              </p>
+              {activeSurveys.length > 0 && (
+                <p className="mt-3 text-xs font-semibold group-hover:underline" style={{ color: '#EC4899' }}>Take Survey →</p>
+              )}
+              {activeSurveys.length === 0 && (
+                <p className="mt-3 text-xs font-semibold group-hover:underline" style={{ color: '#EC4899' }}>Browse Surveys →</p>
+              )}
+            </button>
+          </div>
+
+          {/* My schedule this week */}
+          {myShifts.length > 0 && (
+            <Card className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">My Schedule This Week</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">{myShifts.length} shift{myShifts.length !== 1 ? 's' : ''} scheduled</p>
+                </div>
+                <button
+                  onClick={() => navigate('/schedule')}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  Full schedule →
+                </button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                {myShifts.map(s => {
+                  const d = new Date(s.date + 'T00:00:00');
+                  const dayName = DAY_NAMES[d.getDay()];
+                  const hrs = shiftHours(s.start_time, s.end_time);
+                  return (
+                    <div key={s.id} className="p-2.5 rounded-xl bg-muted/30 border border-border text-center">
+                      <p className="text-[10px] font-semibold text-muted-foreground">{dayName}</p>
+                      <p className="text-[10px] text-muted-foreground/70 mb-1">{s.date.slice(5)}</p>
+                      <p className="text-xs font-semibold text-foreground">{s.start_time.slice(0, 5)}</p>
+                      <p className="text-[10px] text-muted-foreground">–{s.end_time.slice(0, 5)}</p>
+                      <p className="text-[10px] font-medium text-primary mt-0.5">{hrs.toFixed(1)}h</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
+          {/* Open shifts link for employees */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate('/open-shifts')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border hover:border-[#0EA5E9]/40 hover:bg-[#0EA5E9]/5 transition-all text-sm font-medium text-foreground"
+            >
+              <svg className="w-4 h-4" style={{ color: '#0EA5E9' }} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 6h12M4 6l3-3M4 6l3 3"/><path d="M16 14H4M16 14l-3-3M16 14l-3 3"/>
+              </svg>
+              <span>Open Shifts</span>
+              <span className="text-xs text-muted-foreground">Pick up extra hours →</span>
+            </button>
+            <button
+              onClick={() => navigate('/schedule')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border hover:border-[#0D9488]/40 hover:bg-[#0D9488]/5 transition-all text-sm font-medium text-foreground"
+            >
+              <svg className="w-4 h-4" style={{ color: '#0D9488' }} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="14" height="13" rx="2"/><path d="M7 2v4M13 2v4M3 9h14"/>
+              </svg>
+              <span>My Schedule</span>
+              <span className="text-xs text-muted-foreground">View full schedule →</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Manager: no schedules empty state ── */}
+      {isManager && noSchedules && (
+        <div className="flex flex-col items-center justify-center py-24 gap-2">
+          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+            </svg>
+          </div>
+          <p className="text-foreground font-semibold">No schedules yet</p>
+          <p className="text-sm text-muted-foreground">Go to the Schedule tab to generate your first schedule.</p>
+        </div>
+      )}
+
+      {/* ── KPI Cards & schedule-dependent content ── */}
+      {!noSchedules && (
+      <>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {isManager && (
           <KpiCard
@@ -920,6 +1084,9 @@ export default function Dashboard() {
           )}
         </Card>
       </div>
+
+      {/* end !noSchedules */}
+      </>)}
 
       {/* ── Restaurant Settings Modal ── */}
       {isManager && (

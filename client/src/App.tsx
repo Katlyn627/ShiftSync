@@ -214,17 +214,21 @@ export default function App() {
     );
   }
 
-  const NAV_ITEMS = [
-    { to: '/',                    label: 'Dashboard',   icon: <DashboardIcon />, color: '#5046E4' },
-    { to: '/schedule',            label: 'Schedule',    icon: <ScheduleIcon />,  color: '#0D9488' },
-    ...(user.isManager ? [{ to: '/employees',           label: 'Employees',   icon: <EmployeesIcon />, color: '#7C3AED' }] : []),
-    { to: '/swaps',               label: 'Shift Swaps', icon: <SwapIcon />,      color: '#F97316' },
-    { to: '/open-shifts',         label: 'Open Shifts', icon: <SwapIcon />,      color: '#0EA5E9' },
-    { to: '/messages',            label: 'Messages',    icon: <MessagesIcon />,  color: '#8B5CF6' },
-    { to: '/surveys',             label: 'Surveys',     icon: <ProfileIcon />,   color: '#EC4899' },
-    ...(user.isManager ? [{ to: '/time-off-approvals',  label: 'Time-Off',    icon: <TimeOffIcon />,   color: '#059669' }] : []),
-    ...(user.isManager ? [{ to: '/fairness',            label: 'Fairness',    icon: <DashboardIcon />, color: '#8B5CF6' }] : []),
-  ];
+  const NAV_ITEMS = user.isManager
+    ? [
+        { to: '/',                   label: 'Dashboard',   icon: <DashboardIcon />, color: '#5046E4' },
+        { to: '/schedule',           label: 'Schedule',    icon: <ScheduleIcon />,  color: '#0D9488' },
+        { to: '/employees',          label: 'Employees',   icon: <EmployeesIcon />, color: '#7C3AED' },
+        { to: '/swaps',              label: 'Shift Swaps', icon: <SwapIcon />,      color: '#F97316' },
+        { to: '/open-shifts',        label: 'Open Shifts', icon: <SwapIcon />,      color: '#0EA5E9' },
+        { to: '/messages',           label: 'Messages',    icon: <MessagesIcon />,  color: '#8B5CF6' },
+        { to: '/surveys',            label: 'Surveys',     icon: <ProfileIcon />,   color: '#EC4899' },
+        { to: '/time-off-approvals', label: 'Time-Off',    icon: <TimeOffIcon />,   color: '#059669' },
+        { to: '/fairness',           label: 'Fairness',    icon: <DashboardIcon />, color: '#8B5CF6' },
+      ]
+    : [
+        { to: '/', label: 'Dashboard', icon: <DashboardIcon />, color: '#5046E4' },
+      ];
 
   const initials = (user.employeeName || user.username)
     .split(' ')
@@ -254,7 +258,7 @@ export default function App() {
           </div>
 
           {/* Desktop nav links */}
-          <nav className="hidden md:flex items-center gap-0.5 flex-1 justify-center">
+          <nav className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto min-w-0 justify-center">
             {NAV_ITEMS.map(item => (
               <NavLink
                 key={item.to}
