@@ -42,7 +42,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <div
-      className={cn("relative rounded-2xl overflow-hidden mb-6 px-5 py-4 sm:px-6 sm:py-5 border", className)}
+      className={cn("relative rounded-2xl overflow-hidden px-5 py-4 sm:px-6 sm:py-5 border", className)}
       style={{
         background: `linear-gradient(135deg, ${color}1A 0%, ${color}0D 60%, transparent 100%)`,
         borderColor: `${color}33`,
@@ -61,12 +61,12 @@ export function PageHeader({
         aria-hidden="true"
       />
 
-      <div className="relative flex items-start justify-between gap-4 flex-wrap">
+      <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         {/* Left: icon + title + subtitle */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
           {icon != null && (
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg shadow-sm select-none"
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg shadow-sm select-none mt-0.5"
               style={{
                 background: `${color}22`,
                 color,
@@ -79,7 +79,7 @@ export function PageHeader({
           )}
           <div className="min-w-0">
             <h1
-              className="font-heading text-xl font-bold text-foreground leading-tight tracking-tight truncate"
+              className="font-heading text-xl font-bold text-foreground leading-tight tracking-tight"
             >
               {title}
             </h1>

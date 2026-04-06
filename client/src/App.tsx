@@ -245,7 +245,11 @@ export default function App() {
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
 
           {/* Brand */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2.5 shrink-0 hover:opacity-80 transition-opacity"
+            aria-label="Go to dashboard"
+          >
             <Logo size={32} />
             <div className="flex flex-col leading-none">
               <span className="text-base font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>ShiftSync</span>
@@ -255,7 +259,7 @@ export default function App() {
                 </span>
               )}
             </div>
-          </div>
+          </button>
 
           {/* Desktop nav links */}
           <nav className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto min-w-0 justify-center">
@@ -280,7 +284,7 @@ export default function App() {
                 aria-label={item.label}
               >
                 {item.icon}
-                <span className="hidden lg:inline">{item.label}</span>
+                <span className="hidden md:inline">{item.label}</span>
               </NavLink>
             ))}
           </nav>
