@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
+import { createNotification } from './notifications';
 
 const router = Router();
 
@@ -116,6 +117,129 @@ router.post('/', requireManager, (req: Request, res: Response) => {
     : db.prepare('SELECT * FROM shifts WHERE id = ?').get(result.lastInsertRowid);
 
   res.status(201).json(created);
+});
+
+/**
+ * POST /api/shifts/:id/drop
+ * Employee drops (requests to be relieved of) their own shift.
+ *
+ * - Creates a pending swap request (open pickup — no target).
+ * - Notifies the manager about the drop request with the stated reason.
+ * - If the shift starts within 48 hours ("last-minute"), also notifies
+ *   every eligible coworker (same role, same site) so they can volunteer
+ *   to pick it up, and broadcasts a group message to department members.
+ *
+ * Body: { reason: string }
+ */
+router.post('/:id/drop', requireAuth, (req: Request, res: Response) => {
+  const db = getDb();
+  const employeeId = req.user?.employeeId;
+  if (!employeeId) return res.status(403).json({ error: 'No employee record linked to this account' });
+
+  const { reason } = req.body as { reason?: string };
+  if (!reason || !reason.trim()) {
+    return res.status(400).json({ error: 'A reason is required to drop a shift' });
+  }
+
+  const shift = db.prepare(`
+    SELECT s.*, e.name as employee_name, e.role as emp_role, e.department, e.site_id
+    FROM shifts s
+    JOIN employees e ON s.employee_id = e.id
+    WHERE s.id = ?
+  `).get(req.params.id) as any;
+
+  if (!shift) return res.status(404).json({ error: 'Shift not found' });
+  if (shift.employee_id !== employeeId) {
+    return res.status(403).json({ error: 'You can only drop your own shift' });
+  }
+  if (shift.status === 'cancelled') {
+    return res.status(400).json({ error: 'Shift is already cancelled' });
+  }
+
+  // Determine if this is last-minute (within 48 hours of shift start)
+  const shiftDateTime = new Date(`${shift.date}T${shift.start_time}:00`);
+  const nowMs = Date.now();
+  const hoursUntilShift = (shiftDateTime.getTime() - nowMs) / (1000 * 60 * 60);
+  const isLastMinute = hoursUntilShift <= 48 && hoursUntilShift >= 0;
+
+  // Create an open swap request (no specific target — anyone can pick it up)
+  const swapResult = db.prepare(
+    'INSERT INTO shift_swaps (shift_id, requester_id, target_id, reason) VALUES (?, ?, NULL, ?)'
+  ).run(shift.id, employeeId, reason.trim());
+
+  const swap = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(swapResult.lastInsertRowid) as any;
+
+  // Notify manager(s) at the same site
+  const managers = db.prepare(`
+    SELECT e.id as employee_id, e.name
+    FROM users u
+    JOIN employees e ON e.id = u.employee_id
+    WHERE u.is_manager = 1 AND e.site_id = ?
+  `).all(shift.site_id ?? null) as any[];
+
+  const urgencyTag = isLastMinute ? ' ⚠️ LAST-MINUTE' : '';
+  for (const mgr of managers) {
+    createNotification({
+      employee_id: mgr.employee_id,
+      type: 'shift_drop_request',
+      title: `Shift Drop Request${urgencyTag}`,
+      body: `${shift.employee_name} needs to drop their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}). Reason: ${reason.trim()}`,
+      link: '/swaps',
+      data: { swap_id: swap.id, shift_id: shift.id, is_last_minute: isLastMinute },
+    });
+  }
+
+  // If last-minute, also notify eligible coworkers and broadcast a group message
+  if (isLastMinute) {
+    const eligibleCoworkers = db.prepare(`
+      SELECT e.id, e.name
+      FROM employees e
+      WHERE e.site_id = ? AND e.role = ? AND e.id != ?
+    `).all(shift.site_id ?? null, shift.emp_role, employeeId) as any[];
+
+    for (const coworker of eligibleCoworkers) {
+      createNotification({
+        employee_id: coworker.id,
+        type: 'shift_pickup_needed',
+        title: '⚡ Shift Pickup Needed',
+        body: `${shift.employee_name} needs someone to cover their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}). Can you pick it up?`,
+        link: '/swaps',
+        data: { swap_id: swap.id, shift_id: shift.id },
+      });
+    }
+
+    // Broadcast a group message to the department so everyone sees the request
+    if (shift.site_id) {
+      const deptMembers = db.prepare(`
+        SELECT e.id FROM employees e WHERE e.site_id = ? AND e.department = ? AND e.id != ?
+      `).all(shift.site_id, shift.department ?? '', employeeId) as any[];
+
+      const allMemberIds: number[] = [employeeId, ...deptMembers.map((m: any) => m.id)];
+      // Include managers too
+      for (const mgr of managers) {
+        if (!allMemberIds.includes(mgr.employee_id)) allMemberIds.push(mgr.employee_id);
+      }
+
+      if (allMemberIds.length > 1) {
+        const convTitle = `Coverage Needed – ${shift.role} ${shift.date}`;
+        const convResult = db.prepare(`
+          INSERT INTO conversations (type, title, site_id, created_by) VALUES ('group', ?, ?, ?)
+        `).run(convTitle, shift.site_id, employeeId);
+        const convId = convResult.lastInsertRowid as number;
+
+        const addMember = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id, employee_id) VALUES (?, ?)');
+        for (const memberId of allMemberIds) {
+          addMember.run(convId, memberId);
+        }
+
+        const msgBody = `Hi team — I need to drop my ${shift.role} shift on ${shift.date} from ${shift.start_time} to ${shift.end_time} (${hoursUntilShift.toFixed(1)} hours away). Reason: ${reason.trim()}\n\nCan anyone pick this up? Please respond here or go to the Swaps page to claim it.`;
+        db.prepare('INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)').run(convId, employeeId, msgBody);
+        db.prepare("UPDATE conversations SET last_message_at = datetime('now') WHERE id = ?").run(convId);
+      }
+    }
+  }
+
+  res.status(201).json({ swap, is_last_minute: isLastMinute, hours_until_shift: Math.round(hoursUntilShift) });
 });
 
 router.delete('/:id', requireAuth, (req: Request, res: Response) => {

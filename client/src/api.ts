@@ -80,6 +80,8 @@ export const createShift = (data: { schedule_id: number; employee_id?: number; d
   request<ShiftWithEmployee>('/shifts', { method: 'POST', body: JSON.stringify(data) });
 export const deleteShift = (id: number) =>
   request<{ success: boolean }>(`/shifts/${id}`, { method: 'DELETE' });
+export const dropShift = (id: number, reason: string) =>
+  request<{ swap: ShiftSwap; is_last_minute: boolean; hours_until_shift: number }>(`/shifts/${id}/drop`, { method: 'POST', body: JSON.stringify({ reason }) });
 
 // Swaps
 export const getSwaps = () => request<SwapWithDetails[]>('/swaps');
