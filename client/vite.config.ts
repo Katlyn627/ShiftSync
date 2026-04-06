@@ -2,8 +2,11 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
+  // Load .env.mobile for the 'mobile' build mode
+  envDir: '.',
+  ...(mode === 'mobile' ? { envPrefix: ['VITE_'] } : {}),
   server: {
     host: true, // listen on 0.0.0.0 so the dev server is reachable from other devices on the same network
     port: 3000,
@@ -25,4 +28,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

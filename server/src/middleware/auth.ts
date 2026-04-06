@@ -10,6 +10,7 @@ export interface AuthPayload {
   isManager: boolean;
   employeeName: string | null;
   employeeRole: string | null;
+  photoUrl: string | null;
   siteId: number | null;
 }
 

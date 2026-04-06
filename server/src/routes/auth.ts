@@ -6,6 +6,13 @@ import { Strategy as GoogleStrategy, Profile, VerifyCallback } from 'passport-go
 import { getDb } from '../db';
 import type { AuthPayload } from '../middleware/auth';
 
+// Augment the express-session SessionData type to include our mobile OAuth flag
+declare module 'express-session' {
+  interface SessionData {
+    _oauthMobile?: boolean;
+  }
+}
+
 // Default positions per industry (mirrors the frontend INDUSTRIES definitions)
 const INDUSTRY_DEFAULT_POSITIONS: Record<string, string[]> = {
   restaurant: [
@@ -108,6 +115,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
           const googleId = profile.id;
           const email = profile.emails?.[0]?.value ?? '';
           const displayName = profile.displayName ?? email;
+          const googlePhotoUrl = profile.photos?.[0]?.value ?? null;
 
           // Find by google_id first
           let user = db
@@ -153,9 +161,15 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
           // Attach employee details
           const emp = user.employee_id
             ? (db
-                .prepare('SELECT name, role, site_id FROM employees WHERE id = ?')
+                .prepare('SELECT name, role, site_id, photo_url FROM employees WHERE id = ?')
                 .get(user.employee_id) as any)
             : null;
+
+          // Persist Google profile photo to the employee record if not already set
+          if (emp && googlePhotoUrl && !emp.photo_url) {
+            db.prepare('UPDATE employees SET photo_url = ? WHERE id = ?').run(googlePhotoUrl, user.employee_id);
+            emp.photo_url = googlePhotoUrl;
+          }
 
           return done(null, {
             userId: user.id,
@@ -164,6 +178,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             isManager: user.is_manager === 1,
             employeeName: emp?.name ?? null,
             employeeRole: emp?.role ?? null,
+            photoUrl: emp?.photo_url ?? googlePhotoUrl ?? null,
             siteId: emp?.site_id ?? null,
           });
         } catch (err) {
@@ -283,10 +298,28 @@ const googleNotConfigured = (_req: import('express').Request, res: import('expre
   res.status(503).json({ error: 'Google OAuth is not configured on this server.' });
 };
 
+// Expose whether Google OAuth is configured so the client can conditionally
+// render the "Sign in with Google" button.
+router.get('/config', (_req: Request, res: Response) => {
+  res.json({ googleOAuthEnabled: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) });
+});
+
 router.get(
   '/google',
   GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
     ? passport.authenticate('google', { scope: ['profile', 'email'], session: false })
+    : googleNotConfigured
+);
+
+// Mobile-specific OAuth entry point: sets a session flag so the callback
+// redirects to the shiftsync:// deep-link URL instead of the web CLIENT_URL.
+router.get(
+  '/google/mobile',
+  GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
+    ? (req, res, next) => {
+        req.session._oauthMobile = true;
+        passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
+      }
     : googleNotConfigured
 );
 
@@ -297,12 +330,22 @@ router.get(
         passport.authenticate('google', { session: false }, (err: Error | null, userPayload: AuthPayload | false) => {
           const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
           if (err || !userPayload) {
-            return res.redirect(
-              `${CLIENT_URL}/login?error=${encodeURIComponent('Google sign-in failed. You must be an existing employee.')}`
-            );
+            const errorMsg = encodeURIComponent('Google sign-in failed. You must be an existing employee.');
+            // Support mobile deep-link redirect
+            const mobile = req.session._oauthMobile;
+            if (mobile) {
+              return res.redirect(`shiftsync://login?error=${errorMsg}`);
+            }
+            return res.redirect(`${CLIENT_URL}/login?error=${errorMsg}`);
           }
           const token = jwt.sign(userPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-          res.redirect(`${CLIENT_URL}/login?token=${encodeURIComponent(token)}`);
+          const encodedToken = encodeURIComponent(token);
+          // Support mobile deep-link redirect
+          const mobile = req.session._oauthMobile;
+          if (mobile) {
+            return res.redirect(`shiftsync://login?token=${encodedToken}`);
+          }
+          res.redirect(`${CLIENT_URL}/login?token=${encodedToken}`);
         })(req, res, next);
       }
     : googleNotConfigured
@@ -408,6 +451,7 @@ router.post('/register-manager', (req: Request, res: Response) => {
       isManager: true,
       employeeName: managerName.trim(),
       employeeRole: 'Manager',
+      photoUrl: null,
       siteId,
     };
 
