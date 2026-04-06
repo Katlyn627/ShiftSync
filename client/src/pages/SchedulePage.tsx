@@ -1,7 +1,7 @@
 import { useEffect, useState, CSSProperties } from 'react';
 import {
   getSchedules, generateSchedule, getScheduleShifts, updateSchedule, deleteSchedule,
-  getEmployees, createSwap, updateShift, createShift, deleteShift, getBurnoutRisks, getAvailability,
+  getEmployees, createSwap, updateShift, createShift, deleteShift, dropShift, getBurnoutRisks, getAvailability,
   getScheduleCoverage, getScheduleIntelligence, getGeneratePreview, getPosIntegrations,
   createPosIntegration, deletePosIntegration, syncPosIntegration,
   Schedule, ShiftWithEmployee, Employee, BurnoutRisk, Availability, ScheduleCoverageReport,
@@ -90,6 +90,15 @@ export default function SchedulePage() {
   const [intelligence, setIntelligence]     = useState<ScheduleIntelligence | null>(null);
   const [availabilityByEmployee, setAvailabilityByEmployee] = useState<Record<number, Availability[]>>({});
   const [dropLoadingShiftId, setDropLoadingShiftId] = useState<number | null>(null);
+
+  // ── Drop shift modal state ────────────────────────────────────────────────
+  const [dropShiftTarget, setDropShiftTarget]   = useState<ShiftWithEmployee | null>(null);
+  const [dropReason, setDropReason]             = useState('');
+  const [dropSubmitting, setDropSubmitting]     = useState(false);
+
+  // ── Schedule view filter ──────────────────────────────────────────────────
+  type ViewFilter = 'all' | 'my_shifts' | 'my_department';
+  const [viewFilter, setViewFilter]             = useState<ViewFilter>('all');
 
   // ── Data preview (forecast + profitability metrics for selected week) ──────
   const [weekPreview, setWeekPreview]       = useState<GeneratePreview | null>(null);
@@ -268,6 +277,39 @@ export default function SchedulePage() {
     setSwapTargetId('');
   };
 
+  const handleOpenDrop = (shift: ShiftWithEmployee) => {
+    setDropShiftTarget(shift);
+    setDropReason('');
+  };
+
+  const handleSubmitDrop = async () => {
+    if (!dropShiftTarget) return;
+    if (!dropReason.trim()) {
+      alert('Please provide a reason for dropping the shift.');
+      return;
+    }
+    setDropSubmitting(true);
+    try {
+      const result = await dropShift(dropShiftTarget.id, dropReason.trim());
+      setDropShiftTarget(null);
+      if (result.is_last_minute) {
+        alert(
+          `Your drop request has been submitted.\n\n` +
+          `⚠️ This is a last-minute drop (shift is ${result.hours_until_shift}h away).\n` +
+          `Your manager has been notified and a pickup request has been sent to your eligible coworkers via notifications and a group message.`
+        );
+      } else {
+        alert('Your drop request has been submitted. Your manager will review it shortly.');
+      }
+      const refreshed = await getScheduleShifts(selectedId!);
+      setShifts(refreshed);
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setDropSubmitting(false);
+    }
+  };
+
   const handleSubmitSwap = async () => {
     if (!swapShift || !user?.employeeId) return;
     setSwapSubmitting(true);
@@ -289,12 +331,29 @@ export default function SchedulePage() {
 
   const selectedSchedule = schedules.find(s => s.id === selectedId);
 
+  // Current employee record (used for department filter)
+  const currentEmployee = employees.find(e => e.id === user?.employeeId);
+
+  // Apply the view filter before building the calendar grid
+  const visibleShifts = shifts.filter(shift => {
+    if (viewFilter === 'my_shifts') return shift.employee_id === user?.employeeId;
+    if (viewFilter === 'my_department' && currentEmployee?.department) {
+      // Find the employee record for this shift to check their department
+      const emp = employees.find(e => e.id === shift.employee_id);
+      return emp?.department === currentEmployee.department;
+    }
+    return true;
+  });
+
   const shiftsByDateAndSlot: Record<string, Record<ShiftSlotKey, ShiftWithEmployee[]>> = {};
   const employeeHours: Record<number, number> = {};
   for (const shift of shifts) {
+    // employeeHours tracks ALL shifts (unfiltered) for hours display accuracy
+    employeeHours[shift.employee_id] = (employeeHours[shift.employee_id] ?? 0) + shiftHours(shift.start_time, shift.end_time);
+  }
+  for (const shift of visibleShifts) {
     shiftsByDateAndSlot[shift.date] ??= { morning: [], mid: [], evening: [], close: [] };
     shiftsByDateAndSlot[shift.date][shiftSlot(shift.start_time)].push(shift);
-    employeeHours[shift.employee_id] = (employeeHours[shift.employee_id] ?? 0) + shiftHours(shift.start_time, shift.end_time);
   }
 
   const burnoutByEmployee = Object.fromEntries(burnoutRisks.map(risk => [risk.employee_id, risk]));
@@ -727,13 +786,37 @@ export default function SchedulePage() {
 
       {/* ── Schedule Status Banner ── */}
       {selectedSchedule && (
-        <div className="flex items-center gap-2">
-          <Badge variant={selectedSchedule.status === 'published' ? 'success' : 'secondary'}>
-            {selectedSchedule.status === 'published' ? 'Published' : 'Draft'}
-          </Badge>
-          <span className="text-sm text-muted-foreground">
-            Week of {selectedSchedule.week_start} · {shifts.length} shifts scheduled
-          </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Badge variant={selectedSchedule.status === 'published' ? 'success' : 'secondary'}>
+              {selectedSchedule.status === 'published' ? 'Published' : 'Draft'}
+            </Badge>
+            <span className="text-sm text-muted-foreground">
+              Week of {selectedSchedule.week_start} · {shifts.length} shifts scheduled
+            </span>
+          </div>
+
+          {/* ── View Filter Tabs ── */}
+          <div className="flex items-center gap-1 ml-auto">
+            <span className="text-xs text-muted-foreground mr-1">Show:</span>
+            {([
+              { key: 'all',           label: '🗓 All Shifts' },
+              { key: 'my_shifts',     label: '👤 My Shifts' },
+              { key: 'my_department', label: '👥 My Department' },
+            ] as { key: ViewFilter; label: string }[]).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setViewFilter(tab.key)}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                  viewFilter === tab.key
+                    ? 'bg-teal-600 text-white border-teal-600'
+                    : 'bg-white text-muted-foreground border-border hover:bg-muted/40'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -911,8 +994,10 @@ export default function SchedulePage() {
                         ) : (
                           <>
                             {slotShifts.map(shift => {
+                              const isOwnShift = shift.employee_id === user?.employeeId;
                               const canRequestSwap = shift.status !== 'swapped' &&
-                                (user?.isManager || shift.employee_id === user?.employeeId);
+                                (user?.isManager || isOwnShift);
+                              const canDrop = !user?.isManager && isOwnShift && shift.status !== 'swapped' && shift.status !== 'cancelled';
                               const warning = hasAvailabilityWarning(shift);
                               const isBurnoutShift = isBurnoutHighlightedEmployee(shift.employee_id);
                               return (
@@ -943,13 +1028,25 @@ export default function SchedulePage() {
                                       {isBurnoutShift && (
                                         <p className="text-[10px] mt-1 font-bold text-orange-700">🔶 Burnout risk</p>
                                       )}
-                                      {canRequestSwap && (
-                                        <button
-                                          className="mt-1 text-[10px] underline underline-offset-2 opacity-50 hover:opacity-100 transition-opacity"
-                                          onClick={() => handleOpenSwap(shift)}
-                                        >
-                                          Swap
-                                        </button>
+                                      {(canRequestSwap || canDrop) && (
+                                        <div className="mt-1.5 flex items-center gap-2">
+                                          {canRequestSwap && (
+                                            <button
+                                              className="text-[10px] underline underline-offset-2 opacity-60 hover:opacity-100 transition-opacity"
+                                              onClick={() => handleOpenSwap(shift)}
+                                            >
+                                              🔄 Swap
+                                            </button>
+                                          )}
+                                          {canDrop && (
+                                            <button
+                                              className="text-[10px] underline underline-offset-2 opacity-60 hover:opacity-100 text-rose-700 transition-opacity"
+                                              onClick={() => handleOpenDrop(shift)}
+                                            >
+                                              ✕ Drop
+                                            </button>
+                                          )}
+                                        </div>
                                       )}
                                     </div>
                                     {isManager && (
@@ -1303,6 +1400,94 @@ export default function SchedulePage() {
                 Cancel
               </Button>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Drop Shift Modal ── */}
+      {dropShiftTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4" onClick={e => e.target === e.currentTarget && setDropShiftTarget(null)}>
+          <Card className="w-full max-w-md shadow-2xl overflow-hidden p-0">
+
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+              <h2 className="text-base font-semibold text-foreground">Drop Shift</h2>
+              <button
+                onClick={() => setDropShiftTarget(null)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Shift summary */}
+            <div className="px-6 pt-4">
+              <div className="rounded-xl p-3 flex items-center gap-2.5" style={shiftBlockStyle(dropShiftTarget.role)}>
+                <div
+                  className="w-1 self-stretch rounded-full shrink-0"
+                  style={{ backgroundColor: shiftBarColor(dropShiftTarget.role) }}
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold truncate">{dropShiftTarget.employee_name}</p>
+                  <p className="text-xs opacity-70 mt-0.5">
+                    {dropShiftTarget.role} · {dropShiftTarget.date} · {dropShiftTarget.start_time}–{dropShiftTarget.end_time}
+                  </p>
+                </div>
+              </div>
+
+              {/* Last-minute warning */}
+              {(() => {
+                const shiftDt = new Date(`${dropShiftTarget.date}T${dropShiftTarget.start_time}:00`);
+                const hrs = (shiftDt.getTime() - Date.now()) / (1000 * 60 * 60);
+                if (hrs >= 0 && hrs <= 48) {
+                  return (
+                    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                      <p className="font-semibold mb-0.5">⚠️ Last-minute drop ({hrs.toFixed(1)}h away)</p>
+                      <p>Dropping within 48 hours will automatically notify your manager <em>and</em> send a pickup request to eligible coworkers via notifications and a group message in the app.</p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+
+            {/* Form */}
+            <div className="px-6 py-4 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">
+                  Reason for dropping <span className="text-rose-600">*</span>
+                </label>
+                <textarea
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                  rows={3}
+                  placeholder="e.g. Family emergency, medical appointment, personal conflict…"
+                  value={dropReason}
+                  onChange={e => setDropReason(e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  This reason will be sent to your manager and included in any pickup request sent to coworkers.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-5 flex gap-2 border-t border-border pt-4">
+              <Button
+                variant="default"
+                className="flex-1 bg-rose-600 hover:bg-rose-700 focus-visible:ring-rose-500"
+                onClick={handleSubmitDrop}
+                disabled={dropSubmitting || !dropReason.trim()}
+                isLoading={dropSubmitting}
+              >
+                Submit Drop Request
+              </Button>
+              <Button variant="outline" onClick={() => setDropShiftTarget(null)}>
+                Cancel
+              </Button>
+            </div>
+
           </Card>
         </div>
       )}
