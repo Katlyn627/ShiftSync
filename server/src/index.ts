@@ -45,13 +45,19 @@ app.use(cors({
     if (origin === 'capacitor://localhost' || origin === 'ionic://localhost' || origin === 'http://localhost') {
       return callback(null, true);
     }
-    // Allow the configured client URL and any localhost/127.0.0.1 dev port
+    // Allow the configured client URL
     const CLIENT_URL = process.env.CLIENT_URL || '';
     if (CLIENT_URL && origin === CLIENT_URL) return callback(null, true);
-    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return callback(null, true);
-    // Allow any *.onrender.com or *.vercel.app for common hosting platforms
-    if (/\.onrender\.com$/.test(origin) || /\.vercel\.app$/.test(origin)) return callback(null, true);
-    callback(null, true); // permissive fallback — restrict further if needed
+    // Allow any localhost/127.0.0.1 port in development
+    if (process.env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    // In production, reject any other origin
+    if (process.env.NODE_ENV === 'production') {
+      return callback(new Error(`Origin '${origin}' not allowed by CORS policy`));
+    }
+    // Development fallback: allow all
+    callback(null, true);
   },
   credentials: true,
 }));

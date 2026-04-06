@@ -106,9 +106,15 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     if (Capacitor.isNativePlatform()) {
-      // On native, open the mobile-specific OAuth entry point in an in-app browser.
+      // On native, VITE_API_BASE_URL must be set at build time to reach the server.
+      const apiBase = import.meta.env.VITE_API_BASE_URL;
+      if (!apiBase) {
+        setError('Native build is missing VITE_API_BASE_URL. Rebuild with .env.mobile configured.');
+        return;
+      }
+      // Open the mobile-specific OAuth entry point in an in-app browser.
       // The server will redirect back to shiftsync://login?token=… after auth.
-      const oauthUrl = `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/auth/google/mobile`;
+      const oauthUrl = `${apiBase}/api/auth/google/mobile`;
       await Browser.open({ url: oauthUrl, presentationStyle: 'popover' });
     } else {
       window.location.href = '/api/auth/google';

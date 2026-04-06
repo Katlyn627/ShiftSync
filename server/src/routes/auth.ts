@@ -6,6 +6,13 @@ import { Strategy as GoogleStrategy, Profile, VerifyCallback } from 'passport-go
 import { getDb } from '../db';
 import type { AuthPayload } from '../middleware/auth';
 
+// Augment the express-session SessionData type to include our mobile OAuth flag
+declare module 'express-session' {
+  interface SessionData {
+    _oauthMobile?: boolean;
+  }
+}
+
 // Default positions per industry (mirrors the frontend INDUSTRIES definitions)
 const INDUSTRY_DEFAULT_POSITIONS: Record<string, string[]> = {
   restaurant: [
@@ -310,7 +317,7 @@ router.get(
   '/google/mobile',
   GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
     ? (req, res, next) => {
-        (req.session as any)._oauthMobile = true;
+        req.session._oauthMobile = true;
         passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
       }
     : googleNotConfigured
@@ -325,7 +332,7 @@ router.get(
           if (err || !userPayload) {
             const errorMsg = encodeURIComponent('Google sign-in failed. You must be an existing employee.');
             // Support mobile deep-link redirect
-            const mobile = (req.session as any)?._oauthMobile;
+            const mobile = req.session._oauthMobile;
             if (mobile) {
               return res.redirect(`shiftsync://login?error=${errorMsg}`);
             }
@@ -334,7 +341,7 @@ router.get(
           const token = jwt.sign(userPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
           const encodedToken = encodeURIComponent(token);
           // Support mobile deep-link redirect
-          const mobile = (req.session as any)?._oauthMobile;
+          const mobile = req.session._oauthMobile;
           if (mobile) {
             return res.redirect(`shiftsync://login?token=${encodedToken}`);
           }
