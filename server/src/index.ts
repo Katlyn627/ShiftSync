@@ -37,7 +37,24 @@ import messagesRouter from './routes/messages';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. curl, Postman, same-origin server requests)
+    if (!origin) return callback(null, true);
+    // Allow Capacitor / Ionic native app origins
+    if (origin === 'capacitor://localhost' || origin === 'ionic://localhost' || origin === 'http://localhost') {
+      return callback(null, true);
+    }
+    // Allow the configured client URL and any localhost/127.0.0.1 dev port
+    const CLIENT_URL = process.env.CLIENT_URL || '';
+    if (CLIENT_URL && origin === CLIENT_URL) return callback(null, true);
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return callback(null, true);
+    // Allow any *.onrender.com or *.vercel.app for common hosting platforms
+    if (/\.onrender\.com$/.test(origin) || /\.vercel\.app$/.test(origin)) return callback(null, true);
+    callback(null, true); // permissive fallback — restrict further if needed
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // Session required for the OAuth state parameter (stateless JWT is issued at callback)

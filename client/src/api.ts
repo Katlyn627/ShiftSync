@@ -1,4 +1,9 @@
-const BASE = '/api';
+// When VITE_API_BASE_URL is set (e.g. for Capacitor native builds pointing to a
+// deployed server) use an absolute URL.  Otherwise default to a relative path
+// so the Vite dev proxy and the production Express static server both work.
+const BASE = import.meta.env.VITE_API_BASE_URL
+  ? `${import.meta.env.VITE_API_BASE_URL}/api`
+  : '/api';
 
 function getToken(): string | null {
   return localStorage.getItem('shiftsync_token');
