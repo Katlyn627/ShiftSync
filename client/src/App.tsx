@@ -13,7 +13,8 @@ import OpenShiftsPage from './pages/OpenShiftsPage';
 import FairnessPage from './pages/FairnessPage';
 import SurveysPage from './pages/SurveysPage';
 import MessagingPage from './pages/MessagingPage';
-import { Badge } from './components/ui';
+import BrandAssetsPage from './pages/BrandAssetsPage';
+import { Badge, Logo } from './components/ui';
 import type { BadgeVariant } from './components/ui';
 import { getSites, Site, getNotifications, markAllNotificationsRead, markNotificationRead, AppNotification } from './api';
 
@@ -26,26 +27,6 @@ function roleVariant(role: string): BadgeVariant {
     Host:    'host',
   };
   return map[role] ?? 'default';
-}
-
-/* ── ShiftSync brand logo mark (sync arrows) ── */
-function ShiftSyncLogo({ size = 32 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="ShiftSync logo">
-      <rect width="32" height="32" rx="9" fill="url(#logo-grad)" />
-      <path d="M9.5 12.5C10.8 9.5 13.7 7.5 17 7.5c3 0 5.6 1.6 7 4" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none"/>
-      <polyline points="21,10 24,11.5 22.5,8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      <path d="M22.5 19.5C21.2 22.5 18.3 24.5 15 24.5c-3 0-5.6-1.6-7-4" stroke="#22D3EE" strokeWidth="2" strokeLinecap="round" fill="none"/>
-      <polyline points="11,22 8,20.5 9.5,24" stroke="#22D3EE" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      <defs>
-        <linearGradient id="logo-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#5046E4"/>
-          <stop offset="60%" stopColor="#7C3AED"/>
-          <stop offset="100%" stopColor="#0891B2"/>
-        </linearGradient>
-      </defs>
-    </svg>
-  );
 }
 
 /* ── Nav icon components ── */
@@ -142,7 +123,7 @@ function MessagesIcon() {
   );
 }
 
-export { ShiftSyncLogo };
+export { Logo as ShiftSyncLogo };
 
 export default function App() {
   const { user, logout, loading } = useAuth();
@@ -216,7 +197,7 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <div className="animate-pulse">
-            <ShiftSyncLogo size={48} />
+            <Logo size={48} />
           </div>
           <p className="text-sm text-muted-foreground font-medium">Loading ShiftSync…</p>
         </div>
@@ -261,7 +242,7 @@ export default function App() {
 
           {/* Brand */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <ShiftSyncLogo size={32} />
+            <Logo size={32} />
             <div className="flex flex-col leading-none">
               <span className="text-base font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>ShiftSync</span>
               {currentSite && (
@@ -444,7 +425,7 @@ export default function App() {
             {/* Drawer header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-border">
               <div className="flex items-center gap-2.5">
-                <ShiftSyncLogo size={28} />
+                <Logo size={28} />
                 <span className="text-base font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>ShiftSync</span>
               </div>
               <button
@@ -530,6 +511,7 @@ export default function App() {
           <Route path="/messages"   element={<MessagingPage />} />
           <Route path="/surveys"    element={<SurveysPage />} />
           <Route path="/fairness"   element={user.isManager ? <FairnessPage /> : <Navigate to="/" replace />} />
+          <Route path="/brand-assets" element={<BrandAssetsPage />} />
           {/* Catch-all: redirect unknown/post-login URLs (e.g. /login) to Dashboard */}
           <Route path="*"           element={<Navigate to="/" replace />} />
         </Routes>
@@ -539,7 +521,7 @@ export default function App() {
       <footer className="border-t border-border bg-card">
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-10 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <ShiftSyncLogo size={16} />
+            <Logo size={16} />
             <span className="text-xs text-muted-foreground font-medium" style={{ fontFamily: 'var(--font-heading)' }}>ShiftSync © 2025</span>
           </div>
           <span className="text-xs text-muted-foreground hidden sm:block">Smart scheduling for hospitality</span>

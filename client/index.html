@@ -10,8 +10,40 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="ShiftSync" />
     <title>ShiftSync – Smart Scheduling</title>
-    <!-- Inline SVG favicon – unique ShiftSync "S+sync" mark -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235046E4'/%3E%3Cpath d='M10 11a6 6 0 0 1 6-3 6 6 0 0 1 6 4H19l3 3 3-3h-2a8 8 0 0 0-7-5 8 8 0 0 0-8 5.5' stroke='white' stroke-width='1.5' stroke-linecap='round' fill='none'/%3E%3Cpath d='M22 21a6 6 0 0 1-6 3 6 6 0 0 1-6-4h3l-3-3-3 3h2a8 8 0 0 0 7 5 8 8 0 0 0 8-5.5' stroke='%2306B6D4' stroke-width='1.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E" />
+
+    <!-- PWA Manifest (Android + desktop install) -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
+    <link rel="icon" type="image/png" sizes="32x32"  href="/assets/icons/icon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16"  href="/assets/icons/icon-16x16.png" />
+
+    <!-- Apple touch icons (iOS home screen / "Add to Home Screen") -->
+    <link rel="apple-touch-icon" href="/assets/icons/icon-180x180.png" />
+    <link rel="apple-touch-icon" sizes="57x57"  href="/assets/icons/icon-57x57.png" />
+    <link rel="apple-touch-icon" sizes="60x60"  href="/assets/icons/icon-60x60.png" />
+    <link rel="apple-touch-icon" sizes="72x72"  href="/assets/icons/icon-72x72.png" />
+    <link rel="apple-touch-icon" sizes="76x76"  href="/assets/icons/icon-76x76.png" />
+    <link rel="apple-touch-icon" sizes="114x114" href="/assets/icons/icon-114x114.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="/assets/icons/icon-120x120.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/assets/icons/icon-144x144.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/assets/icons/icon-152x152.png" />
+
+    <!-- iOS splash / startup images -->
+    <link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)"  href="/assets/splash/splash-640x1136-iphone5.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)"  href="/assets/splash/splash-750x1334-iphone6.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3)"  href="/assets/splash/splash-1242x2208-iphone6plus.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)"  href="/assets/splash/splash-1125x2436-iphoneX.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)"  href="/assets/splash/splash-1242x2688-iphoneXSMax.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)"  href="/assets/splash/splash-828x1792-iphoneXR.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)"  href="/assets/splash/splash-1170x2532-iphone12.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)"  href="/assets/splash/splash-1179x2556-iphone14.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)"  href="/assets/splash/splash-1290x2796-iphone14pro.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" href="/assets/splash/splash-1536x2048-ipad.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2)" href="/assets/splash/splash-1668x2388-ipadPro11.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" href="/assets/splash/splash-2048x2732-ipadPro.png" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />

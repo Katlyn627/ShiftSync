@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1170 2532" fill="none" role="img" aria-label="ShiftSync Splash Screen">
+  <defs>
+    <linearGradient id="splash-bg" x1="0" y1="0" x2="1170" y2="2532" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#6B5FED"/>
+      <stop offset="55%"  stop-color="#5046E4"/>
+      <stop offset="100%" stop-color="#3B82C4"/>
+    </linearGradient>
+    <linearGradient id="logo-bg" x1="0" y1="0" x2="328" y2="328" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#6B5FED"/>
+      <stop offset="55%"  stop-color="#5046E4"/>
+      <stop offset="100%" stop-color="#3B82C4"/>
+    </linearGradient>
+    <!-- Ambient glow -->
+    <radialGradient id="glow1" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#7C3AED" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="50%" cy="70%" r="40%">
+      <stop offset="0%" stop-color="#0891B2" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1170" height="2532" fill="url(#splash-bg)"/>
+  <!-- Ambient glows -->
+  <rect width="1170" height="2532" fill="url(#glow1)"/>
+  <rect width="1170" height="2532" fill="url(#glow2)"/>
+
+  <!-- Decorative circles -->
+  <circle cx="1170" cy="0" r="500" fill="rgba(255,255,255,0.04)"/>
+  <circle cx="0" cy="2532" r="600" fill="rgba(255,255,255,0.03)"/>
+
+  <!-- Logo mark - centered slightly above middle -->
+  <g transform="translate(421, 960)">
+    <rect width="328" height="328" rx="72" fill="rgba(255,255,255,0.15)"/>
+    <!-- Dashed ring -->
+    <circle cx="164" cy="164" r="90" stroke="rgba(255,255,255,0.22)" stroke-width="3.5" stroke-dasharray="9 7" fill="none"/>
+    <!-- Dot markers -->
+    <circle cx="254" cy="164" r="5" fill="rgba(255,255,255,0.35)"/>
+    <circle cx="74"  cy="164" r="5" fill="#22D3EE" fill-opacity="0.6"/>
+    <!-- Clock hands -->
+    <line x1="164" y1="164" x2="120" y2="109" stroke="rgba(255,255,255,0.55)" stroke-width="5" stroke-linecap="round"/>
+    <line x1="164" y1="164" x2="200" y2="130" stroke="rgba(255,255,255,0.55)" stroke-width="6.5" stroke-linecap="round"/>
+    <circle cx="164" cy="164" r="6" fill="rgba(255,255,255,0.5)"/>
+    <!-- White sync arrow -->
+    <path d="M 95 95 A 99 99 0 0 1 253 122" stroke="white" stroke-width="17" stroke-linecap="round" fill="none"/>
+    <polygon points="253,122 269,99 279,128" fill="white"/>
+    <!-- Cyan sync arrow -->
+    <path d="M 233 233 A 99 99 0 0 1 75 206" stroke="#22D3EE" stroke-width="17" stroke-linecap="round" fill="none"/>
+    <polygon points="75,206 59,229 49,200" fill="#22D3EE"/>
+  </g>
+
+  <!-- ShiftSync wordmark -->
+  <text x="585" y="1362" font-family="'Sora','Inter',system-ui,sans-serif" font-weight="700" font-size="88" fill="white" text-anchor="middle" letter-spacing="-2">ShiftSync</text>
+  <!-- Tagline -->
+  <text x="585" y="1448" font-family="'Inter',system-ui,sans-serif" font-weight="400" font-size="42" fill="rgba(255,255,255,0.65)" text-anchor="middle" letter-spacing="0.5">Smart Scheduling. Better Balance.</text>
+</svg>

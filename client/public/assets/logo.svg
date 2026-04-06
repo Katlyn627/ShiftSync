@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none" role="img" aria-label="ShiftSync">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#6B5FED"/>
+      <stop offset="55%"  stop-color="#5046E4"/>
+      <stop offset="100%" stop-color="#3B82C4"/>
+    </linearGradient>
+    <linearGradient id="clockFace" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+
+  <!-- Clock dashed ring -->
+  <circle cx="512" cy="512" r="280" stroke="rgba(255,255,255,0.22)" stroke-width="10" stroke-dasharray="28 20" fill="none"/>
+
+  <!-- Clock dot markers at 3 o'clock and 9 o'clock -->
+  <circle cx="792" cy="512" r="14" fill="rgba(255,255,255,0.35)"/>
+  <circle cx="232" cy="512" r="14" fill="#22D3EE" fill-opacity="0.6"/>
+
+  <!-- Clock hands -->
+  <!-- Minute hand (pointing ~10 o'clock) -->
+  <line x1="512" y1="512" x2="376" y2="336" stroke="rgba(255,255,255,0.55)" stroke-width="16" stroke-linecap="round"/>
+  <!-- Hour hand (pointing ~2 o'clock) -->
+  <line x1="512" y1="512" x2="624" y2="404" stroke="rgba(255,255,255,0.55)" stroke-width="20" stroke-linecap="round"/>
+  <!-- Center pivot -->
+  <circle cx="512" cy="512" r="18" fill="rgba(255,255,255,0.5)"/>
+
+  <!-- Top-right white sync arrow (clockwise, upper arc) -->
+  <path d="M 296 296 A 308 308 0 0 1 794 380" stroke="white" stroke-width="52" stroke-linecap="round" fill="none"/>
+  <!-- Arrow head for white arrow -->
+  <polygon points="794,380 840,310 860,395" fill="white"/>
+
+  <!-- Bottom-left cyan sync arrow (counter-clockwise, lower arc) -->
+  <path d="M 730 728 A 308 308 0 0 1 230 644" stroke="#22D3EE" stroke-width="52" stroke-linecap="round" fill="none"/>
+  <!-- Arrow head for cyan arrow -->
+  <polygon points="230,644 184,714 164,629" fill="#22D3EE"/>
+</svg>

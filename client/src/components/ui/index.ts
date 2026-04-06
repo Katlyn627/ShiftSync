@@ -31,4 +31,6 @@ export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, Tabl
 export { PageHeader } from './PageHeader';
 export type { PageHeaderProps } from './PageHeader';
 
+export { Logo } from './Logo';
+
 export { cn, NATIVE_SELECT_CLASS } from './utils';
