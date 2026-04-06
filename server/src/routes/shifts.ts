@@ -140,6 +140,8 @@ router.post('/:id/drop', requireAuth, (req: Request, res: Response) => {
   if (!reason || !reason.trim()) {
     return res.status(400).json({ error: 'A reason is required to drop a shift' });
   }
+  // Strip HTML tags from the reason to prevent markup injection in message bodies
+  const sanitizedReason = reason.trim().replace(/<[^>]*>/g, '');
 
   const shift = db.prepare(`
     SELECT s.*, e.name as employee_name, e.role as emp_role, e.department, e.site_id
@@ -165,7 +167,7 @@ router.post('/:id/drop', requireAuth, (req: Request, res: Response) => {
   // Create an open swap request (no specific target — anyone can pick it up)
   const swapResult = db.prepare(
     'INSERT INTO shift_swaps (shift_id, requester_id, target_id, reason) VALUES (?, ?, NULL, ?)'
-  ).run(shift.id, employeeId, reason.trim());
+  ).run(shift.id, employeeId, sanitizedReason);
 
   const swap = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(swapResult.lastInsertRowid) as any;
 
@@ -183,7 +185,7 @@ router.post('/:id/drop', requireAuth, (req: Request, res: Response) => {
       employee_id: mgr.employee_id,
       type: 'shift_drop_request',
       title: `Shift Drop Request${urgencyTag}`,
-      body: `${shift.employee_name} needs to drop their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}). Reason: ${reason.trim()}`,
+      body: `${shift.employee_name} needs to drop their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}). Reason: ${sanitizedReason}`,
       link: '/swaps',
       data: { swap_id: swap.id, shift_id: shift.id, is_last_minute: isLastMinute },
     });
@@ -232,7 +234,7 @@ router.post('/:id/drop', requireAuth, (req: Request, res: Response) => {
           addMember.run(convId, memberId);
         }
 
-        const msgBody = `Hi team — I need to drop my ${shift.role} shift on ${shift.date} from ${shift.start_time} to ${shift.end_time} (${hoursUntilShift.toFixed(1)} hours away). Reason: ${reason.trim()}\n\nCan anyone pick this up? Please respond here or go to the Swaps page to claim it.`;
+        const msgBody = `Hi team — I need to drop my ${shift.role} shift on ${shift.date} from ${shift.start_time} to ${shift.end_time} (${hoursUntilShift.toFixed(1)} hours away). Reason: ${sanitizedReason}\n\nCan anyone pick this up? Please respond here or go to the Swaps page to claim it.`;
         db.prepare('INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)').run(convId, employeeId, msgBody);
         db.prepare("UPDATE conversations SET last_message_at = datetime('now') WHERE id = ?").run(convId);
       }
