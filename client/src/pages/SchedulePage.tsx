@@ -540,7 +540,7 @@ export default function SchedulePage() {
       />
 
       {/* ── Controls Bar ── */}
-      <div className="flex flex-wrap items-end gap-3 p-4 bg-white rounded-xl border border-border shadow-sm">
+      <div className="flex flex-wrap items-end gap-3 p-4 bg-card rounded-xl border border-border shadow-sm">
         {isManager && (
           <>
             <Input label="Week Starting" type="date" value={weekStart} onChange={e => setWeekStart(e.target.value)} />
@@ -810,7 +810,7 @@ export default function SchedulePage() {
                 className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
                   viewFilter === tab.key
                     ? 'bg-teal-600 text-white border-teal-600'
-                    : 'bg-white text-muted-foreground border-border hover:bg-muted/40'
+                    : 'bg-card text-muted-foreground border-border hover:bg-muted/40'
                 }`}
               >
                 {tab.label}
@@ -822,7 +822,7 @@ export default function SchedulePage() {
 
       {/* ── Manager Intelligence Filter Bar ── */}
       {selectedSchedule && isManager && intelligence && (
-        <div className="rounded-xl border border-border bg-white shadow-sm p-3">
+        <div className="rounded-xl border border-border bg-card shadow-sm p-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mr-1">Filters</span>
 
@@ -832,7 +832,7 @@ export default function SchedulePage() {
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
                 activeFilter === 'understaffed'
                   ? 'bg-rose-600 text-white border-rose-600'
-                  : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
+                  : 'bg-card text-rose-700 border-rose-200 hover:bg-rose-50'
               }`}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
@@ -850,7 +850,7 @@ export default function SchedulePage() {
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
                 activeFilter === 'overstaffed'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'
+                  : 'bg-card text-blue-700 border-blue-200 hover:bg-blue-50'
               }`}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
@@ -868,7 +868,7 @@ export default function SchedulePage() {
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
                 activeFilter === 'burnout'
                   ? 'bg-orange-500 text-white border-orange-500'
-                  : 'bg-white text-orange-700 border-orange-200 hover:bg-orange-50'
+                  : 'bg-card text-orange-700 border-orange-200 hover:bg-orange-50'
               }`}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
@@ -886,7 +886,7 @@ export default function SchedulePage() {
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
                 activeFilter === 'budget_flexible'
                   ? 'bg-emerald-600 text-white border-emerald-600'
-                  : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+                  : 'bg-card text-emerald-700 border-emerald-200 hover:bg-emerald-50'
               }`}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -939,7 +939,7 @@ export default function SchedulePage() {
       {/* ── Weekly Calendar Grid + Employee Panel ── */}
       {selectedSchedule && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="overflow-x-auto rounded-xl border border-border bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
             <div className="grid grid-cols-[120px_repeat(7,minmax(140px,1fr))] min-w-[1120px]">
               <div className="border-b border-r border-border bg-muted/30 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Shift</div>
               {weekDates.map((date, idx) => {
@@ -975,7 +975,7 @@ export default function SchedulePage() {
                     return (
                       <div
                         key={`cell-${date}-${slot.key}`}
-                        className={`border-r last:border-r-0 p-2 min-h-[140px] space-y-1.5 relative group/cell ${idx % 2 === 0 ? 'bg-white' : 'bg-background/60'} ${rowIdx < SHIFT_SLOTS.length - 1 ? 'border-b border-border' : ''}`}
+                        className={`border-r last:border-r-0 p-2 min-h-[140px] space-y-1.5 relative group/cell ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/20'} ${rowIdx < SHIFT_SLOTS.length - 1 ? 'border-b border-border' : ''}`}
                         style={overlay ? { backgroundColor: overlay.bg + '55' } : undefined}
                       >
                         {slotShifts.length === 0 ? (
@@ -1160,7 +1160,7 @@ export default function SchedulePage() {
 
       {/* ── Empty state ── */}
       {schedules.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-24 gap-3 text-center bg-white rounded-xl border border-border">
+        <div className="flex flex-col items-center justify-center py-24 gap-3 text-center bg-card rounded-xl border border-border">
           <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
               <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
