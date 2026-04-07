@@ -8,6 +8,7 @@ import { getScheduleCoverageReport } from '../coverage';
 import { getScheduleIntelligence } from '../intelligence';
 import { requireManager, requireAuth } from '../middleware/auth';
 import { logAudit } from './audit';
+import { getEventsForDate } from '../events';
 
 const router = Router();
 
@@ -80,6 +81,7 @@ router.get('/generate-preview', requireManager, async (req: Request, res: Respon
         expected_revenue: row?.expected_revenue ?? 0,
         expected_covers: row?.expected_covers ?? 0,
         has_data: row !== null && row !== undefined,
+        events: getEventsForDate(date),
       };
     });
 
@@ -106,6 +108,11 @@ router.get('/generate-preview', requireManager, async (req: Request, res: Respon
         ).get(siteId) as any)
       : null;
 
+    // Summarise days in this week that have events (for the UI alert panel)
+    const upcomingEvents = forecastRows
+      .filter(f => f.events.length > 0)
+      .map(f => ({ date: f.date, day_name: f.day_name, events: f.events }));
+
     res.json({
       week_start,
       site_id: siteId,
@@ -122,6 +129,7 @@ router.get('/generate-preview', requireManager, async (req: Request, res: Respon
       settings,
       has_forecast_data:       forecastRows.some(f => f.has_data),
       pos_last_synced:         recentSync ? { platform: recentSync.platform_name, at: recentSync.last_synced_at } : null,
+      upcoming_events:         upcomingEvents,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

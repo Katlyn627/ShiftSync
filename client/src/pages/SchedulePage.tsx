@@ -3,7 +3,7 @@ import {
   getSchedules, generateSchedule, getScheduleShifts, updateSchedule, deleteSchedule,
   getEmployees, createSwap, updateShift, createShift, deleteShift, dropShift, getBurnoutRisks, getAllAvailability,
   getScheduleCoverage, getScheduleIntelligence, getGeneratePreview, getPosIntegrations,
-  createPosIntegration, deletePosIntegration, syncPosIntegration,
+  createPosIntegration, deletePosIntegration, syncPosIntegration, broadcastMessage,
   Schedule, ShiftWithEmployee, Employee, BurnoutRisk, Availability, ScheduleCoverageReport,
   DayIntelligence, ScheduleIntelligence, GeneratePreview, PosIntegration,
 } from '../api';
@@ -122,6 +122,28 @@ export default function SchedulePage() {
     { value: 'revel',      label: 'Revel Systems' },
     { value: 'other',      label: 'Other' },
   ];
+
+  // ── Broadcast / Staff Alert modal ─────────────────────────────────────────
+  const [showBroadcastModal, setShowBroadcastModal]   = useState(false);
+  const [broadcastTitle, setBroadcastTitle]           = useState('');
+  const [broadcastBody, setBroadcastBody]             = useState('');
+  const [broadcastSending, setBroadcastSending]       = useState(false);
+
+  const handleBroadcast = async () => {
+    if (!broadcastBody.trim()) return;
+    setBroadcastSending(true);
+    try {
+      const result = await broadcastMessage(broadcastBody.trim(), broadcastTitle.trim() || undefined);
+      setShowBroadcastModal(false);
+      setBroadcastTitle('');
+      setBroadcastBody('');
+      toast(`Alert sent to ${result.recipient_count} staff member${result.recipient_count !== 1 ? 's' : ''}.`, { variant: 'success', duration: 5000 });
+    } catch (err: any) {
+      toast('Error sending alert: ' + err.message, { variant: 'error' });
+    } finally {
+      setBroadcastSending(false);
+    }
+  };
 
   // ── Manager filter state ──────────────────────────────────────────────────
   type ActiveFilter = 'understaffed' | 'overstaffed' | 'burnout' | 'budget_flexible' | null;
@@ -709,14 +731,47 @@ export default function SchedulePage() {
                         <div key={f.date} className="flex-1 flex flex-col items-center gap-0.5">
                           <span className="text-[9px] text-muted-foreground">${(f.expected_revenue / 1000).toFixed(1)}k</span>
                           <div
-                            className="w-full rounded-t bg-primary/70 transition-all"
+                            className={`w-full rounded-t transition-all ${f.events.length > 0 ? 'bg-amber-400' : 'bg-primary/70'}`}
                             style={{ height: `${Math.max(heightPct, 4)}%` }}
-                            title={`${f.day_name}: $${f.expected_revenue.toLocaleString()} · ${f.expected_covers} covers`}
+                            title={`${f.day_name}: $${f.expected_revenue.toLocaleString()} · ${f.expected_covers} covers${f.events.length > 0 ? ` · ${f.events.join(', ')}` : ''}`}
                           />
                           <span className="text-[9px] text-muted-foreground">{f.day_name}</span>
+                          {f.events.length > 0 && (
+                            <span className="text-[8px] text-amber-600 font-semibold leading-tight text-center">🎉</span>
+                          )}
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {/* Upcoming Events & Holidays panel */}
+              {weekPreview.upcoming_events && weekPreview.upcoming_events.length > 0 && (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                      <span>📅</span> Upcoming Events &amp; Holidays — Extra Coverage May Be Required
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="text-xs h-7 px-2.5 border-amber-300 text-amber-700 hover:bg-amber-100 shrink-0"
+                      onClick={() => setShowBroadcastModal(true)}
+                    >
+                      📢 Send Staff Alert
+                    </Button>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {weekPreview.upcoming_events.map(ev => (
+                      <div key={ev.date} className="flex flex-wrap gap-1">
+                        <span className="text-[10px] text-amber-700 font-medium">{ev.day_name} {ev.date.slice(5)}:</span>
+                        {ev.events.map(label => (
+                          <span key={label} className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-200 text-amber-800 dark:bg-amber-800/40 dark:text-amber-200">
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -1555,6 +1610,54 @@ export default function SchedulePage() {
               </Button>
             </div>
 
+          </Card>
+        </div>
+      )}
+
+      {/* ── Broadcast / Staff Alert Modal ── */}
+      {showBroadcastModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <Card className="w-full max-w-md mx-4 p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-heading font-bold text-lg">📢 Send Staff Alert</h2>
+              <button
+                onClick={() => { setShowBroadcastModal(false); setBroadcastTitle(''); setBroadcastBody(''); }}
+                className="text-muted-foreground hover:text-foreground text-xl"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This message will be sent as a group conversation to all staff at your location and will appear in their Messages inbox.
+            </p>
+            <Input
+              label="Subject / Title (optional)"
+              placeholder="e.g. 📅 Extra coverage needed — Mother's Day"
+              value={broadcastTitle}
+              onChange={e => setBroadcastTitle(e.target.value)}
+            />
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-muted-foreground">Message</label>
+              <textarea
+                rows={4}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                placeholder="e.g. Heads up — we have a large party reservation on Saturday and expect high covers due to Mother's Day weekend. Please check the schedule for any open shifts that need coverage."
+                value={broadcastBody}
+                onChange={e => setBroadcastBody(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => { setShowBroadcastModal(false); setBroadcastTitle(''); setBroadcastBody(''); }}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleBroadcast}
+                disabled={broadcastSending || !broadcastBody.trim()}
+                isLoading={broadcastSending}
+              >
+                Send to All Staff
+              </Button>
+            </div>
           </Card>
         </div>
       )}

@@ -767,6 +767,7 @@ export interface GeneratePreviewForecast {
   expected_revenue: number;
   expected_covers: number;
   has_data: boolean;
+  events: string[];
 }
 
 export interface GeneratePreview {
@@ -785,6 +786,7 @@ export interface GeneratePreview {
   settings: RestaurantSettings;
   has_forecast_data: boolean;
   pos_last_synced: { platform: string; at: string } | null;
+  upcoming_events: { date: string; day_name: string; events: string[] }[];
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────────
@@ -808,6 +810,11 @@ export const sendMessage = (conversationId: number, body: string) =>
   request<Message>(`/messages/conversations/${conversationId}`, { method: 'POST', body: JSON.stringify({ body }) });
 export const markConversationRead = (id: number) =>
   request<{ success: boolean }>(`/messages/conversations/${id}/read`, { method: 'PUT' });
+export const broadcastMessage = (body: string, title?: string) =>
+  request<{ conversation: Conversation; recipient_count: number }>('/messages/broadcast', {
+    method: 'POST',
+    body: JSON.stringify({ title, body }),
+  });
 
 // ── Notification & Message Types ──────────────────────────────────────────────
 export interface AppNotification {
