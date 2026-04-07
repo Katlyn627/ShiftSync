@@ -161,10 +161,12 @@ function buildRecommendations(
 
 /**
  * Compute the next ISO date (YYYY-MM-DD) falling on the given day-of-week
- * after the given base date.
+ * after the given base date. Always uses only the date portion (first 10 chars)
+ * to avoid issues if the input already contains a time component.
  */
 function nextWeekDate(baseDateStr: string, dayOfWeek: number): string {
-  const base = new Date(baseDateStr + 'T12:00:00Z');
+  const dateOnly = (baseDateStr || '').slice(0, 10);
+  const base = new Date(dateOnly + 'T12:00:00Z');
   base.setUTCDate(base.getUTCDate() + 7);
   // Adjust to target DOW within that week
   const diff = (dayOfWeek - base.getUTCDay() + 7) % 7;
@@ -219,9 +221,11 @@ router.post('/campaigns', requireManager, (req: Request, res: Response) => {
 
   const effectiveSiteId = site_id ?? req.user?.siteId ?? null;
   const effectiveRecurrence = recurrence === 'weekly' ? 'weekly' : 'none';
-  // For weekly campaigns, compute the first next_send_date (one week after end_date)
+  // For weekly campaigns, compute the first next_send_date (one week after end_date).
+  // Slice to 10 chars to safely handle any time component that may be in the input.
+  const startDateOnly = (start_date || '').slice(0, 10);
   const nextSend = effectiveRecurrence === 'weekly' && end_date
-    ? nextWeekDate(end_date, schedule_day_of_week ?? new Date(start_date + 'T12:00:00Z').getUTCDay())
+    ? nextWeekDate(end_date, schedule_day_of_week ?? new Date(startDateOnly + 'T12:00:00Z').getUTCDay())
     : null;
 
   const result = db.prepare(`
@@ -508,54 +512,67 @@ router.post('/campaigns/:id/spawn-next', requireManager, (req: Request, res: Res
 /**
  * Returns additional role-specific survey questions that get appended to the
  * base instrument for employees whose role/department matches.
+ * Uses exact-word matching (split on non-word characters) to avoid false positives
+ * (e.g. 'part' matching 'department').
  */
 function getRoleSpecificQuestions(roleTitle: string, department: string): any[] {
   const role = (roleTitle || '').toLowerCase();
   const dept = (department || '').toLowerCase();
   const questions: any[] = [];
 
+  // Word-boundary-safe matcher: checks whether any keyword appears as a whole word
+  const hasWord = (text: string, keywords: string[]): boolean => {
+    const words = text.split(/[\s\-_/,]+/).filter(Boolean);
+    return keywords.some(kw => {
+      if (kw.includes(' ')) {
+        return text.includes(kw);
+      }
+      return words.includes(kw);
+    });
+  };
+
   // Revenue-facing / Front-of-House roles
-  const isFOH = ['server', 'bartender', 'host', 'barista', 'cashier', 'front of house', 'foh'].some(
-    r => role.includes(r) || dept.includes(r)
-  );
+  const isFOH = hasWord(role, ['server', 'bartender', 'host', 'barista', 'cashier', 'foh'])
+    || hasWord(dept, ['server', 'bartender', 'host', 'barista', 'cashier', 'foh', 'front of house']);
   if (isFOH) {
     questions.push(
-      { id: `role_foh_tips`, text: 'Do fluctuations in tips/gratuities add stress to your work?', scale: 5, subscale: 'revenue_pressure', role_specific: true },
-      { id: `role_foh_pace`, text: 'Do peak service periods leave you feeling overwhelmed or unable to recover?', scale: 5, subscale: 'workload_peaks', role_specific: true },
-      { id: `role_foh_feedback`, text: 'Do you receive enough recognition or feedback for your performance during busy periods?', scale: 5, subscale: 'feedback_recognition', reversed: true, role_specific: true },
+      { id: 'role_foh_tips', text: 'Do fluctuations in tips/gratuities add stress to your work?', scale: 5, subscale: 'revenue_pressure', role_specific: true },
+      { id: 'role_foh_pace', text: 'Do peak service periods leave you feeling overwhelmed or unable to recover?', scale: 5, subscale: 'workload_peaks', role_specific: true },
+      { id: 'role_foh_feedback', text: 'Do you receive enough recognition or feedback for your performance during busy periods?', scale: 5, subscale: 'feedback_recognition', reversed: true, role_specific: true },
     );
   }
 
   // Back-of-House / Kitchen
-  const isBOH = ['cook', 'chef', 'kitchen', 'prep', 'dishwasher', 'line', 'back of house', 'boh'].some(
-    r => role.includes(r) || dept.includes(r)
-  );
+  const isBOH = hasWord(role, ['cook', 'chef', 'prep', 'dishwasher', 'boh'])
+    || hasWord(dept, ['cook', 'chef', 'kitchen', 'prep', 'dishwasher', 'boh', 'back of house'])
+    || role.includes('line cook') || dept.includes('kitchen');
   if (isBOH) {
     questions.push(
-      { id: `role_boh_heat`, text: 'Does the physical environment (heat, noise, pace) of your kitchen leave you physically drained?', scale: 5, subscale: 'physical_environment', role_specific: true },
-      { id: `role_boh_cover`, text: 'Are you frequently asked to cover other positions or pick up extra duties due to understaffing?', scale: 5, subscale: 'workload_peaks', role_specific: true },
-      { id: `role_boh_break`, text: 'Do you regularly get adequate breaks during your shifts?', scale: 5, subscale: 'mediator_schedule_control', reversed: true, role_specific: true },
+      { id: 'role_boh_heat', text: 'Does the physical environment (heat, noise, pace) of your kitchen leave you physically drained?', scale: 5, subscale: 'physical_environment', role_specific: true },
+      { id: 'role_boh_cover', text: 'Are you frequently asked to cover other positions or pick up extra duties due to understaffing?', scale: 5, subscale: 'workload_peaks', role_specific: true },
+      { id: 'role_boh_break', text: 'Do you regularly get adequate breaks during your shifts?', scale: 5, subscale: 'mediator_schedule_control', reversed: true, role_specific: true },
     );
   }
 
   // Management / Supervisor roles
-  const isMgmt = ['manager', 'supervisor', 'lead', 'director', 'coordinator'].some(
-    r => role.includes(r) || dept.includes(r)
-  );
+  const isMgmt = hasWord(role, ['manager', 'supervisor', 'director', 'coordinator'])
+    || hasWord(dept, ['manager', 'supervisor', 'director', 'coordinator'])
+    || /\blead\b/.test(role);
   if (isMgmt) {
     questions.push(
-      { id: `role_mgmt_admin`, text: 'Does administrative overhead (scheduling, reporting, compliance) reduce your ability to support your team?', scale: 5, subscale: 'administrative_burden', role_specific: true },
-      { id: `role_mgmt_revenue`, text: 'Do revenue targets or labour-cost pressures create conflict with your ability to schedule fairly?', scale: 5, subscale: 'revenue_pressure', role_specific: true },
-      { id: `role_mgmt_support`, text: 'Do you feel adequately supported by upper management when making difficult staffing decisions?', scale: 5, subscale: 'feedback_recognition', reversed: true, role_specific: true },
+      { id: 'role_mgmt_admin', text: 'Does administrative overhead (scheduling, reporting, compliance) reduce your ability to support your team?', scale: 5, subscale: 'administrative_burden', role_specific: true },
+      { id: 'role_mgmt_revenue', text: 'Do revenue targets or labour-cost pressures create conflict with your ability to schedule fairly?', scale: 5, subscale: 'revenue_pressure', role_specific: true },
+      { id: 'role_mgmt_support', text: 'Do you feel adequately supported by upper management when making difficult staffing decisions?', scale: 5, subscale: 'feedback_recognition', reversed: true, role_specific: true },
     );
   }
 
-  // Hourly / part-time roles (general)
-  const isHourly = role.includes('part') || role.includes('hourly') || role.includes('casual') || role.includes('seasonal');
+  // Hourly / part-time roles
+  const isHourly = hasWord(role, ['hourly', 'casual', 'seasonal'])
+    || /\bpart.time\b/.test(role);
   if (isHourly) {
     questions.push(
-      { id: `role_hourly_hours`, text: 'Do you receive enough hours each week to meet your financial needs?', scale: 5, subscale: 'revenue_pressure', reversed: true, role_specific: true },
-      { id: `role_hourly_predict`, text: 'Is your schedule predictable enough to plan your personal life?', scale: 5, subscale: 'mediator_schedule_control', reversed: true, role_specific: true },
+      { id: 'role_hourly_hours', text: 'Do you receive enough hours each week to meet your financial needs?', scale: 5, subscale: 'revenue_pressure', reversed: true, role_specific: true },
+      { id: 'role_hourly_predict', text: 'Is your schedule predictable enough to plan your personal life?', scale: 5, subscale: 'mediator_schedule_control', reversed: true, role_specific: true },
     );
   }
 

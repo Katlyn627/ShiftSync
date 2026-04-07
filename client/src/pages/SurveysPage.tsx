@@ -189,7 +189,7 @@ export default function SurveysPage() {
           <p className="text-sm text-gray-600 mt-1">{activeCampaign.description}</p>
           {activeCampaign.anonymized === 1 && (
             <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
-              🔒 <strong>Anonymous &amp; confidential:</strong> Your individual responses are <em>never</em> seen by your manager.
+              🔒 <strong>Anonymous & confidential:</strong> Your individual responses are <em>never</em> seen by your manager.
               Only group averages (minimum {activeCampaign.min_group_size} responses) are reported.
               Results are used solely to improve scheduling and working conditions.
             </div>
@@ -398,7 +398,7 @@ export default function SurveysPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Campaign Title</label>
-                <input type="text" required value={createForm.title} placeholder="e.g. Weekly Burnout Check-in"
+                <input type="text" required value={createForm.title} placeholder="e.g. Q1 2026 Burnout Survey"
                   onChange={e => setCreateForm(f => ({ ...f, title: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               </div>
@@ -438,7 +438,7 @@ export default function SurveysPage() {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                     {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
                   </select>
-                  <p className="text-xs text-gray-400 mt-1">New weekly instances will be automatically queued on this day.</p>
+                  <p className="text-xs text-gray-400 mt-1">Use the "+ Next Week" button to manually launch the next weekly instance. The next send date is pre-computed and shown on the campaign card.</p>
                 </div>
               )}
 
