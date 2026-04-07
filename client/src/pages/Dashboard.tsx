@@ -11,7 +11,7 @@ import {
   ConversationWithDetails, SwapWithDetails, SurveyCampaign,
 } from '../api';
 import { useAuth } from '../AuthContext';
-import { Card, Badge, Modal, NATIVE_SELECT_CLASS, PageHeader } from '../components/ui';
+import { Card, Badge, Modal, NATIVE_SELECT_CLASS, PageHeader, useToast } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
 const RISK_COLORS: Record<string, string> = {
@@ -143,6 +143,7 @@ function UsersIcon() {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const isManager = user?.isManager ?? false;
   const [schedules, setSchedules]                   = useState<Schedule[]>([]);
   const [selectedId, setSelectedId]                 = useState<number | null>(null);
@@ -228,10 +229,11 @@ export default function Dashboard() {
         setRestaurantSettings(s);
         setSettingsForm(s);
         setShowSettingsModal(false);
+        toast('Restaurant settings saved.', { variant: 'success' });
         // Refresh metrics after settings change
         if (selectedId) getProfitabilityMetrics(selectedId).then(setProfitabilityMetrics).catch(() => {});
       })
-      .catch(() => {})
+      .catch(() => { toast('Failed to save settings.', { variant: 'error' }); })
       .finally(() => setSettingsSaving(false));
   }
 
