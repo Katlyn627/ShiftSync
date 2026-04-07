@@ -10,10 +10,11 @@
  *   GET  /api/messages/conversations/:id      — get conversation detail + messages
  *   POST /api/messages/conversations/:id      — send a message to a conversation
  *   PUT  /api/messages/conversations/:id/read — mark conversation as read
+ *   POST /api/messages/broadcast              — send a mass alert to all site employees (manager only)
  */
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
 
@@ -186,6 +187,62 @@ router.put('/conversations/:id/read', requireAuth, (req: Request, res: Response)
   ).run(req.params.id, employeeId);
 
   res.json({ success: true });
+});
+
+/**
+ * POST /api/messages/broadcast — send a mass alert to all employees at the manager's site.
+ *
+ * Creates a new group conversation (or reuses one with the same title from today) and
+ * adds every active employee at the site as a member. The manager's message is posted
+ * immediately so all staff see it in their Messages inbox.
+ *
+ * Body: { title: string, body: string }
+ * Returns: { conversation, recipient_count }
+ */
+router.post('/broadcast', requireManager, (req: Request, res: Response) => {
+  const db = getDb();
+  const senderEmployeeId = req.user?.employeeId;
+  if (!senderEmployeeId) return res.status(403).json({ error: 'No employee record linked to this account' });
+
+  const { title, body } = req.body as { title?: string; body?: string };
+  if (!body || !body.trim()) return res.status(400).json({ error: 'Message body is required' });
+
+  const siteId = req.user?.siteId ?? null;
+
+  // Collect all employees at this site (excluding the sender to avoid counting them twice when adding members)
+  const employees: { id: number }[] = siteId
+    ? (db.prepare('SELECT id FROM employees WHERE site_id = ? AND id != ?').all(siteId, senderEmployeeId) as any[])
+    : (db.prepare('SELECT id FROM employees WHERE id != ?').all(senderEmployeeId) as any[]);
+
+  const conversationTitle = title?.trim() || '📢 Staff Alert';
+
+  // Create a fresh group conversation for this broadcast
+  const result = db.prepare(
+    "INSERT INTO conversations (type, title, site_id, created_by) VALUES ('group', ?, ?, ?)"
+  ).run(conversationTitle, siteId, senderEmployeeId);
+  const convId = result.lastInsertRowid as number;
+
+  // Add sender + all site employees as members
+  const addMember = db.prepare(
+    'INSERT OR IGNORE INTO conversation_members (conversation_id, employee_id) VALUES (?, ?)'
+  );
+  addMember.run(convId, senderEmployeeId);
+  for (const emp of employees) {
+    addMember.run(convId, emp.id);
+  }
+
+  // Post the broadcast message
+  db.prepare('INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)').run(
+    convId, senderEmployeeId, body.trim()
+  );
+  db.prepare("UPDATE conversations SET last_message_at = datetime('now') WHERE id = ?").run(convId);
+
+  const conversation = db.prepare('SELECT * FROM conversations WHERE id = ?').get(convId);
+
+  res.status(201).json({
+    conversation,
+    recipient_count: employees.length,
+  });
 });
 
 export default router;

@@ -238,3 +238,110 @@ describe('POS Integrations', () => {
     expect(ids).not.toContain(integrationId);
   });
 });
+
+// ── Events in generate-preview ────────────────────────────────────────────────
+
+describe('Events in generate-preview', () => {
+  test('each forecast row includes an events array', async () => {
+    const res = await request(app)
+      .get('/api/schedules/generate-preview?week_start=2026-03-16')
+      .set('Authorization', `Bearer ${managerToken}`);
+
+    expect(res.status).toBe(200);
+    for (const f of res.body.forecasts) {
+      expect(Array.isArray(f.events)).toBe(true);
+    }
+  });
+
+  test('upcoming_events is an array in the response', async () => {
+    const res = await request(app)
+      .get('/api/schedules/generate-preview?week_start=2026-03-16')
+      .set('Authorization', `Bearer ${managerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.upcoming_events)).toBe(true);
+  });
+
+  test('a holiday week returns event labels on matching days', async () => {
+    // Valentine's Day window is 02-13 to 02-15. Use week of 2026-02-09 (Mon) which includes 02-13 Fri.
+    const res = await request(app)
+      .get('/api/schedules/generate-preview?week_start=2026-02-09')
+      .set('Authorization', `Bearer ${managerToken}`);
+
+    expect(res.status).toBe(200);
+    // Find 2026-02-13
+    const valentinesDay = res.body.forecasts.find((f: any) => f.date === '2026-02-13');
+    expect(valentinesDay).toBeDefined();
+    expect(valentinesDay.events).toContain("Valentine's Day");
+
+    // upcoming_events should include the Valentine's Day entry
+    const upcomingDates = res.body.upcoming_events.map((e: any) => e.date);
+    expect(upcomingDates).toContain('2026-02-13');
+  });
+
+  test('a non-holiday week returns empty events arrays on all days', async () => {
+    // 2026-10-19 week — falls after fall conference season (ends 10-15) and before Thanksgiving
+    const res = await request(app)
+      .get('/api/schedules/generate-preview?week_start=2026-10-19')
+      .set('Authorization', `Bearer ${managerToken}`);
+
+    expect(res.status).toBe(200);
+    for (const f of res.body.forecasts) {
+      expect(f.events).toHaveLength(0);
+    }
+    expect(res.body.upcoming_events).toHaveLength(0);
+  });
+});
+
+// ── POST /api/messages/broadcast ─────────────────────────────────────────────
+
+import messagesRouter from '../routes/messages';
+
+describe('POST /api/messages/broadcast', () => {
+  beforeAll(() => {
+    // Mount the messages router on the shared test app
+    app.use('/api/messages', messagesRouter);
+  });
+
+  test('requires manager role', async () => {
+    const res = await request(app)
+      .post('/api/messages/broadcast')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ body: 'Test broadcast' });
+    expect(res.status).toBe(403);
+  });
+
+  test('returns 400 when body is missing', async () => {
+    const res = await request(app)
+      .post('/api/messages/broadcast')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ title: 'Missing body' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Message body is required');
+  });
+
+  test('creates a group conversation and returns recipient_count', async () => {
+    const res = await request(app)
+      .post('/api/messages/broadcast')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ title: '📅 Extra Coverage Needed', body: 'Large party on Saturday — please check open shifts.' });
+
+    expect(res.status).toBe(201);
+    const body = res.body;
+    expect(body.conversation).toBeDefined();
+    expect(body.conversation.type).toBe('group');
+    expect(body.conversation.title).toBe('📅 Extra Coverage Needed');
+    expect(typeof body.recipient_count).toBe('number');
+    expect(body.recipient_count).toBeGreaterThan(0);
+  });
+
+  test('uses default title when none is provided', async () => {
+    const res = await request(app)
+      .post('/api/messages/broadcast')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ body: 'Holiday reminder — all hands on deck.' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.conversation.title).toBe('📢 Staff Alert');
+  });
+});
