@@ -209,10 +209,15 @@ router.post('/broadcast', requireManager, (req: Request, res: Response) => {
 
   const siteId = req.user?.siteId ?? null;
 
-  // Collect all employees at this site (excluding the sender to avoid counting them twice when adding members)
+  // Collect all employees at this site who have a linked user account (so they can receive messages),
+  // excluding the sender themselves
   const employees: { id: number }[] = siteId
-    ? (db.prepare('SELECT id FROM employees WHERE site_id = ? AND id != ?').all(siteId, senderEmployeeId) as any[])
-    : (db.prepare('SELECT id FROM employees WHERE id != ?').all(senderEmployeeId) as any[]);
+    ? (db.prepare(
+        'SELECT e.id FROM employees e JOIN users u ON u.employee_id = e.id WHERE e.site_id = ? AND e.id != ?'
+      ).all(siteId, senderEmployeeId) as any[])
+    : (db.prepare(
+        'SELECT e.id FROM employees e JOIN users u ON u.employee_id = e.id WHERE e.id != ?'
+      ).all(senderEmployeeId) as any[]);
 
   const conversationTitle = title?.trim() || '📢 Staff Alert';
 
