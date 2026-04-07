@@ -22,30 +22,31 @@ function formatTime(iso: string): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+const APP_PATHS = ['/open-shifts', '/swaps', '/schedule', '/messages', '/surveys'];
+const PATH_PATTERN = new RegExp(`(${APP_PATHS.map(p => p.replace('/', '\\/')).join('|')})`, 'gi');
+const PATH_LABELS: Record<string, string> = {
+  '/open-shifts': '→ Open Shifts',
+  '/swaps': '→ Shift Swaps',
+  '/schedule': '→ My Schedule',
+  '/messages': '→ Messages',
+  '/surveys': '→ Surveys',
+};
+
 /** Render message body with internal app paths (/open-shifts, /swaps, /schedule) as clickable buttons */
 function MessageBody({ body, onNavigate }: { body: string; onNavigate: (path: string) => void }) {
-  const APP_PATHS = ['/open-shifts', '/swaps', '/schedule', '/messages', '/surveys'];
-  const pathPattern = new RegExp(`(${APP_PATHS.map(p => p.replace('/', '\\/')).join('|')})`, 'gi');
-  const parts = body.split(pathPattern);
+  const parts = body.split(PATH_PATTERN);
   return (
     <span className="whitespace-pre-wrap break-words">
       {parts.map((part, i) => {
         const normalized = part.toLowerCase();
         if (APP_PATHS.includes(normalized)) {
-          const labels: Record<string, string> = {
-            '/open-shifts': '→ Open Shifts',
-            '/swaps': '→ Shift Swaps',
-            '/schedule': '→ My Schedule',
-            '/messages': '→ Messages',
-            '/surveys': '→ Surveys',
-          };
           return (
             <button
               key={i}
               onClick={() => onNavigate(normalized)}
               className="underline font-semibold hover:opacity-80 transition-opacity"
             >
-              {labels[normalized] ?? part}
+              {PATH_LABELS[normalized] ?? part}
             </button>
           );
         }

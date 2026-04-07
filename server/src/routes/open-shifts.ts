@@ -393,10 +393,11 @@ function notifyEligibleForOpenShift(
 
     // Send a direct message from the manager to each eligible employee
     if (managerEmployeeId && managerEmployeeId !== emp.id) {
+      const firstName = emp.name.split(' ')[0] || emp.name;
       sendSystemMessage({
         senderEmployeeId: managerEmployeeId,
         recipientEmployeeId: emp.id,
-        body: `📋 Hi ${emp.name.split(' ')[0]}! A ${openShift.role} shift is available on ${shiftLabel}${openShift.reason ? ` (${openShift.reason})` : ''}.\n\nYou are eligible to claim this shift. Visit the Open Shifts page to pick it up.`,
+        body: `📋 Hi ${firstName}! A ${openShift.role} shift is available on ${shiftLabel}${openShift.reason ? ` (${openShift.reason})` : ''}.\n\nYou are eligible to claim this shift. Visit the Open Shifts page to pick it up.`,
         siteId,
       });
     }
