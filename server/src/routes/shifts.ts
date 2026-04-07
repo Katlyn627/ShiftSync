@@ -124,10 +124,12 @@ router.post('/', requireManager, (req: Request, res: Response) => {
  * Employee drops (requests to be relieved of) their own shift.
  *
  * - Creates a pending swap request (open pickup — no target).
+ * - Auto-creates an open shift in the marketplace so eligible employees can claim it.
  * - Notifies the manager about the drop request with the stated reason.
- * - If the shift starts within 48 hours ("last-minute"), also notifies
- *   every eligible coworker (same role, same site) so they can volunteer
- *   to pick it up, and broadcasts a group message to department members.
+ * - Notifies ONLY eligible coworkers (same role, same site, passes availability
+ *   and overtime checks — no unnecessary messages to ineligible employees).
+ * - Always broadcasts a group message to eligible coworkers + managers so the
+ *   conversation is saved and visible in the messaging UI.
  *
  * Body: { reason: string }
  */
@@ -168,8 +170,23 @@ router.post('/:id/drop', requireAuth, (req: Request, res: Response) => {
   const swapResult = db.prepare(
     'INSERT INTO shift_swaps (shift_id, requester_id, target_id, reason) VALUES (?, ?, NULL, ?)'
   ).run(shift.id, employeeId, sanitizedReason);
-
   const swap = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(swapResult.lastInsertRowid) as any;
+
+  // Auto-create an open shift in the marketplace so eligible employees can claim it
+  const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(shift.schedule_id) as any;
+  const osResult = db.prepare(`
+    INSERT INTO open_shifts (schedule_id, site_id, date, start_time, end_time, role, reason, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, 'dropped', ?)
+  `).run(
+    shift.schedule_id, shift.site_id,
+    shift.date, shift.start_time, shift.end_time, shift.role,
+    req.user?.userId ?? null
+  );
+  const openShiftId = osResult.lastInsertRowid as number;
+
+  // Find ONLY eligible replacements — same role + same site + passes availability
+  // and overtime checks. This prevents unnecessary messages to ineligible employees.
+  const eligibleEmployees = findEligibleReplacements(db, shift, schedule, employeeId);
 
   // Notify manager(s) at the same site
   const managers = db.prepare(`
@@ -187,64 +204,63 @@ router.post('/:id/drop', requireAuth, (req: Request, res: Response) => {
       title: `Shift Drop Request${urgencyTag}`,
       body: `${shift.employee_name} needs to drop their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}). Reason: ${sanitizedReason}`,
       link: '/swaps',
-      data: { swap_id: swap.id, shift_id: shift.id, is_last_minute: isLastMinute },
+      data: { swap_id: swap.id, shift_id: shift.id, is_last_minute: isLastMinute, open_shift_id: openShiftId },
     });
   }
 
-  // Always notify ALL coworkers at the same site about the pickup opportunity
-  const allCoworkers = db.prepare(`
-    SELECT e.id, e.name
-    FROM employees e
-    WHERE e.site_id = ? AND e.id != ?
-  `).all(shift.site_id ?? null, employeeId) as any[];
-
+  // Notify ONLY eligible coworkers about the pickup opportunity
   const pickupTitle = isLastMinute ? '⚡ Urgent Shift Pickup Needed' : '📋 Shift Pickup Opportunity';
   const pickupBody = isLastMinute
-    ? `${shift.employee_name} needs urgent coverage for their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}). Can you pick it up?`
-    : `${shift.employee_name} has dropped their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}). This shift is available — interested? Go to Open Shifts to claim it.`;
+    ? `${shift.employee_name} needs urgent coverage for their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}). You are eligible to cover it — tap to claim it in Open Shifts.`
+    : `${shift.employee_name} has dropped their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}). You are eligible to pick it up — go to Open Shifts to claim it.`;
 
-  for (const coworker of allCoworkers) {
+  for (const emp of eligibleEmployees) {
     createNotification({
-      employee_id: coworker.id,
+      employee_id: emp.id,
       type: 'shift_pickup_needed',
       title: pickupTitle,
       body: pickupBody,
       link: '/open-shifts',
-      data: { swap_id: swap.id, shift_id: shift.id, is_last_minute: isLastMinute },
+      data: { swap_id: swap.id, shift_id: shift.id, open_shift_id: openShiftId, is_last_minute: isLastMinute },
     });
   }
 
-  // If last-minute, also broadcast a group message to the department
-  if (isLastMinute) {
-    const deptMembers = db.prepare(`
-      SELECT e.id FROM employees e WHERE e.site_id = ? AND e.department = ? AND e.id != ?
-    `).all(shift.site_id, shift.department ?? '', employeeId) as any[];
-
-    const allMemberIds: number[] = [employeeId, ...deptMembers.map((m: any) => m.id)];
-    // Include managers too
-    for (const mgr of managers) {
-      if (!allMemberIds.includes(mgr.employee_id)) allMemberIds.push(mgr.employee_id);
-    }
-
-    if (allMemberIds.length > 1) {
-      const convTitle = `Coverage Needed – ${shift.role} ${shift.date}`;
-      const convResult = db.prepare(`
-        INSERT INTO conversations (type, title, site_id, created_by) VALUES ('group', ?, ?, ?)
-      `).run(convTitle, shift.site_id, employeeId);
-      const convId = convResult.lastInsertRowid as number;
-
-      const addMember = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id, employee_id) VALUES (?, ?)');
-      for (const memberId of allMemberIds) {
-        addMember.run(convId, memberId);
-      }
-
-      const msgBody = `Hi team — I need to drop my ${shift.role} shift on ${shift.date} from ${shift.start_time} to ${shift.end_time} (${hoursUntilShift.toFixed(1)} hours away). Reason: ${sanitizedReason}\n\nCan anyone pick this up? Please respond here or go to the Open Shifts page to claim it.`;
-      db.prepare('INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)').run(convId, employeeId, msgBody);
-      db.prepare("UPDATE conversations SET last_message_at = datetime('now') WHERE id = ?").run(convId);
-    }
+  // Always create a group conversation with eligible employees + managers so the
+  // drop request is saved and visible in the messaging UI for all relevant parties.
+  const allMemberIds: number[] = [employeeId, ...eligibleEmployees.map((e: any) => e.id)];
+  for (const mgr of managers) {
+    if (!allMemberIds.includes(mgr.employee_id)) allMemberIds.push(mgr.employee_id);
   }
 
-  res.status(201).json({ swap, is_last_minute: isLastMinute, hours_until_shift: Math.round(hoursUntilShift) });
+  if (allMemberIds.length > 1) {
+    const convTitle = isLastMinute
+      ? `⚡ URGENT Coverage Needed – ${shift.role} ${shift.date}`
+      : `Shift Drop – ${shift.role} ${shift.date}`;
+    const convResult = db.prepare(`
+      INSERT INTO conversations (type, title, site_id, created_by) VALUES ('group', ?, ?, ?)
+    `).run(convTitle, shift.site_id, employeeId);
+    const convId = convResult.lastInsertRowid as number;
+
+    const addMember = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id, employee_id) VALUES (?, ?)');
+    for (const memberId of allMemberIds) {
+      addMember.run(convId, memberId);
+    }
+
+    const eligibleCount = eligibleEmployees.length;
+    const msgBody = isLastMinute
+      ? `Hi team — I need to drop my ${shift.role} shift on ${shift.date} from ${shift.start_time} to ${shift.end_time} (${hoursUntilShift.toFixed(1)} hours away). Reason: ${sanitizedReason}\n\nThis message has been sent to ${eligibleCount} eligible ${shift.role}(s) in our department. Can anyone pick this up? Please respond here or go to the Open Shifts page to claim it.`
+      : `Hi team — I'm looking to drop my ${shift.role} shift on ${shift.date} from ${shift.start_time} to ${shift.end_time}. Reason: ${sanitizedReason}\n\nThis opportunity has been shared with ${eligibleCount} eligible ${shift.role}(s) in our department. If you're interested, please go to the Open Shifts page to claim it or reply here.`;
+    db.prepare('INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)').run(convId, employeeId, msgBody);
+    db.prepare("UPDATE conversations SET last_message_at = datetime('now') WHERE id = ?").run(convId);
+  }
+
+  res.status(201).json({
+    swap,
+    is_last_minute: isLastMinute,
+    hours_until_shift: Math.round(hoursUntilShift),
+    eligible_count: eligibleEmployees.length,
+    open_shift_id: openShiftId,
+  });
 });
 
 router.delete('/:id', requireAuth, (req: Request, res: Response) => {
@@ -261,3 +277,69 @@ router.delete('/:id', requireAuth, (req: Request, res: Response) => {
 });
 
 export default router;
+
+/**
+ * Find employees who are eligible to cover a dropped shift.
+ * Eligibility requires: same role as the shift, same site, not the requester,
+ * not marked unavailable on that day, no overlapping shift on the same day,
+ * and would not exceed their weekly hours cap.
+ */
+function findEligibleReplacements(
+  db: ReturnType<typeof import('../db').getDb>,
+  shift: any,
+  schedule: any,
+  excludeEmployeeId: number
+): any[] {
+  // Only consider employees with the same role at the same site
+  const candidates: any[] = shift.site_id
+    ? (db.prepare('SELECT * FROM employees WHERE role = ? AND site_id = ? AND id != ?')
+        .all(shift.role, shift.site_id, excludeEmployeeId) as any[])
+    : (db.prepare('SELECT * FROM employees WHERE role = ? AND id != ?')
+        .all(shift.role, excludeEmployeeId) as any[]);
+
+  function toMinutes(t: string): number { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+  function shiftHoursLocal(start: string, end: string): number {
+    let s = toMinutes(start); let e = toMinutes(end);
+    if (e <= s) e += 24 * 60; return (e - s) / 60;
+  }
+
+  const newStart = toMinutes(shift.start_time);
+  let newEnd = toMinutes(shift.end_time);
+  if (newEnd <= newStart) newEnd += 24 * 60;
+  const newHours = shiftHoursLocal(shift.start_time, shift.end_time);
+
+  const eligible: any[] = [];
+  for (const emp of candidates) {
+    // Availability check — skip if explicitly unavailable on that day of week
+    const dayOfWeek = new Date(shift.date + 'T12:00:00').getDay();
+    const avail = db.prepare('SELECT * FROM availability WHERE employee_id = ? AND day_of_week = ?')
+      .get(emp.id, dayOfWeek) as any;
+    if (avail?.availability_type === 'unavailable') continue;
+
+    // Overlap check — skip if already scheduled at the same time on that day
+    const sameDayShifts = db.prepare(
+      "SELECT * FROM shifts WHERE employee_id = ? AND date = ? AND status != 'cancelled'"
+    ).all(emp.id, shift.date) as any[];
+    const hasOverlap = sameDayShifts.some((s: any) => {
+      const sStart = toMinutes(s.start_time);
+      let sEnd = toMinutes(s.end_time);
+      if (sEnd <= sStart) sEnd += 24 * 60;
+      return newStart < sEnd && newEnd > sStart;
+    });
+    if (hasOverlap) continue;
+
+    // Weekly hours / overtime cap check
+    if (schedule) {
+      const weekEnd = new Date(new Date(schedule.week_start + 'T00:00:00').getTime() + 7 * 24 * 3600 * 1000)
+        .toISOString().slice(0, 10);
+      const weekShifts = db.prepare(
+        "SELECT * FROM shifts WHERE employee_id = ? AND date >= ? AND date < ? AND status != 'cancelled'"
+      ).all(emp.id, schedule.week_start, weekEnd) as any[];
+      const totalHours = weekShifts.reduce((sum: number, s: any) => sum + shiftHoursLocal(s.start_time, s.end_time), 0);
+      if (totalHours + newHours > emp.weekly_hours_max) continue;
+    }
+
+    eligible.push(emp);
+  }
+  return eligible;
+}

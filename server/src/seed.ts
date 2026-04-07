@@ -1150,6 +1150,124 @@ export function seedDemoData(): void {
     h2PastSun, null, h2Mgr
   );
 
+  // ── Demo: Auto-pickup scenario — Bella Napoli ────────────────────────────
+  //
+  // This seed block simulates the complete drop-and-auto-pickup flow so that
+  // the system, messages, and notifications can be verified from day one:
+  //
+  //   1. Diana Prince (Server) drops her current-week shift.
+  //   2. An open shift is created in the marketplace (eligible Servers only).
+  //   3. Ethan Ross (eligible Server, same dept/site) auto-submits a pickup offer.
+  //   4. A group conversation is created with only the eligible Servers + managers.
+  //   5. Notifications are seeded for the manager and each eligible Server.
+  //   6. The swap stays "pending" — the manager reviews it and approves via Shift Swaps.
+  //   7. On approval the shift is transferred to Ethan (handled by PUT /api/swaps/:id/approve).
+  //
+  // To log in as the dropper: username "diana", password "password123"
+  // To log in as the pickup:  username "ethan", password "password123"
+  // To approve as manager:    username "alice", password "password123"
+  const r1DemoDropper = r1AllServers.length >= 4 ? r1AllServers[3] : null; // Diana Prince
+  const r1DemoPickup  = r1AllServers.length >= 5 ? r1AllServers[4] : null; // Ethan Ross
+  if (r1DemoDropper && r1DemoPickup) {
+    const demoShift = getShiftFor(scheduleIds[`${siteR1}_${thisMonday}`], r1DemoDropper.id);
+    if (demoShift) {
+      // 1. Pending drop swap — no specific target (open for any eligible Server)
+      const demoSwapResult = insertSwap.run(
+        demoShift.id, r1DemoDropper.id, null,
+        'Personal emergency — need to drop this shift.',
+        'pending', null
+      );
+      const demoSwapId = demoSwapResult.lastInsertRowid as number;
+
+      // 2. Open shift in the marketplace (created by the drop)
+      const demoOpenShiftResult = insertOpenShift.run(
+        demoShift.schedule_id, siteR1,
+        demoShift.date, demoShift.start_time, demoShift.end_time, demoShift.role,
+        '[]', 'dropped', 'open',
+        demoShift.date, null, r1Mgr
+      );
+      const demoOpenShiftId = demoOpenShiftResult.lastInsertRowid as number;
+
+      // 3. Ethan auto-submits a pickup offer (system picks first eligible Server)
+      insertOpenShiftOffer.run(demoOpenShiftId, r1DemoPickup.id, 'pending', null, null);
+
+      // 4. Group conversation — only eligible Servers + managers (not the whole site)
+      const demoConvResult = db.prepare(
+        "INSERT INTO conversations (type, title, site_id, created_by) VALUES ('group', ?, ?, ?)"
+      ).run(`Shift Drop – Server ${demoShift.date}`, siteR1, r1DemoDropper.id);
+      const demoConvId = demoConvResult.lastInsertRowid as number;
+
+      const r1MgrEmps    = empsByRole(siteR1, 'Manager');
+      const demoMemberIds = [
+        r1DemoDropper.id,
+        ...r1AllServers.filter((s: any) => s.id !== r1DemoDropper.id).map((s: any) => s.id),
+        ...r1MgrEmps.map((m: any) => m.id),
+      ];
+      const addConvMember = db.prepare(
+        'INSERT OR IGNORE INTO conversation_members (conversation_id, employee_id) VALUES (?, ?)'
+      );
+      for (const memberId of demoMemberIds) addConvMember.run(demoConvId, memberId);
+
+      const eligibleServerCount = r1AllServers.length - 1;
+      const demoDropMsg =
+        `Hi team — I'm looking to drop my Server shift on ${demoShift.date} from ` +
+        `${demoShift.start_time} to ${demoShift.end_time}. ` +
+        `Reason: Personal emergency — need to drop this shift.\n\n` +
+        `This opportunity has been shared with ${eligibleServerCount} eligible Server(s) in our department. ` +
+        `If you're interested, please go to the Open Shifts page to claim it or reply here.`;
+      db.prepare('INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)')
+        .run(demoConvId, r1DemoDropper.id, demoDropMsg);
+
+      // Ethan responds: he has already claimed the open shift
+      const demoPickupMsg =
+        `Hi ${r1DemoDropper.first_name}! I can cover your shift on ${demoShift.date}. ` +
+        `I've already submitted a claim on the Open Shifts page — just waiting on manager approval. ` +
+        `Hope everything is okay!`;
+      db.prepare('INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)')
+        .run(demoConvId, r1DemoPickup.id, demoPickupMsg);
+      db.prepare("UPDATE conversations SET last_message_at = datetime('now') WHERE id = ?")
+        .run(demoConvId);
+
+      // 5. Seed notifications
+      const insertNotification = db.prepare(
+        'INSERT INTO notifications (employee_id, type, title, body, link, data) VALUES (?, ?, ?, ?, ?, ?)'
+      );
+
+      // Manager: drop request + pending pickup
+      for (const mgrEmp of r1MgrEmps) {
+        insertNotification.run(
+          mgrEmp.id, 'shift_drop_request', 'Shift Drop Request',
+          `${r1DemoDropper.first_name} ${r1DemoDropper.last_name} needs to drop their Server shift ` +
+            `on ${demoShift.date} (${demoShift.start_time}–${demoShift.end_time}). ` +
+            `Reason: Personal emergency — need to drop this shift.`,
+          '/swaps',
+          JSON.stringify({ swap_id: demoSwapId, shift_id: demoShift.id, open_shift_id: demoOpenShiftId, is_last_minute: false })
+        );
+        insertNotification.run(
+          mgrEmp.id, 'shift_pickup_needed', '✅ Server Pickup Offer Submitted',
+          `${r1DemoPickup.first_name} ${r1DemoPickup.last_name} has offered to cover ` +
+            `${r1DemoDropper.first_name}'s Server shift on ${demoShift.date}. ` +
+            `Please review and approve in Shift Swaps.`,
+          '/swaps',
+          JSON.stringify({ swap_id: demoSwapId, open_shift_id: demoOpenShiftId, shift_id: demoShift.id })
+        );
+      }
+
+      // Eligible Servers only (same role, same site)
+      for (const srv of r1AllServers) {
+        if (srv.id === r1DemoDropper.id) continue;
+        insertNotification.run(
+          srv.id, 'shift_pickup_needed', '📋 Shift Pickup Opportunity',
+          `${r1DemoDropper.first_name} ${r1DemoDropper.last_name} has dropped their Server shift ` +
+            `on ${demoShift.date} (${demoShift.start_time}–${demoShift.end_time}). ` +
+            `You are eligible to pick it up — go to Open Shifts to claim it.`,
+          '/open-shifts',
+          JSON.stringify({ swap_id: demoSwapId, shift_id: demoShift.id, open_shift_id: demoOpenShiftId, is_last_minute: false })
+        );
+      }
+    }
+  }
+
   // ── 13. Burnout Survey Campaigns & Responses ──────────────────────────────
 
   // Fetch template IDs by instrument
