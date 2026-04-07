@@ -27,8 +27,8 @@ const BASELINE_REVENUE_BY_OFFSET = [2800, 3200, 3800, 4500, 7200, 8500, 5500];
  * graduation weekends, Memorial Day, Independence Day, and conference periods.
  *
  * Format: each entry defines a date window (MM-DD inclusive) and the revenue
- * lift factor for any day that falls within it.  Overlapping windows stack
- * multiplicatively (first match wins for simplicity).
+ * lift factor for any day that falls within it.  When multiple windows overlap,
+ * the highest multiplier wins (applied once per day, not stacked).
  */
 interface SeasonalWindow {
   label: string;

@@ -1469,7 +1469,7 @@ export default function SchedulePage() {
                 }
                 return (
                   <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2.5 text-xs text-sky-800">
-                    <p>Your coworkers will receive a notification about this open shift opportunity so someone can pick it up.</p>
+                    <p>All of your coworkers at this location will receive a notification about this open shift opportunity so someone can pick it up.</p>
                   </div>
                 );
               })()}
