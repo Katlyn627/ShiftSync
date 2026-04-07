@@ -455,6 +455,33 @@ function initSchema(db: Database.Database): void {
     `);
   }
 
+  // Migrate burnout_survey_campaigns: add scheduling and targeting columns
+  const campaignCols = db.pragma('table_info(burnout_survey_campaigns)') as { name: string }[];
+  if (!campaignCols.some(c => c.name === 'recurrence')) {
+    db.exec("ALTER TABLE burnout_survey_campaigns ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'none'");
+  }
+  if (!campaignCols.some(c => c.name === 'schedule_day_of_week')) {
+    db.exec('ALTER TABLE burnout_survey_campaigns ADD COLUMN schedule_day_of_week INTEGER DEFAULT NULL');
+  }
+  if (!campaignCols.some(c => c.name === 'next_send_date')) {
+    db.exec('ALTER TABLE burnout_survey_campaigns ADD COLUMN next_send_date TEXT DEFAULT NULL');
+  }
+  if (!campaignCols.some(c => c.name === 'target_roles')) {
+    db.exec("ALTER TABLE burnout_survey_campaigns ADD COLUMN target_roles TEXT NOT NULL DEFAULT '[]'");
+  }
+  if (!campaignCols.some(c => c.name === 'parent_campaign_id')) {
+    db.exec('ALTER TABLE burnout_survey_campaigns ADD COLUMN parent_campaign_id INTEGER REFERENCES burnout_survey_campaigns(id) ON DELETE SET NULL');
+  }
+
+  // Migrate burnout_survey_responses: capture dept/role_title at time of submission for group analytics
+  const responseCols = db.pragma('table_info(burnout_survey_responses)') as { name: string }[];
+  if (!responseCols.some(c => c.name === 'department')) {
+    db.exec("ALTER TABLE burnout_survey_responses ADD COLUMN department TEXT NOT NULL DEFAULT ''");
+  }
+  if (!responseCols.some(c => c.name === 'role_title')) {
+    db.exec("ALTER TABLE burnout_survey_responses ADD COLUMN role_title TEXT NOT NULL DEFAULT ''");
+  }
+
   // Seed default burnout survey templates
   seedDefaultSurveyTemplates(db);
 

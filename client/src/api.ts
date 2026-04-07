@@ -484,12 +484,17 @@ export const resolveCallout = (id: number, data: { replacement_employee_id?: num
 // ── Surveys ───────────────────────────────────────────────────────────────────
 export const getSurveyTemplates = () => request<SurveyTemplate[]>('/surveys/templates');
 export const getSurveyCampaigns = () => request<SurveyCampaign[]>('/surveys/campaigns');
-export const createSurveyCampaign = (data: { template_id: number; site_id?: number; title: string; start_date: string; end_date: string; anonymized?: boolean; min_group_size?: number }) =>
-  request<SurveyCampaign>('/surveys/campaigns', { method: 'POST', body: JSON.stringify(data) });
+export const createSurveyCampaign = (data: {
+  template_id: number; site_id?: number; title: string; start_date: string; end_date: string;
+  anonymized?: boolean; min_group_size?: number;
+  recurrence?: 'none' | 'weekly'; schedule_day_of_week?: number; target_roles?: string[];
+}) => request<SurveyCampaign>('/surveys/campaigns', { method: 'POST', body: JSON.stringify(data) });
 export const getSurveyCampaign = (id: number) => request<SurveyCampaign & { questions: SurveyQuestion[]; already_responded: boolean }>(`/surveys/campaigns/${id}`);
 export const submitSurveyResponse = (id: number, responses: Record<string, number>) =>
   request<{ success: boolean; message: string }>(`/surveys/campaigns/${id}/respond`, { method: 'POST', body: JSON.stringify({ responses }) });
 export const getSurveyResults = (id: number) => request<SurveyResults>(`/surveys/campaigns/${id}/results`);
+export const getSurveyRecommendations = (id: number) => request<SurveyRecommendations>(`/surveys/campaigns/${id}/recommendations`);
+export const spawnNextWeeklyCampaign = (id: number) => request<SurveyCampaign>(`/surveys/campaigns/${id}/spawn-next`, { method: 'POST' });
 
 // ── Feature Flags ─────────────────────────────────────────────────────────────
 export const getFeatureFlags = () => request<FeatureFlag[]>('/feature-flags');
@@ -605,6 +610,7 @@ export interface SurveyQuestion {
   scale: number;
   subscale: string;
   reversed?: boolean;
+  role_specific?: boolean;
 }
 
 export interface SurveyCampaign {
@@ -624,6 +630,11 @@ export interface SurveyCampaign {
   response_count?: number;
   already_responded?: boolean;
   responded_at?: string | null;
+  recurrence: 'none' | 'weekly';
+  schedule_day_of_week?: number | null;
+  next_send_date?: string | null;
+  target_roles?: string;
+  parent_campaign_id?: number | null;
   created_at: string;
 }
 
@@ -632,6 +643,13 @@ export interface SurveySubscaleResult {
   avg_score: number | null;
   item_count: number;
   interpretation: string;
+  pct_high: number;
+}
+
+export interface SurveyBreakdownSegment {
+  segment: string;
+  response_count: number;
+  subscale_results: SurveySubscaleResult[];
 }
 
 export interface SurveyResults {
@@ -642,8 +660,24 @@ export interface SurveyResults {
   results_available: boolean;
   message?: string;
   subscale_results?: SurveySubscaleResult[];
+  department_breakdowns?: SurveyBreakdownSegment[];
+  role_title_breakdowns?: SurveyBreakdownSegment[];
   purpose_limitation: string;
   data_governance?: string;
+}
+
+export interface SurveyRecommendation {
+  priority: 'high' | 'medium' | 'low';
+  category: string;
+  action: string;
+}
+
+export interface SurveyRecommendations {
+  campaign_id: number;
+  results_available: boolean;
+  recommendations: SurveyRecommendation[];
+  message?: string;
+  purpose_limitation?: string;
 }
 
 export interface FeatureFlag {
