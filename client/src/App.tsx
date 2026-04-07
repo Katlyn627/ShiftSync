@@ -482,6 +482,8 @@ export default function App() {
         </div>
 
         {/* ── Row 2: Desktop navigation bar ── */}
+        {/* Note: label visibility is controlled at the row level (hidden md:block),
+            so individual nav items always render their full text labels here. */}
         <div className="hidden md:block border-t border-border/50">
           <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
             <nav className="flex items-center justify-center gap-1 h-10 overflow-x-auto" aria-label="Main navigation">
