@@ -203,7 +203,7 @@ router.get('/:id/shifts', (req: Request, res: Response) => {
     SELECT s.*, e.name as employee_name, e.role as employee_role, e.hourly_rate
     FROM shifts s
     JOIN employees e ON s.employee_id = e.id
-    WHERE s.schedule_id = ?
+    WHERE s.schedule_id = ? AND s.status != 'cancelled'
     ORDER BY s.date, s.start_time, e.name
   `).all(req.params.id);
   res.json(shifts);

@@ -1,4 +1,4 @@
-import { useEffect, useState, CSSProperties } from 'react';
+import { useEffect, useState, CSSProperties, useCallback } from 'react';
 import {
   getSchedules, generateSchedule, getScheduleShifts, updateSchedule, deleteSchedule,
   getEmployees, createSwap, updateShift, createShift, deleteShift, dropShift, getBurnoutRisks, getAvailability,
@@ -177,15 +177,36 @@ export default function SchedulePage() {
     }).catch(err => console.error('Failed to load employees:', err));
   }, []);
 
+  const refreshShifts = useCallback((id: number) => {
+    getScheduleShifts(id).then(setShifts).catch(() => setShifts([]));
+    getScheduleCoverage(id).then(setCoverage).catch(() => setCoverage(null));
+    if (isManager) {
+      getScheduleIntelligence(id).then(setIntelligence).catch(() => setIntelligence(null));
+    }
+  }, [isManager]);
+
   useEffect(() => {
     if (!selectedId) return;
-    getScheduleShifts(selectedId).then(setShifts).catch(() => setShifts([]));
+    refreshShifts(selectedId);
     getBurnoutRisks(selectedId).then(setBurnoutRisks).catch(() => setBurnoutRisks([]));
-    getScheduleCoverage(selectedId).then(setCoverage).catch(() => setCoverage(null));
-    if (isManager) {
-      getScheduleIntelligence(selectedId).then(setIntelligence).catch(() => setIntelligence(null));
-    }
-  }, [selectedId, isManager]);
+  }, [selectedId, refreshShifts]);
+
+  // Re-fetch shifts every 30 seconds so approved swaps/drops appear automatically
+  useEffect(() => {
+    if (!selectedId) return;
+    const interval = setInterval(() => { refreshShifts(selectedId); }, 30000);
+    return () => clearInterval(interval);
+  }, [selectedId, refreshShifts]);
+
+  // Re-fetch shifts when the tab becomes visible again (e.g. after approving on another page)
+  useEffect(() => {
+    if (!selectedId) return;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') refreshShifts(selectedId);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [selectedId, refreshShifts]);
 
   // ── POS integration handlers ──────────────────────────────────────────────
   const handleAddPosIntegration = async () => {
@@ -1021,7 +1042,7 @@ export default function SchedulePage() {
                               return (
                                 <div
                                   key={shift.id}
-                                  className={`rounded-lg text-xs overflow-hidden relative group/shift ${shift.status === 'swapped' ? 'opacity-40' : ''} ${dropLoadingShiftId === shift.id ? 'animate-pulse' : ''}`}
+                                  className={`rounded-lg text-xs overflow-hidden relative group/shift ${dropLoadingShiftId === shift.id ? 'animate-pulse' : ''}`}
                                   style={isBurnoutShift
                                     ? { backgroundColor: '#fff7ed', color: '#9a3412', outline: '2px solid #f97316' }
                                     : shiftBlockStyle(shift.role)}
@@ -1037,7 +1058,7 @@ export default function SchedulePage() {
                                       style={{ backgroundColor: isBurnoutShift ? '#f97316' : shiftBarColor(shift.role) }}
                                     />
                                     <div className="flex-1 px-2 py-1.5 min-w-0">
-                                      <div className="font-semibold truncate text-[11px]" style={{ textDecoration: shift.status === 'swapped' ? 'line-through' : undefined }}>
+                                      <div className="font-semibold truncate text-[11px]">
                                         {shift.employee_name}
                                       </div>
                                       <Badge variant={roleVariant(shift.role)} className="mt-0.5 text-[9px] px-1.5 py-0 h-4">{shift.role}</Badge>
