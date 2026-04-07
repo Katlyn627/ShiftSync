@@ -11,6 +11,7 @@ import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 import { logAudit } from './audit';
 import { createNotification } from './notifications';
+import { sendSystemMessage } from './messages';
 
 const router = Router();
 
@@ -192,8 +193,8 @@ router.post('/', requireManager, (req: Request, res: Response) => {
     details: { date, role, reason },
   });
 
-  // Notify eligible employees about the new open shift
-  notifyEligibleForOpenShift(db, openShift);
+  // Notify eligible employees and send them direct messages about the new open shift
+  notifyEligibleForOpenShift(db, openShift, req.user?.employeeId ?? null);
 
   res.status(201).json(openShift);
 });
@@ -349,12 +350,13 @@ router.delete('/:id', requireManager, (req: Request, res: Response) => {
 export default router;
 
 /**
- * Notify eligible employees about a newly posted open shift.
+ * Notify eligible employees about a newly posted open shift and send them direct messages.
  * Checks role match, availability, and basic overtime cap.
  */
 function notifyEligibleForOpenShift(
   db: ReturnType<typeof import('../db').getDb>,
-  openShift: any
+  openShift: any,
+  managerEmployeeId: number | null = null
 ): void {
   const siteId = openShift.site_id ?? null;
   const requiredCerts: string[] = JSON.parse(openShift.required_certifications || '[]');
@@ -388,5 +390,15 @@ function notifyEligibleForOpenShift(
       link: `/open-shifts`,
       data: { open_shift_id: openShift.id, shift_date: openShift.date, shift_role: openShift.role },
     });
+
+    // Send a direct message from the manager to each eligible employee
+    if (managerEmployeeId && managerEmployeeId !== emp.id) {
+      sendSystemMessage({
+        senderEmployeeId: managerEmployeeId,
+        recipientEmployeeId: emp.id,
+        body: `📋 Hi ${emp.name.split(' ')[0]}! A ${openShift.role} shift is available on ${shiftLabel}${openShift.reason ? ` (${openShift.reason})` : ''}.\n\nYou are eligible to claim this shift. Visit the Open Shifts page to pick it up.`,
+        siteId,
+      });
+    }
   }
 }

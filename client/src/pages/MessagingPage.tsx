@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import {
   getConversations, getConversationMessages, sendMessage, createConversation,
@@ -21,6 +22,39 @@ function formatTime(iso: string): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+/** Render message body with internal app paths (/open-shifts, /swaps, /schedule) as clickable buttons */
+function MessageBody({ body, onNavigate }: { body: string; onNavigate: (path: string) => void }) {
+  const APP_PATHS = ['/open-shifts', '/swaps', '/schedule', '/messages', '/surveys'];
+  const pathPattern = new RegExp(`(${APP_PATHS.map(p => p.replace('/', '\\/')).join('|')})`, 'gi');
+  const parts = body.split(pathPattern);
+  return (
+    <span className="whitespace-pre-wrap break-words">
+      {parts.map((part, i) => {
+        const normalized = part.toLowerCase();
+        if (APP_PATHS.includes(normalized)) {
+          const labels: Record<string, string> = {
+            '/open-shifts': '→ Open Shifts',
+            '/swaps': '→ Shift Swaps',
+            '/schedule': '→ My Schedule',
+            '/messages': '→ Messages',
+            '/surveys': '→ Surveys',
+          };
+          return (
+            <button
+              key={i}
+              onClick={() => onNavigate(normalized)}
+              className="underline font-semibold hover:opacity-80 transition-opacity"
+            >
+              {labels[normalized] ?? part}
+            </button>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </span>
+  );
+}
+
 function ConversationTitle(conv: ConversationWithDetails, currentEmployeeId: number | null): string {
   if (conv.title) return conv.title;
   if (conv.type === 'direct') {
@@ -33,6 +67,7 @@ function ConversationTitle(conv: ConversationWithDetails, currentEmployeeId: num
 export default function MessagingPage() {
   const MESSAGE_POLL_INTERVAL_MS = 5000;
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [conversations, setConversations] = useState<ConversationWithDetails[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -262,7 +297,7 @@ export default function MessagingPage() {
                                 : 'bg-muted rounded-bl-sm'
                             }`}
                           >
-                            {msg.body}
+                            <MessageBody body={msg.body} onNavigate={path => { navigate(path); }} />
                           </div>
                           <span className="text-[10px] text-muted-foreground px-1">
                             {formatTime(msg.created_at)}

@@ -228,7 +228,12 @@ export default function App() {
         { to: '/fairness',           label: 'Fairness',    icon: <DashboardIcon />, color: '#8B5CF6' },
       ]
     : [
-        { to: '/', label: 'Dashboard', icon: <DashboardIcon />, color: '#5046E4' },
+        { to: '/',            label: 'Dashboard',   icon: <DashboardIcon />, color: '#5046E4' },
+        { to: '/schedule',    label: 'Schedule',    icon: <ScheduleIcon />,  color: '#0D9488' },
+        { to: '/open-shifts', label: 'Open Shifts', icon: <SwapIcon />,      color: '#0EA5E9' },
+        { to: '/swaps',       label: 'Shift Swaps', icon: <SwapIcon />,      color: '#F97316' },
+        { to: '/messages',    label: 'Messages',    icon: <MessagesIcon />,  color: '#8B5CF6' },
+        { to: '/surveys',     label: 'Surveys',     icon: <ProfileIcon />,   color: '#EC4899' },
       ];
 
   const initials = (user.employeeName || user.username)
@@ -347,6 +352,20 @@ export default function App() {
                       notifications.slice(0, 20).map(n => {
                         const notifData = (() => { try { return JSON.parse(n.data || '{}'); } catch (e) { console.error('Failed to parse notification data', e); return {}; } })();
                         const isPickupNotif = (n.type === 'shift_pickup_needed' || n.type === 'open_shift_available') && notifData.open_shift_id;
+                        const isSwapRequest = n.type === 'swap_request_received' || n.type === 'swap_request_created';
+                        const isSwapApproved = n.type === 'swap_approved';
+                        const isSwapRejected = n.type === 'swap_rejected';
+                        const isDropRequest = n.type === 'shift_drop_request';
+
+                        const handleMarkRead = () => {
+                          if (!n.read_at) {
+                            markNotificationRead(n.id).then(() => {
+                              setUnreadCount(prev => Math.max(0, prev - 1));
+                              setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
+                            });
+                          }
+                        };
+
                         return (
                           <div
                             key={n.id}
@@ -357,12 +376,7 @@ export default function App() {
                               <button
                                 className="w-full text-left hover:opacity-80 transition-opacity"
                                 onClick={() => {
-                                  if (!n.read_at) {
-                                    markNotificationRead(n.id).then(() => {
-                                      setUnreadCount(prev => Math.max(0, prev - 1));
-                                      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
-                                    });
-                                  }
+                                  handleMarkRead();
                                   if (n.link) { navigate(n.link); setNotifOpen(false); }
                                 }}
                               >
@@ -381,12 +395,7 @@ export default function App() {
                                     setClaimingShiftId(notifData.open_shift_id);
                                     try {
                                       await offerForOpenShift(notifData.open_shift_id);
-                                      if (!n.read_at) {
-                                        markNotificationRead(n.id).then(() => {
-                                          setUnreadCount(prev => Math.max(0, prev - 1));
-                                          setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
-                                        });
-                                      }
+                                      handleMarkRead();
                                       navigate('/open-shifts');
                                       setNotifOpen(false);
                                     } catch (err: any) {
@@ -400,6 +409,45 @@ export default function App() {
                                   }}
                                 >
                                   {claimingShiftId === notifData.open_shift_id ? 'Claiming…' : '✋ Claim This Shift'}
+                                </button>
+                              )}
+                              {(isSwapRequest || isDropRequest) && (
+                                <button
+                                  className="mt-2 w-full bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold py-1.5 px-3 rounded-lg transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarkRead();
+                                    navigate('/swaps');
+                                    setNotifOpen(false);
+                                  }}
+                                >
+                                  🔄 Review Request
+                                </button>
+                              )}
+                              {isSwapApproved && (
+                                <button
+                                  className="mt-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-1.5 px-3 rounded-lg transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarkRead();
+                                    navigate('/schedule');
+                                    setNotifOpen(false);
+                                  }}
+                                >
+                                  📅 View My Schedule
+                                </button>
+                              )}
+                              {isSwapRejected && (
+                                <button
+                                  className="mt-2 w-full bg-slate-500 hover:bg-slate-600 text-white text-xs font-semibold py-1.5 px-3 rounded-lg transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarkRead();
+                                    navigate('/swaps');
+                                    setNotifOpen(false);
+                                  }}
+                                >
+                                  👁 View Swap History
                                 </button>
                               )}
                             </div>
