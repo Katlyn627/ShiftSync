@@ -57,6 +57,8 @@ export const deleteEmployee = (id: number) =>
 
 export const getAvailability = (empId: number) =>
   request<Availability[]>(`/employees/${empId}/availability`);
+export const getAllAvailability = () =>
+  request<Availability[]>('/employees/availability');
 export const setAvailability = (empId: number, data: { day_of_week: number; availability_type: string; start_time?: string; end_time?: string }) =>
   request<Availability>(`/employees/${empId}/availability`, { method: 'POST', body: JSON.stringify(data) });
 export const deleteAvailability = (empId: number, dayOfWeek: number) =>

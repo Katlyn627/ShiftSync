@@ -1,7 +1,7 @@
 import { useEffect, useState, CSSProperties, useCallback } from 'react';
 import {
   getSchedules, generateSchedule, getScheduleShifts, updateSchedule, deleteSchedule,
-  getEmployees, createSwap, updateShift, createShift, deleteShift, dropShift, getBurnoutRisks, getAvailability,
+  getEmployees, createSwap, updateShift, createShift, deleteShift, dropShift, getBurnoutRisks, getAllAvailability,
   getScheduleCoverage, getScheduleIntelligence, getGeneratePreview, getPosIntegrations,
   createPosIntegration, deletePosIntegration, syncPosIntegration,
   Schedule, ShiftWithEmployee, Employee, BurnoutRisk, Availability, ScheduleCoverageReport,
@@ -168,13 +168,17 @@ export default function SchedulePage() {
 
   useEffect(() => { load(); }, []);
   useEffect(() => {
-    getEmployees().then(async data => {
+    getEmployees().then(data => {
       setEmployees(data);
-      const entries = await Promise.all(
-        data.map(async employee => [employee.id, await getAvailability(employee.id).catch(() => [])] as const)
-      );
-      setAvailabilityByEmployee(Object.fromEntries(entries));
     }).catch(err => console.error('Failed to load employees:', err));
+    getAllAvailability().then(rows => {
+      const grouped: Record<number, Availability[]> = {};
+      for (const row of rows) {
+        if (!grouped[row.employee_id]) grouped[row.employee_id] = [];
+        grouped[row.employee_id].push(row);
+      }
+      setAvailabilityByEmployee(grouped);
+    }).catch(err => console.error('Failed to load availability:', err));
   }, []);
 
   const refreshShifts = useCallback((id: number) => {
