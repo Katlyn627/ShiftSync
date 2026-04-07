@@ -191,53 +191,56 @@ router.post('/:id/drop', requireAuth, (req: Request, res: Response) => {
     });
   }
 
-  // If last-minute, also notify eligible coworkers and broadcast a group message
-  if (isLastMinute) {
-    const eligibleCoworkers = db.prepare(`
-      SELECT e.id, e.name
-      FROM employees e
-      WHERE e.site_id = ? AND e.role = ? AND e.id != ?
-    `).all(shift.site_id ?? null, shift.emp_role, employeeId) as any[];
+  // Always notify ALL coworkers at the same site about the pickup opportunity
+  const allCoworkers = db.prepare(`
+    SELECT e.id, e.name
+    FROM employees e
+    WHERE e.site_id = ? AND e.id != ?
+  `).all(shift.site_id ?? null, employeeId) as any[];
 
-    for (const coworker of eligibleCoworkers) {
-      createNotification({
-        employee_id: coworker.id,
-        type: 'shift_pickup_needed',
-        title: '⚡ Shift Pickup Needed',
-        body: `${shift.employee_name} needs someone to cover their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}). Can you pick it up?`,
-        link: '/swaps',
-        data: { swap_id: swap.id, shift_id: shift.id },
-      });
+  const pickupTitle = isLastMinute ? '⚡ Urgent Shift Pickup Needed' : '📋 Shift Pickup Opportunity';
+  const pickupBody = isLastMinute
+    ? `${shift.employee_name} needs urgent coverage for their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}). Can you pick it up?`
+    : `${shift.employee_name} has dropped their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}). This shift is available — interested? Go to Open Shifts to claim it.`;
+
+  for (const coworker of allCoworkers) {
+    createNotification({
+      employee_id: coworker.id,
+      type: 'shift_pickup_needed',
+      title: pickupTitle,
+      body: pickupBody,
+      link: '/open-shifts',
+      data: { swap_id: swap.id, shift_id: shift.id, is_last_minute: isLastMinute },
+    });
+  }
+
+  // If last-minute, also broadcast a group message to the department
+  if (isLastMinute) {
+    const deptMembers = db.prepare(`
+      SELECT e.id FROM employees e WHERE e.site_id = ? AND e.department = ? AND e.id != ?
+    `).all(shift.site_id, shift.department ?? '', employeeId) as any[];
+
+    const allMemberIds: number[] = [employeeId, ...deptMembers.map((m: any) => m.id)];
+    // Include managers too
+    for (const mgr of managers) {
+      if (!allMemberIds.includes(mgr.employee_id)) allMemberIds.push(mgr.employee_id);
     }
 
-    // Broadcast a group message to the department so everyone sees the request
-    if (shift.site_id) {
-      const deptMembers = db.prepare(`
-        SELECT e.id FROM employees e WHERE e.site_id = ? AND e.department = ? AND e.id != ?
-      `).all(shift.site_id, shift.department ?? '', employeeId) as any[];
+    if (allMemberIds.length > 1) {
+      const convTitle = `Coverage Needed – ${shift.role} ${shift.date}`;
+      const convResult = db.prepare(`
+        INSERT INTO conversations (type, title, site_id, created_by) VALUES ('group', ?, ?, ?)
+      `).run(convTitle, shift.site_id, employeeId);
+      const convId = convResult.lastInsertRowid as number;
 
-      const allMemberIds: number[] = [employeeId, ...deptMembers.map((m: any) => m.id)];
-      // Include managers too
-      for (const mgr of managers) {
-        if (!allMemberIds.includes(mgr.employee_id)) allMemberIds.push(mgr.employee_id);
+      const addMember = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id, employee_id) VALUES (?, ?)');
+      for (const memberId of allMemberIds) {
+        addMember.run(convId, memberId);
       }
 
-      if (allMemberIds.length > 1) {
-        const convTitle = `Coverage Needed – ${shift.role} ${shift.date}`;
-        const convResult = db.prepare(`
-          INSERT INTO conversations (type, title, site_id, created_by) VALUES ('group', ?, ?, ?)
-        `).run(convTitle, shift.site_id, employeeId);
-        const convId = convResult.lastInsertRowid as number;
-
-        const addMember = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id, employee_id) VALUES (?, ?)');
-        for (const memberId of allMemberIds) {
-          addMember.run(convId, memberId);
-        }
-
-        const msgBody = `Hi team — I need to drop my ${shift.role} shift on ${shift.date} from ${shift.start_time} to ${shift.end_time} (${hoursUntilShift.toFixed(1)} hours away). Reason: ${sanitizedReason}\n\nCan anyone pick this up? Please respond here or go to the Swaps page to claim it.`;
-        db.prepare('INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)').run(convId, employeeId, msgBody);
-        db.prepare("UPDATE conversations SET last_message_at = datetime('now') WHERE id = ?").run(convId);
-      }
+      const msgBody = `Hi team — I need to drop my ${shift.role} shift on ${shift.date} from ${shift.start_time} to ${shift.end_time} (${hoursUntilShift.toFixed(1)} hours away). Reason: ${sanitizedReason}\n\nCan anyone pick this up? Please respond here or go to the Open Shifts page to claim it.`;
+      db.prepare('INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)').run(convId, employeeId, msgBody);
+      db.prepare("UPDATE conversations SET last_message_at = datetime('now') WHERE id = ?").run(convId);
     }
   }
 

@@ -5,10 +5,11 @@ import {
   getSchedules,
   OpenShift, Schedule,
 } from '../api';
-import { PageHeader } from '../components/ui';
+import { PageHeader, useToast } from '../components/ui';
 
 export default function OpenShiftsPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [openShifts, setOpenShifts] = useState<OpenShift[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +23,6 @@ export default function OpenShiftsPage() {
     role: '', required_certifications: '', reason: 'callout',
   });
   const [createError, setCreateError] = useState<string | null>(null);
-  const [offerSuccess, setOfferSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -46,11 +46,10 @@ export default function OpenShiftsPage() {
   }
 
   async function handleOffer(shiftId: number) {
-    setOfferSuccess(null);
     setError(null);
     try {
       await offerForOpenShift(shiftId);
-      setOfferSuccess(`Your offer for the shift has been submitted!`);
+      toast('Your offer for the shift has been submitted!', { variant: 'success' });
       await loadData();
     } catch (err: any) {
       setError(err.message);
@@ -75,6 +74,7 @@ export default function OpenShiftsPage() {
       });
       setShowCreate(false);
       setCreateForm({ schedule_id: '', date: '', start_time: '09:00', end_time: '17:00', role: '', required_certifications: '', reason: 'callout' });
+      toast('Open shift posted successfully.', { variant: 'success' });
       await loadData();
     } catch (err: any) {
       setCreateError(err.message);
@@ -85,6 +85,7 @@ export default function OpenShiftsPage() {
     if (!confirm('Cancel this open shift?')) return;
     try {
       await cancelOpenShift(id);
+      toast('Open shift cancelled.', { variant: 'default' });
       await loadData();
     } catch (err: any) {
       setError(err.message);
@@ -145,7 +146,6 @@ export default function OpenShiftsPage() {
 
       {/* Alerts */}
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">{error}</div>}
-      {offerSuccess && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded text-green-700 text-sm">{offerSuccess}</div>}
 
       {/* Create modal */}
       {showCreate && user?.isManager && (

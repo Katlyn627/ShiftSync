@@ -34,3 +34,6 @@ export type { PageHeaderProps } from './PageHeader';
 export { Logo } from './Logo';
 
 export { cn, NATIVE_SELECT_CLASS } from './utils';
+
+export { ToastProvider, useToast } from './Toast';
+export type { Toast, ToastVariant } from './Toast';
