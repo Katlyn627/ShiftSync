@@ -52,6 +52,11 @@ const PLATFORM_MULTIPLIERS: Record<string, number> = {
   square: 1.02, toast: 0.98, clover: 1.01, lightspeed: 1.03, revel: 0.99, other: 1.00,
 };
 
+// Thresholds for AI week recommendation rating
+const AI_PEAK_MULT_THRESHOLD         = 1.30;
+const AI_ABOVE_AVERAGE_MULT_THRESHOLD = 1.10;
+const AI_MAX_WEEK_RECOMMENDATIONS    = 4;
+
 /**
  * Returns the Monday (YYYY-MM-DD) of the week that contains `dateStr`.
  */
@@ -183,8 +188,8 @@ router.get('/generate-preview', requireManager, async (req: Request, res: Respon
 
       const projectedRevenue = Math.round(weeklyBaselineRevenue * peakMult);
       const rating: 'peak' | 'above_average' | 'average' =
-        peakMult >= 1.30 ? 'peak' :
-        peakMult >= 1.10 ? 'above_average' : 'average';
+        peakMult >= AI_PEAK_MULT_THRESHOLD         ? 'peak' :
+        peakMult >= AI_ABOVE_AVERAGE_MULT_THRESHOLD ? 'above_average' : 'average';
 
       // Only surface weeks with at least above-average activity
       if (rating !== 'average') {
@@ -196,9 +201,9 @@ router.get('/generate-preview', requireManager, async (req: Request, res: Respon
         });
       }
     }
-    // Keep only the 4 nearest high-value weeks
+    // Keep only the nearest high-value weeks up to the configured limit
     aiWeekRecommendations.sort((a, b) => a.week_start.localeCompare(b.week_start));
-    const topAiWeeks = aiWeekRecommendations.slice(0, 4);
+    const topAiWeeks = aiWeekRecommendations.slice(0, AI_MAX_WEEK_RECOMMENDATIONS);
 
     res.json({
       week_start,
