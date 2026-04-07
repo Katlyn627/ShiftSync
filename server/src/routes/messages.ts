@@ -189,3 +189,46 @@ router.put('/conversations/:id/read', requireAuth, (req: Request, res: Response)
 });
 
 export default router;
+
+/**
+ * Helper: find or create a direct conversation between two employees and send a message.
+ * Used by other route handlers (swaps, open-shifts) to send automated messages.
+ */
+export function sendSystemMessage(params: {
+  senderEmployeeId: number;
+  recipientEmployeeId: number;
+  body: string;
+  siteId?: number | null;
+}): void {
+  const db = getDb();
+  const { senderEmployeeId, recipientEmployeeId, body, siteId } = params;
+
+  // Find an existing direct conversation between the two employees
+  const existing = db.prepare(`
+    SELECT c.id FROM conversations c
+    WHERE c.type = 'direct'
+      AND (SELECT COUNT(*) FROM conversation_members cm WHERE cm.conversation_id = c.id) = 2
+      AND EXISTS (SELECT 1 FROM conversation_members cm WHERE cm.conversation_id = c.id AND cm.employee_id = ?)
+      AND EXISTS (SELECT 1 FROM conversation_members cm WHERE cm.conversation_id = c.id AND cm.employee_id = ?)
+  `).get(senderEmployeeId, recipientEmployeeId) as any;
+
+  let convId: number;
+  if (existing) {
+    convId = existing.id;
+  } else {
+    const result = db.prepare(
+      "INSERT INTO conversations (type, title, site_id, created_by) VALUES ('direct', NULL, ?, ?)"
+    ).run(siteId ?? null, senderEmployeeId);
+    convId = result.lastInsertRowid as number;
+    const addMember = db.prepare(
+      'INSERT OR IGNORE INTO conversation_members (conversation_id, employee_id) VALUES (?, ?)'
+    );
+    addMember.run(convId, senderEmployeeId);
+    addMember.run(convId, recipientEmployeeId);
+  }
+
+  db.prepare('INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)').run(
+    convId, senderEmployeeId, body
+  );
+  db.prepare("UPDATE conversations SET last_message_at = datetime('now') WHERE id = ?").run(convId);
+}

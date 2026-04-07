@@ -5,10 +5,11 @@ import {
   getSchedules, getLaborCost, getBurnoutRisks, getStaffingSuggestions,
   getEmployees, getScheduleShifts, getAvailability,
   getProfitabilityMetrics, getRestaurantSettings, updateRestaurantSettings, getSites,
-  getConversations, getSwaps, getSurveyCampaigns,
+  getConversations, getSwaps, getSurveyCampaigns, getNotifications, markNotificationRead,
+  offerForOpenShift, markAllNotificationsRead,
   Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee, Availability,
   ProfitabilityMetrics, RestaurantSettings, DayRevenue, DaypartRevenue, Site,
-  ConversationWithDetails, SwapWithDetails, SurveyCampaign,
+  ConversationWithDetails, SwapWithDetails, SurveyCampaign, AppNotification,
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Card, Badge, Modal, NATIVE_SELECT_CLASS, PageHeader, useToast } from '../components/ui';
@@ -166,6 +167,8 @@ export default function Dashboard() {
   const [conversations, setConversations]           = useState<ConversationWithDetails[]>([]);
   const [pendingSwaps, setPendingSwaps]             = useState<SwapWithDetails[]>([]);
   const [activeSurveys, setActiveSurveys]           = useState<SurveyCampaign[]>([]);
+  const [recentNotifications, setRecentNotifications] = useState<AppNotification[]>([]);
+  const [claimingShiftId, setClaimingShiftId]       = useState<number | null>(null);
 
   useEffect(() => {
     getSchedules().then(s => {
@@ -210,7 +213,7 @@ export default function Dashboard() {
       .catch(() => setStaffingSuggestions([]));
   }, [selectedId, schedules, isManager]);
 
-  // Fetch employee hub data (conversations, swaps, surveys) for all users
+  // Fetch employee hub data (conversations, swaps, surveys, notifications) for all users
   useEffect(() => {
     getConversations().then(setConversations).catch(() => setConversations([]));
     getSwaps().then(swaps => {
@@ -219,6 +222,9 @@ export default function Dashboard() {
     getSurveyCampaigns().then(campaigns => {
       setActiveSurveys(campaigns.filter(c => c.status === 'active'));
     }).catch(() => setActiveSurveys([]));
+    getNotifications({ unread_only: true }).then(({ notifications }) => {
+      setRecentNotifications(notifications.slice(0, 5));
+    }).catch(() => setRecentNotifications([]));
   }, []);
 
   function handleSaveSettings(e: React.FormEvent) {
@@ -439,6 +445,106 @@ export default function Dashboard() {
               <span className="text-xs text-muted-foreground">View full schedule →</span>
             </button>
           </div>
+
+          {/* Recent Notifications panel */}
+          {recentNotifications.length > 0 && (
+            <Card className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Recent Notifications</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">{recentNotifications.length} unread</p>
+                </div>
+                <button
+                  className="text-xs font-medium text-primary hover:underline"
+                  onClick={() => {
+                    markAllNotificationsRead().then(() => setRecentNotifications([])).catch(() => {});
+                  }}
+                >
+                  Mark all read
+                </button>
+              </div>
+              <div className="space-y-2">
+                {recentNotifications.map(n => {
+                  const notifData = (() => { try { return JSON.parse(n.data || '{}'); } catch { return {}; } })();
+                  const isPickup = (n.type === 'shift_pickup_needed' || n.type === 'open_shift_available') && notifData.open_shift_id;
+                  const isSwapRequest = n.type === 'swap_request_received' || n.type === 'swap_request_created';
+                  const isSwapApproved = n.type === 'swap_approved';
+                  const isSwapRejected = n.type === 'swap_rejected';
+                  const isDropRequest = n.type === 'shift_drop_request';
+
+                  const handleRead = () => {
+                    markNotificationRead(n.id).then(() => {
+                      setRecentNotifications(prev => prev.filter(x => x.id !== n.id));
+                    }).catch(() => {});
+                  };
+
+                  return (
+                    <div key={n.id} className="flex gap-3 items-start p-3 rounded-xl bg-muted/30 border border-border">
+                      <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium leading-snug">{n.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{n.body}</p>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {isPickup && (
+                            <button
+                              className="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold py-1 px-2.5 rounded-lg transition-colors disabled:opacity-60"
+                              disabled={claimingShiftId === notifData.open_shift_id}
+                              onClick={async () => {
+                                setClaimingShiftId(notifData.open_shift_id);
+                                try {
+                                  await offerForOpenShift(notifData.open_shift_id);
+                                  handleRead();
+                                  navigate('/open-shifts');
+                                } catch (err: any) {
+                                  navigate('/open-shifts');
+                                } finally {
+                                  setClaimingShiftId(null);
+                                }
+                              }}
+                            >
+                              {claimingShiftId === notifData.open_shift_id ? 'Claiming…' : '✋ Claim Shift'}
+                            </button>
+                          )}
+                          {(isSwapRequest || isDropRequest) && (
+                            <button
+                              className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold py-1 px-2.5 rounded-lg transition-colors"
+                              onClick={() => { handleRead(); navigate('/swaps'); }}
+                            >
+                              🔄 Review Request
+                            </button>
+                          )}
+                          {isSwapApproved && (
+                            <button
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-1 px-2.5 rounded-lg transition-colors"
+                              onClick={() => { handleRead(); navigate('/schedule'); }}
+                            >
+                              📅 View Schedule
+                            </button>
+                          )}
+                          {isSwapRejected && (
+                            <button
+                              className="bg-slate-500 hover:bg-slate-600 text-white text-xs font-semibold py-1 px-2.5 rounded-lg transition-colors"
+                              onClick={() => { handleRead(); navigate('/swaps'); }}
+                            >
+                              👁 View Swaps
+                            </button>
+                          )}
+                          {!isPickup && !isSwapRequest && !isDropRequest && !isSwapApproved && !isSwapRejected && n.link && (
+                            <button
+                              className="bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold py-1 px-2.5 rounded-lg transition-colors"
+                              onClick={() => { handleRead(); navigate(n.link!); }}
+                            >
+                              View →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
