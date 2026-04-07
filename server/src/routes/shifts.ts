@@ -310,7 +310,8 @@ function findEligibleReplacements(
 
   const eligible: any[] = [];
   for (const emp of candidates) {
-    // Availability check — skip if explicitly unavailable on that day of week
+    // Availability check — skip if explicitly unavailable on that day of week.
+    // 'T12:00:00' is used as noon-local to avoid date-boundary issues from UTC offsets.
     const dayOfWeek = new Date(shift.date + 'T12:00:00').getDay();
     const avail = db.prepare('SELECT * FROM availability WHERE employee_id = ? AND day_of_week = ?')
       .get(emp.id, dayOfWeek) as any;

@@ -1221,8 +1221,8 @@ export function seedDemoData(): void {
       // Ethan responds: he has already claimed the open shift
       const demoPickupMsg =
         `Hi ${r1DemoDropper.first_name}! I can cover your shift on ${demoShift.date}. ` +
-        `I've already submitted a claim on the Open Shifts page — just waiting on manager approval. ` +
-        `Hope everything is okay!`;
+        `I've already submitted a claim on the Open Shifts page — just waiting on manager approval.` +
+        ` Hope everything is okay!`;
       db.prepare('INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)')
         .run(demoConvId, r1DemoPickup.id, demoPickupMsg);
       db.prepare("UPDATE conversations SET last_message_at = datetime('now') WHERE id = ?")
