@@ -137,9 +137,13 @@ router.put('/:id/approve', requireManager, (req: Request, res: Response) => {
 
   db.prepare('UPDATE shift_swaps SET status=?, manager_notes=? WHERE id=?').run('approved', manager_notes ?? null, req.params.id);
   
-  // Transfer the shift to the target employee
+  // Transfer the shift to the target employee, or cancel it for drop requests
   if (swap.target_id) {
-    db.prepare("UPDATE shifts SET employee_id=?, status='swapped' WHERE id=?").run(swap.target_id, swap.shift_id);
+    // Swap: reassign the shift to the target; reset status to scheduled so it shows normally
+    db.prepare("UPDATE shifts SET employee_id=?, status='scheduled' WHERE id=?").run(swap.target_id, swap.shift_id);
+  } else {
+    // Drop: the open shift is already in the marketplace — cancel the original shift
+    db.prepare("UPDATE shifts SET status='cancelled' WHERE id=?").run(swap.shift_id);
   }
 
   logAudit({
