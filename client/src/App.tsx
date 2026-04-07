@@ -16,7 +16,7 @@ import MessagingPage from './pages/MessagingPage';
 import BrandAssetsPage from './pages/BrandAssetsPage';
 import { Badge, Logo } from './components/ui';
 import type { BadgeVariant } from './components/ui';
-import { getSites, Site, getNotifications, markAllNotificationsRead, markNotificationRead, AppNotification } from './api';
+import { getSites, Site, getNotifications, markAllNotificationsRead, markNotificationRead, AppNotification, offerForOpenShift } from './api';
 
 function roleVariant(role: string): BadgeVariant {
   const map: Record<string, BadgeVariant> = {
@@ -142,6 +142,7 @@ export default function App() {
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const notifPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [claimingShiftId, setClaimingShiftId] = useState<number | null>(null);
 
   useEffect(() => {
     if (darkMode) {
@@ -343,30 +344,68 @@ export default function App() {
                     {notifications.length === 0 ? (
                       <div className="px-4 py-6 text-center text-muted-foreground text-sm">No notifications</div>
                     ) : (
-                      notifications.slice(0, 20).map(n => (
-                        <button
-                          key={n.id}
-                          className={`w-full text-left px-4 py-3 hover:bg-muted/60 transition-colors flex gap-3 items-start ${!n.read_at ? 'bg-primary/5' : ''}`}
-                          onClick={() => {
-                            if (!n.read_at) {
-                              markNotificationRead(n.id).then(() => {
-                                setUnreadCount(prev => Math.max(0, prev - 1));
-                                setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
-                              });
-                            }
-                            if (n.link) { navigate(n.link); setNotifOpen(false); }
-                          }}
-                        >
-                          <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${!n.read_at ? 'bg-primary' : 'bg-transparent'}`} />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium leading-snug">{n.title}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-2">{n.body}</p>
-                            <p className="text-[10px] text-muted-foreground mt-1">
-                              {new Date(n.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </p>
+                      notifications.slice(0, 20).map(n => {
+                        const notifData = (() => { try { return JSON.parse(n.data || '{}'); } catch (e) { console.error('Failed to parse notification data', e); return {}; } })();
+                        const isPickupNotif = (n.type === 'shift_pickup_needed' || n.type === 'open_shift_available') && notifData.open_shift_id;
+                        return (
+                          <div
+                            key={n.id}
+                            className={`px-4 py-3 flex gap-3 items-start ${!n.read_at ? 'bg-primary/5' : ''}`}
+                          >
+                            <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${!n.read_at ? 'bg-primary' : 'bg-transparent'}`} />
+                            <div className="min-w-0 flex-1">
+                              <button
+                                className="w-full text-left hover:opacity-80 transition-opacity"
+                                onClick={() => {
+                                  if (!n.read_at) {
+                                    markNotificationRead(n.id).then(() => {
+                                      setUnreadCount(prev => Math.max(0, prev - 1));
+                                      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
+                                    });
+                                  }
+                                  if (n.link) { navigate(n.link); setNotifOpen(false); }
+                                }}
+                              >
+                                <p className="text-sm font-medium leading-snug">{n.title}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-2">{n.body}</p>
+                                <p className="text-[10px] text-muted-foreground mt-1">
+                                  {new Date(n.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </button>
+                              {isPickupNotif && (
+                                <button
+                                  className="mt-2 w-full bg-green-600 hover:bg-green-700 text-white text-xs font-semibold py-1.5 px-3 rounded-lg transition-colors disabled:opacity-60"
+                                  disabled={claimingShiftId === notifData.open_shift_id}
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    setClaimingShiftId(notifData.open_shift_id);
+                                    try {
+                                      await offerForOpenShift(notifData.open_shift_id);
+                                      if (!n.read_at) {
+                                        markNotificationRead(n.id).then(() => {
+                                          setUnreadCount(prev => Math.max(0, prev - 1));
+                                          setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
+                                        });
+                                      }
+                                      navigate('/open-shifts');
+                                      setNotifOpen(false);
+                                    } catch (err: any) {
+                                      const errMsg = err?.message ?? 'Could not claim shift';
+                                      alert(errMsg + '\n\nGo to Open Shifts to try again.');
+                                      navigate('/open-shifts');
+                                      setNotifOpen(false);
+                                    } finally {
+                                      setClaimingShiftId(null);
+                                    }
+                                  }}
+                                >
+                                  {claimingShiftId === notifData.open_shift_id ? 'Claiming…' : '✋ Claim This Shift'}
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        </button>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>

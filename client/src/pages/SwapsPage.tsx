@@ -9,6 +9,11 @@ function statusVariant(status: string): BadgeVariant {
   return map[status] ?? 'default';
 }
 
+/** True when the swap has no target — i.e. a shift drop requesting open pickup */
+function isDropRequest(swap: SwapWithDetails): boolean {
+  return !swap.target_id;
+}
+
 export default function SwapsPage() {
   const { user }  = useAuth();
   const [swaps, setSwaps]     = useState<SwapWithDetails[]>([]);
@@ -39,12 +44,15 @@ export default function SwapsPage() {
   const pending  = visibleSwaps.filter(s => s.status === 'pending');
   const resolved = visibleSwaps.filter(s => s.status !== 'pending');
 
+  const pendingDrops  = pending.filter(s => isDropRequest(s));
+  const pendingSwaps  = pending.filter(s => !isDropRequest(s));
+
   return (
     <div className="space-y-6">
 
       {/* ── Page header ── */}
       <PageHeader
-        title="Shift Swaps"
+        title="Shift Swaps & Drops"
         subtitle={pending.length > 0
           ? `${pending.length} pending request${pending.length > 1 ? 's' : ''} awaiting review`
           : 'No pending swap requests'}
@@ -55,13 +63,32 @@ export default function SwapsPage() {
           : undefined}
       />
 
-      {/* ── Pending ── */}
-      {pending.length > 0 && (
+      {/* ── Pending Drops ── */}
+      {pendingDrops.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Pending ({pending.length})
+            Shift Drops — Open for Pickup ({pendingDrops.length})
           </h2>
-          {pending.map(swap => (
+          {pendingDrops.map(swap => (
+            <SwapCard
+              key={swap.id}
+              swap={swap}
+              notes={notes[swap.id] ?? ''}
+              onNotesChange={v => setNotes(n => ({ ...n, [swap.id]: v }))}
+              onApprove={user?.isManager ? () => handleApprove(swap.id) : undefined}
+              onReject={user?.isManager  ? () => handleReject(swap.id)  : undefined}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── Pending Swaps ── */}
+      {pendingSwaps.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Shift Swaps ({pendingSwaps.length})
+          </h2>
+          {pendingSwaps.map(swap => (
             <SwapCard
               key={swap.id}
               swap={swap}
@@ -94,7 +121,7 @@ export default function SwapsPage() {
           </div>
           <p className="font-semibold text-foreground">No swap requests yet</p>
           <p className="text-sm text-muted-foreground max-w-xs">
-            To request a swap, go to the <strong>Schedule</strong> page, find your shift, and click "Swap".
+            To request a swap, go to the <strong>Schedule</strong> page, find your shift, and click "Swap". To drop a shift, click "Drop".
           </p>
         </div>
       )}
@@ -113,6 +140,7 @@ function SwapCard({
   onReject?: () => void;
 }) {
   const isPending = swap.status === 'pending';
+  const isDrop = isDropRequest(swap);
   return (
     <Card className="p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -120,17 +148,36 @@ function SwapCard({
         <div className="flex-1 min-w-0 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant={statusVariant(swap.status)}>{swap.status.toUpperCase()}</Badge>
+            {isDrop ? (
+              <Badge variant="default" className="bg-orange-100 text-orange-800 border-orange-200">DROP REQUEST</Badge>
+            ) : (
+              <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200">SWAP REQUEST</Badge>
+            )}
             <span className="text-xs text-muted-foreground">{new Date(swap.created_at).toLocaleDateString()}</span>
           </div>
-          <p className="text-sm text-foreground leading-relaxed">
-            <span className="font-semibold">{swap.requester_name}</span> wants to swap their{' '}
-            <span className="font-semibold">{swap.shift_role}</span> shift on{' '}
-            <span className="font-semibold">{swap.shift_date}</span>{' '}
-            <span className="text-muted-foreground">({swap.start_time}–{swap.end_time})</span>
-            {swap.target_name && (
-              <> with <span className="font-semibold">{swap.target_name}</span></>
-            )}
-          </p>
+          {isDrop ? (
+            <p className="text-sm text-foreground leading-relaxed">
+              <span className="font-semibold text-orange-700">🔻 Dropping:</span>{' '}
+              <span className="font-semibold">{swap.requester_name}</span> needs to drop their{' '}
+              <span className="font-semibold">{swap.shift_role}</span> shift on{' '}
+              <span className="font-semibold">{swap.shift_date}</span>{' '}
+              <span className="text-muted-foreground">({swap.start_time}–{swap.end_time})</span>
+              <span className="block text-xs text-green-700 mt-1">
+                ✅ This shift is open in the marketplace — eligible employees have been notified to pick it up.
+              </span>
+            </p>
+          ) : (
+            <p className="text-sm text-foreground leading-relaxed">
+              <span className="font-semibold text-blue-700">🔄 Swapping:</span>{' '}
+              <span className="font-semibold">{swap.requester_name}</span> wants to swap their{' '}
+              <span className="font-semibold">{swap.shift_role}</span> shift on{' '}
+              <span className="font-semibold">{swap.shift_date}</span>{' '}
+              <span className="text-muted-foreground">({swap.start_time}–{swap.end_time})</span>
+              {swap.target_name && (
+                <> with <span className="font-semibold text-blue-700">{swap.target_name}</span></>
+              )}
+            </p>
+          )}
           {swap.reason && (
             <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-1.5 inline-block">
               Reason: {swap.reason}
@@ -153,7 +200,7 @@ function SwapCard({
             />
             <div className="flex gap-2">
               <Button variant="default"     size="sm" className="flex-1" onClick={onApprove}>
-                Approve
+                {isDrop ? 'Approve Drop' : 'Approve Swap'}
               </Button>
               <Button variant="destructive" size="sm" className="flex-1" onClick={onReject}>
                 Reject
