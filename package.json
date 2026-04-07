@@ -11,8 +11,5 @@
     "@types/jest": "^30.0.0",
     "concurrently": "^9.2.1",
     "wait-on": "^9.0.4"
-  },
-  "dependencies": {
-    "dependencies": "^0.0.1"
   }
 }
