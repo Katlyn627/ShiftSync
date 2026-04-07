@@ -164,7 +164,7 @@ export function calculateBurnoutRisks(scheduleId: number): BurnoutRisk[] {
     }
 
     const riskLevel: 'low' | 'medium' | 'high' =
-      riskScore >= 50 ? 'high' : riskScore >= 20 ? 'medium' : 'low';
+      riskScore >= 60 ? 'high' : riskScore >= 30 ? 'medium' : 'low';
 
     // Recommend rest days based on risk level and consecutive working days
     const restDaysRecommended = riskLevel === 'high' ? 2 : riskLevel === 'medium' ? 1 : 0;

@@ -21,6 +21,65 @@ const POS_PLATFORM_MULTIPLIERS: Record<string, number> = {
 // Index 0 = Monday, index 6 = Sunday (not JavaScript's getDay() which is Sun=0)
 const BASELINE_REVENUE_BY_OFFSET = [2800, 3200, 3800, 4500, 7200, 8500, 5500];
 
+/**
+ * Seasonal / local-event revenue multipliers.
+ * These account for predictably high-revenue dates such as Mother's Day,
+ * graduation weekends, Memorial Day, Independence Day, and conference periods.
+ *
+ * Format: each entry defines a date window (MM-DD inclusive) and the revenue
+ * lift factor for any day that falls within it.  When multiple windows overlap,
+ * the highest multiplier wins (applied once per day, not stacked).
+ */
+interface SeasonalWindow {
+  label: string;
+  startMMDD: string;  // inclusive
+  endMMDD: string;    // inclusive
+  multiplier: number;
+}
+
+const SEASONAL_WINDOWS: SeasonalWindow[] = [
+  // Mother's Day weekend (second Sunday of May — we cover the whole first two weeks of May)
+  { label: "Mother's Day weekend",       startMMDD: '05-06', endMMDD: '05-15', multiplier: 1.45 },
+  // Memorial Day weekend
+  { label: 'Memorial Day weekend',       startMMDD: '05-23', endMMDD: '05-27', multiplier: 1.35 },
+  // Graduation season (late May to mid-June)
+  { label: 'Graduation season',          startMMDD: '05-15', endMMDD: '06-15', multiplier: 1.25 },
+  // Independence Day (July 4 ± 2 days)
+  { label: 'Independence Day',           startMMDD: '07-02', endMMDD: '07-06', multiplier: 1.40 },
+  // Labor Day weekend
+  { label: 'Labor Day weekend',          startMMDD: '08-30', endMMDD: '09-02', multiplier: 1.30 },
+  // Valentine's Day
+  { label: "Valentine's Day",            startMMDD: '02-13', endMMDD: '02-15', multiplier: 1.50 },
+  // New Year's Eve / Day
+  { label: "New Year's Eve",             startMMDD: '12-30', endMMDD: '01-02', multiplier: 1.55 },
+  // Christmas / Holiday week
+  { label: 'Holiday week',               startMMDD: '12-23', endMMDD: '12-29', multiplier: 1.30 },
+  // Thanksgiving week (approximate — Thurs 4th week of Nov)
+  { label: 'Thanksgiving week',          startMMDD: '11-21', endMMDD: '11-27', multiplier: 1.35 },
+  // Conference season mid-Sept to mid-Oct (common for hotel/downtown venues)
+  { label: 'Conference season (fall)',   startMMDD: '09-10', endMMDD: '10-15', multiplier: 1.15 },
+  // Spring conference season
+  { label: 'Conference season (spring)', startMMDD: '03-01', endMMDD: '04-15', multiplier: 1.10 },
+];
+
+/**
+ * Returns the seasonal multiplier for a given date (YYYY-MM-DD).
+ * If the date falls in multiple windows the highest multiplier wins.
+ */
+function getSeasonalMultiplier(dateStr: string): number {
+  const mmdd = dateStr.slice(5); // "MM-DD"
+  let best = 1.0;
+  for (const w of SEASONAL_WINDOWS) {
+    // Handle windows that wrap around year-end (e.g. 12-30 → 01-02)
+    const wraps = w.startMMDD > w.endMMDD;
+    const inWindow = wraps
+      ? (mmdd >= w.startMMDD || mmdd <= w.endMMDD)
+      : (mmdd >= w.startMMDD && mmdd <= w.endMMDD);
+    if (inWindow && w.multiplier > best) best = w.multiplier;
+  }
+  return best;
+}
+
 /** Returns YYYY-MM-DD for the Monday of the current week. */
 function currentWeekMonday(): string {
   const today = new Date();
@@ -131,9 +190,10 @@ router.post('/:id/sync', requireManager, (req: Request, res: Response) => {
 
       const baseRevenue = existing?.expected_revenue ?? BASELINE_REVENUE_BY_OFFSET[dayOffset];
 
-      // Apply platform multiplier + ±3% random variation to simulate live data
+      // Apply platform multiplier + ±3% random variation + seasonal/event lift
       const variation = 0.97 + Math.random() * 0.06;
-      const posRevenue = Math.round(baseRevenue * platformMultiplier * variation);
+      const seasonalMultiplier = getSeasonalMultiplier(dateStr);
+      const posRevenue = Math.round(baseRevenue * platformMultiplier * variation * seasonalMultiplier);
       const avgCheck = 40;
       const posCovers = Math.floor(posRevenue / avgCheck);
 
@@ -163,11 +223,27 @@ router.post('/:id/sync', requireManager, (req: Request, res: Response) => {
   });
 
   const updated = db.prepare('SELECT * FROM pos_integrations WHERE id = ?').get(req.params.id);
+
+  // Summarise any seasonal events that affected the synced dates
+  const activeEvents = [...new Set(
+    syncedDates.flatMap(d => SEASONAL_WINDOWS
+      .filter(w => {
+        const mmdd = d.slice(5);
+        const wraps = w.startMMDD > w.endMMDD;
+        return wraps
+          ? (mmdd >= w.startMMDD || mmdd <= w.endMMDD)
+          : (mmdd >= w.startMMDD && mmdd <= w.endMMDD);
+      })
+      .map(w => w.label)
+    )
+  )];
+
   res.json({
     integration: updated,
     synced_dates: syncedDates.length,
     total_revenue_synced: Math.round(totalRevenueSynced),
     total_covers_synced: totalCoversSynced,
+    seasonal_events_applied: activeEvents,
   });
 });
 

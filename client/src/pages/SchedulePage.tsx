@@ -8,7 +8,7 @@ import {
   DayIntelligence, ScheduleIntelligence, GeneratePreview, PosIntegration,
 } from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Input, Card, Badge, NATIVE_SELECT_CLASS, PageHeader } from '../components/ui';
+import { Button, Input, Card, Badge, NATIVE_SELECT_CLASS, PageHeader, useToast } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -65,6 +65,7 @@ function shiftBarColor(role: string): string {
 
 export default function SchedulePage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const isManager = user?.isManager ?? false;
   const [schedules, setSchedules]     = useState<Schedule[]>([]);
   const [selectedId, setSelectedId]   = useState<number | null>(null);
@@ -92,9 +93,10 @@ export default function SchedulePage() {
   const [dropLoadingShiftId, setDropLoadingShiftId] = useState<number | null>(null);
 
   // ── Drop shift modal state ────────────────────────────────────────────────
-  const [dropShiftTarget, setDropShiftTarget]   = useState<ShiftWithEmployee | null>(null);
-  const [dropReason, setDropReason]             = useState('');
-  const [dropSubmitting, setDropSubmitting]     = useState(false);
+  const [dropShiftTarget, setDropShiftTarget]     = useState<ShiftWithEmployee | null>(null);
+  const [dropReasonCategory, setDropReasonCategory] = useState('');
+  const [dropReasonNote, setDropReasonNote]         = useState('');
+  const [dropSubmitting, setDropSubmitting]         = useState(false);
 
   // ── Schedule view filter ──────────────────────────────────────────────────
   type ViewFilter = 'all' | 'my_shifts' | 'my_department';
@@ -197,8 +199,9 @@ export default function SchedulePage() {
       });
       setPosIntegrations(prev => [integration, ...prev]);
       setAddingPosForm({ platform_name: 'square', display_name: '', api_key: '' });
+      toast(`${integration.display_name} connected successfully.`, { variant: 'success' });
     } catch (err: any) {
-      alert('Error adding integration: ' + err.message);
+      toast('Error adding integration: ' + err.message, { variant: 'error' });
     } finally {
       setPosAddLoading(false);
     }
@@ -209,8 +212,9 @@ export default function SchedulePage() {
     try {
       await deletePosIntegration(id);
       setPosIntegrations(prev => prev.filter(p => p.id !== id));
+      toast('POS integration removed.', { variant: 'default' });
     } catch (err: any) {
-      alert('Error removing integration: ' + err.message);
+      toast('Error removing integration: ' + err.message, { variant: 'error' });
     }
   };
 
@@ -220,12 +224,18 @@ export default function SchedulePage() {
     try {
       const result = await syncPosIntegration(id);
       setPosIntegrations(prev => prev.map(p => p.id === id ? result.integration : p));
-      setPosSyncMsg(`Synced ${result.synced_dates} days · $${result.total_revenue_synced.toLocaleString()} revenue imported`);
+      const baseMsg = `POS synced — $${result.total_revenue_synced.toLocaleString()} revenue imported across ${result.synced_dates} days`;
+      const seasonalNote = result.seasonal_events_applied && result.seasonal_events_applied.length > 0
+        ? ` · Events: ${result.seasonal_events_applied.join(', ')}`
+        : '';
+      const msg = baseMsg + seasonalNote;
+      setPosSyncMsg(msg);
+      toast(msg, { variant: 'success', duration: 6000 });
       // Refresh the week preview after POS sync updates forecasts
       const preview = await getGeneratePreview(weekStart).catch(() => null);
       if (preview) setWeekPreview(preview);
     } catch (err: any) {
-      alert('Sync failed: ' + err.message);
+      toast('POS sync failed: ' + err.message, { variant: 'error' });
     } finally {
       setPosSyncingId(null);
     }
@@ -237,8 +247,9 @@ export default function SchedulePage() {
       const s = await generateSchedule(weekStart, budget);
       await load();
       setSelectedId(s.id);
+      toast('Schedule generated successfully.', { variant: 'success' });
     } catch (err: any) {
-      alert('Error: ' + err.message);
+      toast('Error generating schedule: ' + err.message, { variant: 'error' });
     } finally {
       setGenerating(false);
     }
@@ -252,8 +263,9 @@ export default function SchedulePage() {
     try {
       await updateSchedule(selectedId, { status: newStatus });
       await load();
+      toast(`Schedule ${newStatus === 'published' ? 'published' : 'set back to draft'}.`, { variant: 'success' });
     } catch (err: any) {
-      alert('Error updating schedule: ' + err.message);
+      toast('Error updating schedule: ' + err.message, { variant: 'error' });
     }
   };
 
@@ -266,8 +278,9 @@ export default function SchedulePage() {
       setSchedules(remaining);
       setSelectedId(remaining.length > 0 ? remaining[0].id : null);
       setShifts([]);
+      toast('Schedule deleted.', { variant: 'default' });
     } catch (err: any) {
-      alert('Error deleting schedule: ' + err.message);
+      toast('Error deleting schedule: ' + err.message, { variant: 'error' });
     }
   };
 
@@ -279,32 +292,35 @@ export default function SchedulePage() {
 
   const handleOpenDrop = (shift: ShiftWithEmployee) => {
     setDropShiftTarget(shift);
-    setDropReason('');
+    setDropReasonCategory('');
+    setDropReasonNote('');
   };
 
   const handleSubmitDrop = async () => {
     if (!dropShiftTarget) return;
-    if (!dropReason.trim()) {
-      alert('Please provide a reason for dropping the shift.');
+    if (!dropReasonCategory) {
+      toast('Please select a reason for dropping the shift.', { variant: 'warning' });
       return;
     }
+    const fullReason = dropReasonNote.trim()
+      ? `${dropReasonCategory}: ${dropReasonNote.trim()}`
+      : dropReasonCategory;
     setDropSubmitting(true);
     try {
-      const result = await dropShift(dropShiftTarget.id, dropReason.trim());
+      const result = await dropShift(dropShiftTarget.id, fullReason);
       setDropShiftTarget(null);
       if (result.is_last_minute) {
-        alert(
-          `Your drop request has been submitted.\n\n` +
-          `⚠️ This is a last-minute drop (shift is ${result.hours_until_shift}h away).\n` +
-          `Your manager has been notified and a pickup request has been sent to your eligible coworkers via notifications and a group message.`
+        toast(
+          `Drop request submitted. ⚠️ Last-minute (${result.hours_until_shift}h away) — coworkers and your manager have been notified.`,
+          { variant: 'warning', duration: 6000 },
         );
       } else {
-        alert('Your drop request has been submitted. Your manager will review it shortly.');
+        toast('Drop request submitted. Your manager will review it and your coworkers have been notified of the opportunity to pick up the shift.', { variant: 'success', duration: 5000 });
       }
       const refreshed = await getScheduleShifts(selectedId!);
       setShifts(refreshed);
     } catch (err: any) {
-      alert('Error: ' + err.message);
+      toast('Error submitting drop request: ' + err.message, { variant: 'error' });
     } finally {
       setDropSubmitting(false);
     }
@@ -321,9 +337,9 @@ export default function SchedulePage() {
         reason:       swapReason || undefined,
       });
       setSwapShift(null);
-      alert('Swap request submitted! A manager will review it shortly.');
+      toast('Swap request submitted! A manager will review it shortly.', { variant: 'success' });
     } catch (err: any) {
-      alert('Error: ' + err.message);
+      toast('Error submitting swap: ' + err.message, { variant: 'error' });
     } finally {
       setSwapSubmitting(false);
     }
@@ -430,7 +446,7 @@ export default function SchedulePage() {
       const currentHours = employeeHours[employeeId] ?? 0;
       const shiftDuration = shiftHours(targetShift.start_time, targetShift.end_time);
       if (currentHours + shiftDuration > employee.weekly_hours_max) {
-        alert(`Cannot assign: ${employee.name} would exceed their ${employee.weekly_hours_max}h weekly limit (currently ${currentHours.toFixed(1)}h + ${shiftDuration.toFixed(1)}h = ${(currentHours + shiftDuration).toFixed(1)}h)`);
+        toast(`Cannot assign: ${employee.name} would exceed their ${employee.weekly_hours_max}h weekly limit (currently ${currentHours.toFixed(1)}h + ${shiftDuration.toFixed(1)}h = ${(currentHours + shiftDuration).toFixed(1)}h)`, { variant: 'warning' });
         return;
       }
     }
@@ -441,7 +457,7 @@ export default function SchedulePage() {
       const refreshed = await getScheduleShifts(selectedId!);
       setShifts(refreshed);
     } catch (err: any) {
-      alert('Error: ' + err.message);
+      toast('Error reassigning shift: ' + err.message, { variant: 'error' });
     } finally {
       setDropLoadingShiftId(null);
     }
@@ -472,7 +488,7 @@ export default function SchedulePage() {
           const currentHours = employeeHours[empId] ?? 0;
           const shiftDuration = shiftHours(addShiftForm.start_time, addShiftForm.end_time);
           if (currentHours + shiftDuration > employee.weekly_hours_max) {
-            alert(`Cannot assign: ${employee.name} would exceed their ${employee.weekly_hours_max}h weekly limit (${currentHours.toFixed(1)}h + ${shiftDuration.toFixed(1)}h)`);
+            toast(`Cannot assign: ${employee.name} would exceed their ${employee.weekly_hours_max}h weekly limit (${currentHours.toFixed(1)}h + ${shiftDuration.toFixed(1)}h)`, { variant: 'warning' });
             setAddShiftSubmitting(false);
             return;
           }
@@ -490,8 +506,9 @@ export default function SchedulePage() {
       const refreshed = await getScheduleShifts(selectedId);
       setShifts(refreshed);
       setAddShiftCell(null);
+      toast('Shift added successfully.', { variant: 'success' });
     } catch (err: any) {
-      alert('Error: ' + err.message);
+      toast('Error adding shift: ' + err.message, { variant: 'error' });
     } finally {
       setAddShiftSubmitting(false);
     }
@@ -503,8 +520,9 @@ export default function SchedulePage() {
       await deleteShift(shiftId);
       const refreshed = await getScheduleShifts(selectedId!);
       setShifts(refreshed);
+      toast('Shift removed.', { variant: 'default' });
     } catch (err: any) {
-      alert('Error: ' + err.message);
+      toast('Error removing shift: ' + err.message, { variant: 'error' });
     }
   };
 
@@ -1449,7 +1467,11 @@ export default function SchedulePage() {
                     </div>
                   );
                 }
-                return null;
+                return (
+                  <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2.5 text-xs text-sky-800">
+                    <p>All of your coworkers at this location will receive a notification about this open shift opportunity so someone can pick it up.</p>
+                  </div>
+                );
               })()}
             </div>
 
@@ -1459,15 +1481,35 @@ export default function SchedulePage() {
                 <label className="text-sm font-medium text-foreground">
                   Reason for dropping <span className="text-rose-600">*</span>
                 </label>
+                <select
+                  className={`w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${NATIVE_SELECT_CLASS}`}
+                  value={dropReasonCategory}
+                  onChange={e => setDropReasonCategory(e.target.value)}
+                >
+                  <option value="">Select a reason…</option>
+                  <option value="Personal / family emergency">Personal / family emergency</option>
+                  <option value="Medical appointment or illness">Medical appointment or illness</option>
+                  <option value="Transportation issue">Transportation issue</option>
+                  <option value="Schedule conflict">Schedule conflict</option>
+                  <option value="Family care obligation">Family care obligation</option>
+                  <option value="Academic commitment">Academic commitment</option>
+                  <option value="Mental health day">Mental health day</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">
+                  Additional details <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
                 <textarea
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                  rows={3}
-                  placeholder="e.g. Family emergency, medical appointment, personal conflict…"
-                  value={dropReason}
-                  onChange={e => setDropReason(e.target.value)}
+                  rows={2}
+                  placeholder="Any extra context for your manager…"
+                  value={dropReasonNote}
+                  onChange={e => setDropReasonNote(e.target.value)}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  This reason will be sent to your manager and included in any pickup request sent to coworkers.
+                  This will be shared with your manager and included in the coworker pickup request.
                 </p>
               </div>
             </div>
@@ -1478,7 +1520,7 @@ export default function SchedulePage() {
                 variant="default"
                 className="flex-1 bg-rose-600 hover:bg-rose-700 focus-visible:ring-rose-500"
                 onClick={handleSubmitDrop}
-                disabled={dropSubmitting || !dropReason.trim()}
+                disabled={dropSubmitting || !dropReasonCategory}
                 isLoading={dropSubmitting}
               >
                 Submit Drop Request

@@ -756,6 +756,7 @@ export interface PosIntegrationSyncResult {
   synced_dates: number;
   total_revenue_synced: number;
   total_covers_synced: number;
+  seasonal_events_applied?: string[];
 }
 
 export interface GeneratePreviewForecast {
