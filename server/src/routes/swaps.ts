@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 import { logAudit } from './audit';
+import { createNotification } from './notifications';
 
 const router = Router();
 
@@ -78,7 +79,22 @@ router.post('/', (req: Request, res: Response) => {
     'INSERT INTO shift_swaps (shift_id, requester_id, target_id, reason) VALUES (?, ?, ?, ?)'
   ).run(shift_id, requester_id, target_id ?? null, reason ?? null);
 
-  const swap = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(result.lastInsertRowid);
+  const swap = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(result.lastInsertRowid) as any;
+
+  // Notify target employee about the swap request
+  if (target_id) {
+    const requester = db.prepare('SELECT * FROM employees WHERE id = ?').get(requester_id) as any;
+    const requesterName = requester?.name ?? 'A coworker';
+    createNotification({
+      employee_id: target_id,
+      type: 'swap_request_received',
+      title: '🔄 Swap Request Received',
+      body: `${requesterName} wants to swap their ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}) with you. Go to Shift Swaps to review it.`,
+      link: '/swaps',
+      data: { swap_id: swap.id, shift_id: swap.shift_id },
+    });
+  }
+
   res.status(201).json(swap);
 });
 
@@ -104,6 +120,41 @@ router.put('/:id/approve', requireManager, (req: Request, res: Response) => {
     details: { shift_id: swap.shift_id, requester_id: swap.requester_id, target_id: swap.target_id },
   });
 
+  // Send approval notifications to both parties
+  const shift = db.prepare('SELECT * FROM shifts WHERE id = ?').get(swap.shift_id) as any;
+  if (shift) {
+    const targetEmployee = swap.target_id
+      ? (db.prepare('SELECT * FROM employees WHERE id = ?').get(swap.target_id) as any)
+      : null;
+    const targetName = targetEmployee?.name ?? null;
+
+    // Notify requester
+    createNotification({
+      employee_id: swap.requester_id,
+      type: 'swap_approved',
+      title: '✅ Shift Drop/Swap Approved',
+      body: swap.target_id
+        ? `Your swap request for the ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}) has been approved. ${targetName} will cover it.${manager_notes ? ` Manager note: ${manager_notes}` : ''}`
+        : `Your request to drop your ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}) has been approved. It is now open for pickup.${manager_notes ? ` Manager note: ${manager_notes}` : ''}`,
+      link: '/schedule',
+      data: { swap_id: swap.id, shift_id: swap.shift_id },
+    });
+
+    // Notify target that they are now scheduled for the shift
+    if (swap.target_id && targetEmployee) {
+      const requesterEmployee = db.prepare('SELECT * FROM employees WHERE id = ?').get(swap.requester_id) as any;
+      const requesterName = requesterEmployee?.name ?? 'A coworker';
+      createNotification({
+        employee_id: swap.target_id,
+        type: 'swap_approved',
+        title: '📅 You\'ve Been Assigned a Shift',
+        body: `Your shift swap with ${requesterName} has been approved. You are now scheduled for the ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}).${manager_notes ? ` Manager note: ${manager_notes}` : ''}`,
+        link: '/schedule',
+        data: { swap_id: swap.id, shift_id: swap.shift_id },
+      });
+    }
+  }
+
   const updated = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(req.params.id);
   res.json(updated);
 });
@@ -123,6 +174,20 @@ router.put('/:id/reject', requireManager, (req: Request, res: Response) => {
     user_id: req.user?.userId,
     details: { shift_id: swap.shift_id, requester_id: swap.requester_id },
   });
+
+  // Notify requester that the swap/drop request was rejected
+  const shift = db.prepare('SELECT * FROM shifts WHERE id = ?').get(swap.shift_id) as any;
+  if (shift) {
+    createNotification({
+      employee_id: swap.requester_id,
+      type: 'swap_rejected',
+      title: '❌ Shift Drop/Swap Not Approved',
+      body: `Your request for the ${shift.role} shift on ${shift.date} (${shift.start_time}–${shift.end_time}) was not approved. You are still scheduled for this shift.${manager_notes ? ` Manager note: ${manager_notes}` : ''}`,
+      link: '/swaps',
+      data: { swap_id: swap.id, shift_id: swap.shift_id },
+    });
+  }
+
   const updated = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(req.params.id);
   res.json(updated);
 });
