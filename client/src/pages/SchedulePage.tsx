@@ -178,7 +178,7 @@ export default function SchedulePage() {
         grouped[row.employee_id].push(row);
       }
       setAvailabilityByEmployee(grouped);
-    }).catch(() => {});
+    }).catch(err => console.error('Failed to load availability:', err));
   }, []);
 
   const refreshShifts = useCallback((id: number) => {
