@@ -5,10 +5,11 @@ import {
   getSchedules, getLaborCost, getBurnoutRisks, getStaffingSuggestions,
   getEmployees, getScheduleShifts, getAvailability,
   getProfitabilityMetrics, getRestaurantSettings, updateRestaurantSettings, getSites,
+  getPosIntegrations,
   getConversations, getSwaps, getSurveyCampaigns, getNotifications, markNotificationRead,
   offerForOpenShift, markAllNotificationsRead,
   Schedule, LaborCostSummary, BurnoutRisk, DailyStaffingSuggestion, Employee, ShiftWithEmployee, Availability,
-  ProfitabilityMetrics, RestaurantSettings, DayRevenue, DaypartRevenue, Site,
+  ProfitabilityMetrics, RestaurantSettings, DayRevenue, DaypartRevenue, Site, PosIntegration,
   ConversationWithDetails, SwapWithDetails, SurveyCampaign, AppNotification,
 } from '../api';
 import { useAuth } from '../AuthContext';
@@ -79,6 +80,16 @@ function getTurnoverRisk(burnoutRisk: BurnoutRisk | undefined): { level: 'low' |
   if (burnoutRisk.risk_level === 'medium') return { level: 'medium', reason: 'Moderate stress factors may affect long-term retention' };
   return { level: 'low', reason: 'Schedule conditions suggest stable retention' };
 }
+
+/** POS platform branding — matches SchedulePage */
+const POS_PLATFORM_STYLES: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  square:     { label: 'Square',     color: '#00b9a9', bg: '#e6f9f7', icon: '◼' },
+  toast:      { label: 'Toast',      color: '#ff6b35', bg: '#fff0eb', icon: '🍞' },
+  clover:     { label: 'Clover',     color: '#1a9e5a', bg: '#e8f8ef', icon: '🍀' },
+  lightspeed: { label: 'Lightspeed', color: '#e63c2f', bg: '#fdecea', icon: '⚡' },
+  revel:      { label: 'Revel',      color: '#7b5ea7', bg: '#f3edfb', icon: '🎯' },
+  other:      { label: 'POS',        color: '#6b7280', bg: '#f3f4f6', icon: '🔗' },
+};
 
 /* ── KPI Card ── */
 function KpiCard({
@@ -164,6 +175,7 @@ export default function Dashboard() {
   });
   const [settingsSaving, setSettingsSaving]         = useState(false);
   const [currentSite, setCurrentSite]               = useState<Site | null>(null);
+  const [posIntegrations, setPosIntegrations]       = useState<PosIntegration[]>([]);
   const [conversations, setConversations]           = useState<ConversationWithDetails[]>([]);
   const [pendingSwaps, setPendingSwaps]             = useState<SwapWithDetails[]>([]);
   const [activeSurveys, setActiveSurveys]           = useState<SurveyCampaign[]>([]);
@@ -182,6 +194,7 @@ export default function Dashboard() {
         setRestaurantSettings(s);
         setSettingsForm(s);
       }).catch(() => {});
+      getPosIntegrations().then(setPosIntegrations).catch(() => setPosIntegrations([]));
     }
     if (user?.siteId) {
       getSites().then(sites => {
@@ -611,14 +624,34 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground mt-0.5">Key metrics for profitable scheduling (target: Prime Cost ≤ 65%)</p>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap">
-                {profitabilityMetrics.pos_last_synced && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1 bg-muted/40 border border-border/60 px-2 py-0.5 rounded-full">
-                    <svg className="w-3 h-3 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-                    </svg>
-                    {profitabilityMetrics.pos_last_synced.display_name}
-                  </span>
-                )}
+                {profitabilityMetrics.pos_last_synced ? (
+                  (() => {
+                    const ps = POS_PLATFORM_STYLES[profitabilityMetrics.pos_last_synced.platform] ?? POS_PLATFORM_STYLES.other;
+                    return (
+                      <span
+                        className="text-xs font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
+                        style={{ color: ps.color, backgroundColor: ps.bg, borderColor: ps.color + '40' }}
+                      >
+                        <span>{ps.icon}</span>
+                        {profitabilityMetrics.pos_last_synced.display_name}
+                      </span>
+                    );
+                  })()
+                ) : posIntegrations.length > 0 ? (
+                  (() => {
+                    const pi = posIntegrations[0];
+                    const ps = POS_PLATFORM_STYLES[pi.platform_name] ?? POS_PLATFORM_STYLES.other;
+                    return (
+                      <span
+                        className="text-xs font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
+                        style={{ color: ps.color, backgroundColor: ps.bg, borderColor: ps.color + '40' }}
+                      >
+                        <span>{ps.icon}</span>
+                        {pi.display_name}
+                      </span>
+                    );
+                  })()
+                ) : null}
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                   profitabilityMetrics.prime_cost_status === 'good'    ? 'bg-emerald-100 text-emerald-700' :
                   profitabilityMetrics.prime_cost_status === 'warning' ? 'bg-amber-100 text-amber-700'    :

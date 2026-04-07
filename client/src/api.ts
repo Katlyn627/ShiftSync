@@ -767,12 +767,21 @@ export interface GeneratePreviewForecast {
   expected_revenue: number;
   expected_covers: number;
   has_data: boolean;
+  is_estimated?: boolean;
+  events: string[];
+}
+
+export interface AiWeekRecommendation {
+  week_start: string;
+  projected_revenue: number;
+  rating: 'peak' | 'above_average' | 'average';
   events: string[];
 }
 
 export interface GeneratePreview {
   week_start: string;
   site_id: number | null;
+  site_type?: 'restaurant' | 'hotel';
   forecasts: GeneratePreviewForecast[];
   total_expected_revenue: number;
   total_expected_covers: number;
@@ -785,8 +794,9 @@ export interface GeneratePreview {
   revpash: number;
   settings: RestaurantSettings;
   has_forecast_data: boolean;
-  pos_last_synced: { platform: string; at: string } | null;
+  pos_last_synced: { platform: string; display_name: string; at: string } | null;
   upcoming_events: { date: string; day_name: string; events: string[] }[];
+  ai_week_recommendations?: AiWeekRecommendation[];
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────────

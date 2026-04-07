@@ -8,7 +8,7 @@ import { getScheduleCoverageReport } from '../coverage';
 import { getScheduleIntelligence } from '../intelligence';
 import { requireManager, requireAuth } from '../middleware/auth';
 import { logAudit } from './audit';
-import { getEventsForDate } from '../events';
+import { getEventsForDate, SEASONAL_WINDOWS, getSeasonalMultiplier } from '../events';
 
 const router = Router();
 
@@ -42,6 +42,32 @@ router.post('/generate', requireManager, (req: Request, res: Response) => {
   }
 });
 
+// Baseline daily revenue by day-of-week offset (Mon=0 … Sun=6) for fallback estimates
+// when no real forecast data exists for a week.
+const BASELINE_RESTAURANT_REV = [4800, 5400, 6600, 8400, 12000, 14400, 8400];
+const BASELINE_HOTEL_REV      = [32000, 38000, 45000, 55000, 62000, 68000, 44000];
+
+// Platform-specific multipliers matching POS sync simulation
+const PLATFORM_MULTIPLIERS: Record<string, number> = {
+  square: 1.02, toast: 0.98, clover: 1.01, lightspeed: 1.03, revel: 0.99, other: 1.00,
+};
+
+// Thresholds for AI week recommendation rating
+const AI_PEAK_MULT_THRESHOLD         = 1.30;
+const AI_ABOVE_AVERAGE_MULT_THRESHOLD = 1.10;
+const AI_MAX_WEEK_RECOMMENDATIONS    = 4;
+
+/**
+ * Returns the Monday (YYYY-MM-DD) of the week that contains `dateStr`.
+ */
+function mondayOf(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const dow = d.getUTCDay(); // 0=Sun
+  const daysBack = dow === 0 ? 6 : dow - 1;
+  d.setUTCDate(d.getUTCDate() - daysBack);
+  return d.toISOString().split('T')[0];
+}
+
 /**
  * Returns a preview of the forecast and profitability data that will drive
  * schedule generation for the given week. Call this before auto-generating
@@ -57,30 +83,55 @@ router.get('/generate-preview', requireManager, async (req: Request, res: Respon
     const siteId = req.user?.siteId ?? null;
     const settings = getRestaurantSettings();
 
+    // Determine site type (restaurant vs hotel) for adaptable metrics
+    const siteRow = siteId !== null
+      ? (db.prepare('SELECT site_type FROM sites WHERE id = ?').get(siteId) as any)
+      : null;
+    const siteType: 'restaurant' | 'hotel' = siteRow?.site_type === 'hotel' ? 'hotel' : 'restaurant';
+
+    // Look up the most recently synced POS integration for this site (any time, not just 24 h)
+    const posRow = siteId !== null
+      ? (db.prepare(
+          "SELECT platform_name, display_name, last_synced_at FROM pos_integrations WHERE site_id = ? AND last_sync_status = 'success' AND last_synced_at IS NOT NULL ORDER BY last_synced_at DESC LIMIT 1"
+        ).get(siteId) as any)
+      : null;
+
+    const platformMultiplier = posRow ? (PLATFORM_MULTIPLIERS[posRow.platform_name] ?? 1.0) : 1.0;
+    const baselineRevByOffset = siteType === 'hotel' ? BASELINE_HOTEL_REV : BASELINE_RESTAURANT_REV;
+    const avgCheck = siteType === 'hotel' ? 600 : 50;
+
     // Build week dates
-    const startDate = new Date(week_start);
+    const startDate = new Date(week_start + 'T00:00:00Z');
     const weekDates: string[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(startDate);
-      d.setDate(startDate.getDate() + i);
+      d.setUTCDate(startDate.getUTCDate() + i);
       weekDates.push(d.toISOString().split('T')[0]);
     }
 
     const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-    // Fetch per-day forecasts
-    const forecastRows = weekDates.map(date => {
-      const row = siteId
+    // Fetch per-day forecasts; fall back to platform-scaled estimates when absent
+    const forecastRows = weekDates.map((date, idx) => {
+      const row = siteId !== null
         ? (db.prepare('SELECT * FROM forecasts WHERE date = ? AND site_id = ?').get(date, siteId) as any)
         : (db.prepare('SELECT * FROM forecasts WHERE date = ?').get(date) as any);
       const [year, month, day] = date.split('-').map(Number);
       const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+
+      // Fallback: derive estimated revenue from baseline × platform × seasonal lift
+      const seasonalMult = getSeasonalMultiplier(date);
+      const dayOffset = idx; // Mon=0 … Sun=6 (week_start is always Monday)
+      const estimatedRevenue = Math.round(baselineRevByOffset[dayOffset] * platformMultiplier * seasonalMult);
+      const estimatedCovers  = Math.floor(estimatedRevenue / avgCheck);
+
       return {
         date,
         day_name: DAY_ABBR[dayOfWeek],
-        expected_revenue: row?.expected_revenue ?? 0,
-        expected_covers: row?.expected_covers ?? 0,
-        has_data: row !== null && row !== undefined,
+        expected_revenue: row?.expected_revenue ?? estimatedRevenue,
+        expected_covers:  row?.expected_covers  ?? estimatedCovers,
+        has_data:  row !== null && row !== undefined,
+        is_estimated: row === null || row === undefined,
         events: getEventsForDate(date),
       };
     });
@@ -101,21 +152,63 @@ router.get('/generate-preview', requireManager, async (req: Request, res: Respon
       ? totalExpectedRevenue / (settings.seats * totalOperatingHours)
       : 0;
 
-    // Check whether any POS integration has been synced recently (last 24 h)
-    const recentSync = siteId
-      ? (db.prepare(
-          "SELECT platform_name, last_synced_at FROM pos_integrations WHERE site_id = ? AND last_sync_status = 'success' AND last_synced_at >= datetime('now', '-1 day') ORDER BY last_synced_at DESC LIMIT 1"
-        ).get(siteId) as any)
-      : null;
-
     // Summarise days in this week that have events (for the UI alert panel)
     const upcomingEvents = forecastRows
       .filter(f => f.events.length > 0)
       .map(f => ({ date: f.date, day_name: f.day_name, events: f.events }));
 
+    // ── AI Week Recommendations ──────────────────────────────────────────────
+    // Scan the next 12 weeks and surface the top upcoming high-value periods
+    // based on seasonal multipliers, helping managers plan staffing proactively.
+    const todayMonday = mondayOf(new Date().toISOString().split('T')[0]);
+    const weeklyBaselineRevenue = baselineRevByOffset.reduce((s, r) => s + r, 0) * platformMultiplier;
+    const aiWeekRecommendations: {
+      week_start: string;
+      projected_revenue: number;
+      rating: 'peak' | 'above_average' | 'average';
+      events: string[];
+    }[] = [];
+
+    for (let w = 0; w < 12; w++) {
+      const wMonday = new Date(todayMonday + 'T00:00:00Z');
+      wMonday.setUTCDate(wMonday.getUTCDate() + w * 7);
+      const wMondayStr = wMonday.toISOString().split('T')[0];
+
+      // Collect events and peak multiplier for the week
+      const weekEventLabels = new Set<string>();
+      let peakMult = 1.0;
+      for (let d = 0; d < 7; d++) {
+        const dDate = new Date(wMonday);
+        dDate.setUTCDate(wMonday.getUTCDate() + d);
+        const dStr = dDate.toISOString().split('T')[0];
+        const mult = getSeasonalMultiplier(dStr);
+        if (mult > peakMult) peakMult = mult;
+        getEventsForDate(dStr).forEach(ev => weekEventLabels.add(ev));
+      }
+
+      const projectedRevenue = Math.round(weeklyBaselineRevenue * peakMult);
+      const rating: 'peak' | 'above_average' | 'average' =
+        peakMult >= AI_PEAK_MULT_THRESHOLD         ? 'peak' :
+        peakMult >= AI_ABOVE_AVERAGE_MULT_THRESHOLD ? 'above_average' : 'average';
+
+      // Only surface weeks with at least above-average activity
+      if (rating !== 'average') {
+        aiWeekRecommendations.push({
+          week_start:        wMondayStr,
+          projected_revenue: projectedRevenue,
+          rating,
+          events:            Array.from(weekEventLabels),
+        });
+      }
+    }
+    // Keep only the nearest high-value weeks up to the configured limit
+    aiWeekRecommendations.sort((a, b) => a.week_start.localeCompare(b.week_start));
+    const topAiWeeks = aiWeekRecommendations.slice(0, AI_MAX_WEEK_RECOMMENDATIONS);
+
     res.json({
       week_start,
-      site_id: siteId,
+      site_id:  siteId,
+      site_type: siteType,
       forecasts: forecastRows,
       total_expected_revenue:  Math.round(totalExpectedRevenue * 100) / 100,
       total_expected_covers:   totalExpectedCovers,
@@ -128,8 +221,11 @@ router.get('/generate-preview', requireManager, async (req: Request, res: Respon
       revpash:                 Math.round(revpash * 100) / 100,
       settings,
       has_forecast_data:       forecastRows.some(f => f.has_data),
-      pos_last_synced:         recentSync ? { platform: recentSync.platform_name, at: recentSync.last_synced_at } : null,
+      pos_last_synced:         posRow
+        ? { platform: posRow.platform_name as string, display_name: posRow.display_name as string, at: posRow.last_synced_at as string }
+        : null,
       upcoming_events:         upcomingEvents,
+      ai_week_recommendations: topAiWeeks,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
