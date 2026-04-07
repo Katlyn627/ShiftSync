@@ -248,55 +248,41 @@ export default function App() {
 
       {/* ── Top Navigation Bar ── */}
       <header className="bg-card border-b border-border sticky top-0 z-40 shadow-sm shadow-border/40">
-        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
 
-          {/* Brand */}
+        {/* ── Row 1: Brand (centered) + utility controls ── */}
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-14 relative flex items-center">
+
+          {/* Mobile hamburger – left side on small screens */}
           <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2.5 shrink-0 hover:opacity-80 transition-opacity"
-            aria-label="Go to dashboard"
+            onClick={() => setMobileMenuOpen(o => !o)}
+            className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+            aria-label="Toggle navigation menu"
+            aria-expanded={mobileMenuOpen}
           >
-            <Logo size={32} />
-            <div className="flex flex-col leading-none">
-              <span className="text-base font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>ShiftSync</span>
-              {currentSite && (
-                <span className="text-[11px] text-muted-foreground font-medium truncate max-w-[140px] hidden sm:block">
-                  {currentSite.name} · {currentSite.city}, {currentSite.state}
-                </span>
-              )}
-            </div>
+            {mobileMenuOpen ? <CloseIcon /> : <MenuIcon />}
           </button>
 
-          {/* Desktop nav links */}
-          <nav className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto min-w-0 justify-center">
-            {NAV_ITEMS.map(item => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === '/'}
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-2.5 py-1.5 lg:px-3 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'font-semibold'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                  }`
-                }
-                style={({ isActive }) =>
-                  isActive
-                    ? { color: item.color, background: `${item.color}18` }
-                    : {}
-                }
-                title={item.label}
-                aria-label={item.label}
-              >
-                {item.icon}
-                <span className="hidden md:inline">{item.label}</span>
-              </NavLink>
-            ))}
-          </nav>
+          {/* Centered brand – absolutely positioned so it stays true-center */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <button
+              onClick={() => navigate('/')}
+              className="flex flex-col items-center gap-0.5 pointer-events-auto hover:opacity-80 transition-opacity"
+              aria-label="Go to dashboard"
+            >
+              <Logo size={30} />
+              <div className="flex items-center gap-1.5 leading-none">
+                <span className="text-sm font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>ShiftSync</span>
+                {currentSite && (
+                  <span className="text-[10px] text-muted-foreground font-medium hidden sm:inline">
+                    · {currentSite.name}
+                  </span>
+                )}
+              </div>
+            </button>
+          </div>
 
-          {/* Right section: dark mode + user */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Right: utility controls */}
+          <div className="flex items-center gap-2 ml-auto relative z-10">
             {/* Dark mode toggle */}
             <button
               onClick={() => setDarkMode(d => !d)}
@@ -491,19 +477,44 @@ export default function App() {
             >
               Sign out
             </button>
-
-            {/* Mobile hamburger */}
-            <button
-              onClick={() => setMobileMenuOpen(o => !o)}
-              className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-              aria-label="Toggle navigation menu"
-              aria-expanded={mobileMenuOpen}
-            >
-              {mobileMenuOpen ? <CloseIcon /> : <MenuIcon />}
-            </button>
           </div>
 
         </div>
+
+        {/* ── Row 2: Desktop navigation bar ── */}
+        {/* Note: label visibility is controlled at the row level (hidden md:block),
+            so individual nav items always render their full text labels here. */}
+        <div className="hidden md:block border-t border-border/50">
+          <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+            <nav className="flex items-center justify-center gap-1 h-10 overflow-x-auto" aria-label="Main navigation">
+              {NAV_ITEMS.map(item => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === '/'}
+                  className={({ isActive }) =>
+                    `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'font-semibold'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                    }`
+                  }
+                  style={({ isActive }) =>
+                    isActive
+                      ? { color: item.color, background: `${item.color}18` }
+                      : {}
+                  }
+                  title={item.label}
+                  aria-label={item.label}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+        </div>
+
       </header>
 
       {/* ── Mobile Overlay Drawer ── */}
