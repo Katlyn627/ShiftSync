@@ -100,6 +100,18 @@ router.delete('/:id', requireManager, (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
+// Bulk availability — returns all employees' availability for the site in one query
+router.get('/availability', requireManager, (req: Request, res: Response) => {
+  const db = getDb();
+  const siteId = req.user?.siteId;
+  const rows = siteId
+    ? db.prepare(
+        'SELECT a.* FROM availability a JOIN employees e ON e.id = a.employee_id WHERE e.site_id = ? ORDER BY a.employee_id, a.day_of_week'
+      ).all(siteId)
+    : db.prepare('SELECT * FROM availability ORDER BY employee_id, day_of_week').all();
+  res.json(rows);
+});
+
 // Availability
 router.get('/:id/availability', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
