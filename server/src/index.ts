@@ -35,7 +35,7 @@ import notificationsRouter from './routes/notifications';
 import messagesRouter from './routes/messages';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8080;
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -87,9 +87,17 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// Init DB
-getDb();
-seedDemoData();
+// Readiness flag: flipped to true after DB init and seeding complete.
+// API routes (except /api/health) return 503 until the app is ready so that
+// Cloud Run does not route traffic to an uninitialised instance.
+let appReady = false;
+app.use('/api', (req, res, next) => {
+  if (!appReady && req.path !== '/health') {
+    res.status(503).json({ error: 'Service is starting up, please retry shortly.' });
+    return;
+  }
+  next();
+});
 
 // Routes
 app.use('/api/auth', authRouter);
@@ -131,6 +139,11 @@ app.get(/^(?!\/api).*/, (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`ShiftSync server running on http://localhost:${PORT}`);
+  // Init DB and seed after the port is open so that Cloud Run's startup probe
+  // succeeds before the (potentially long) synchronous seeding begins.
+  getDb();
+  seedDemoData();
+  appReady = true;
 });
 
 export default app;

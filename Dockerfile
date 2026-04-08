@@ -40,7 +40,7 @@ USER appuser
 ENV NODE_ENV=production
 ENV DB_PATH=/app/data/shiftsync.db
 
-# Cloud Run injects PORT at runtime; default to 3001 for local Docker runs
-EXPOSE 3001
+# Cloud Run injects PORT at runtime; default to 8080 for local Docker runs
+EXPOSE 8080
 
 CMD ["node", "server/dist/index.js"]
