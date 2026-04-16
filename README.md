@@ -9,9 +9,28 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![SQLite](https://img.shields.io/badge/SQLite-better--sqlite3-003B57?logo=sqlite&logoColor=white)](https://github.com/WiseLibs/better-sqlite3)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-Dual--License-blue)](LICENSE)
 
 </div>
+
+---
+
+## 💼 Commercial / Hosted
+
+**Who it’s for:** independent restaurant and boutique hotel operators with **3–15 locations**.
+
+- **Hosted demo (password-gated):** https://shiftsync-demo.onrender.com
+- **Start a 14-day trial:** mailto:sales@shiftsync.app?subject=ShiftSync%2014-day%20trial
+- **Book a 15-min setup call:** mailto:sales@shiftsync.app?subject=ShiftSync%20setup%20call
+- **Commercial self-host license:** see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
+
+### Pricing preview (Hosted SaaS)
+
+| Plan | Price |
+|---|---|
+| Starter | **$79/location/month** |
+| Growth | **$149/location/month** |
+| Multi-site | **$299+/month** (custom) |
 
 ---
 
@@ -349,4 +368,9 @@ For the full product requirements, data needs, governance guidelines, and valida
 
 ## 📄 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+ShiftSync uses a **dual-license model**:
+
+- **Community License (non-commercial/evaluation use):** [LICENSE](LICENSE)
+- **Commercial License (required for business/commercial self-host use):** [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
+
+For hosted SaaS access, trial onboarding, or commercial licensing, contact: **sales@shiftsync.app**
