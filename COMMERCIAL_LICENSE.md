@@ -1,6 +1,6 @@
 # ShiftSync Commercial License
 
-> **Important:** This file is informational only and has no legal effect. Commercial use requires a separate signed agreement.
+> **Important:** This file is informational only and does not grant rights by itself. Commercial use rights are granted only through a separate signed commercial agreement.
 
 This document summarizes commercial usage terms for ShiftSync.
 
