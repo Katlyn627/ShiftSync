@@ -1,5 +1,7 @@
 # ShiftSync Commercial License
 
+> **Important:** This file is informational and does not replace a signed commercial agreement.
+
 This document summarizes commercial usage terms for ShiftSync.
 
 ## When a commercial license is required
@@ -34,7 +36,3 @@ To request pricing, trial access, or a commercial agreement:
 
 - Email: sales@shiftsync.app
 - Subject line suggestion: `ShiftSync commercial license`
-
----
-
-This file is informational and does not replace a signed commercial agreement.

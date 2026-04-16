@@ -19,7 +19,7 @@
 
 **Who it’s for:** independent restaurant and boutique hotel operators with **3–15 locations**.
 
-- **Hosted demo (password-gated):** https://shiftsync-demo.onrender.com
+- **Hosted demo (password-gated):** request access at mailto:sales@shiftsync.app?subject=ShiftSync%20demo%20access
 - **Start a 14-day trial:** mailto:sales@shiftsync.app?subject=ShiftSync%2014-day%20trial
 - **Book a 15-min setup call:** mailto:sales@shiftsync.app?subject=ShiftSync%20setup%20call
 - **Commercial self-host license:** see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
