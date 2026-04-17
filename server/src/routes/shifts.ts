@@ -53,7 +53,7 @@ router.put('/:id', requireManager, (req: Request, res: Response) => {
     req.params.id
   );
   const updated = db.prepare(`
-    SELECT s.*, e.name as employee_name, e.role as employee_role, e.hourly_rate
+    SELECT s.*, e.name as employee_name, e.role as employee_role, e.department as employee_department, e.hourly_rate
     FROM shifts s JOIN employees e ON s.employee_id = e.id
     WHERE s.id = ?
   `).get(req.params.id);
@@ -109,7 +109,7 @@ router.post('/', requireManager, (req: Request, res: Response) => {
 
   const created = employee_id
     ? db.prepare(`
-        SELECT s.*, e.name as employee_name, e.role as employee_role, e.hourly_rate
+        SELECT s.*, e.name as employee_name, e.role as employee_role, e.department as employee_department, e.hourly_rate
         FROM shifts s JOIN employees e ON s.employee_id = e.id
         WHERE s.id = ?
       `).get(result.lastInsertRowid)

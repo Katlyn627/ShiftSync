@@ -57,7 +57,7 @@ router.delete('/:id', requireManager, (req: Request, res: Response) => {
 router.get('/:id/shifts', (req: Request, res: Response) => {
   const db = getDb();
   const shifts = db.prepare(`
-    SELECT s.*, e.name as employee_name, e.role as employee_role, e.hourly_rate
+    SELECT s.*, e.name as employee_name, e.role as employee_role, e.department as employee_department, e.hourly_rate
     FROM shifts s
     JOIN employees e ON s.employee_id = e.id
     WHERE s.schedule_id = ? AND s.status != 'cancelled'
@@ -76,4 +76,3 @@ router.get('/:id/labor-cost', requireManager, (req: Request, res: Response) => {
 });
 
 export default router;
-

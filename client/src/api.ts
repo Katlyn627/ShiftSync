@@ -257,6 +257,7 @@ export interface Shift {
 export interface ShiftWithEmployee extends Shift {
   employee_name: string;
   employee_role: string;
+  employee_department?: string;
   hourly_rate: number;
 }
 
