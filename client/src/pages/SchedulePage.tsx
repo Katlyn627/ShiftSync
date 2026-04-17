@@ -39,6 +39,18 @@ function toISODate(date: Date) {
   return adjusted.toISOString().split('T')[0];
 }
 
+function normalizedValue(value?: string | null) {
+  return (value || '').trim().toLowerCase();
+}
+
+function startOfWeek(date: Date) {
+  const next = new Date(date);
+  const day = next.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  next.setDate(next.getDate() + diff);
+  return new Date(next.getFullYear(), next.getMonth(), next.getDate());
+}
+
 const DEFAULT_ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
 const EDIT_INPUT_CLASS = 'w-full rounded-md border border-input bg-background px-2 py-1';
 
@@ -95,43 +107,50 @@ export default function SchedulePage() {
     [schedules, selectedScheduleId],
   );
 
+  const currentEmployee = useMemo(
+    () => employees.find((e) => e.id === user?.employeeId) ?? null,
+    [employees, user?.employeeId],
+  );
+
+  const currentEmployeeDepartment = normalizedValue(currentEmployee?.department);
+  const currentEmployeeRole = normalizedValue(currentEmployee?.role ?? user?.employeeRole);
+
   const visibleShifts = useMemo(() => {
-    const base = [...shifts].sort((a, b) => toSortableValue(a).localeCompare(toSortableValue(b)));
-    if (isManager || !showOnlyMine) return base;
-    return base.filter((s) => s.employee_id === user?.employeeId);
-  }, [shifts, isManager, showOnlyMine, user?.employeeId]);
+    const base = [...shifts]
+      .sort((a, b) => toSortableValue(a).localeCompare(toSortableValue(b)));
+    if (isManager) return base;
 
-  const calendarAnchorDate = useMemo(() => {
-    if (selectedSchedule?.week_start) return new Date(`${selectedSchedule.week_start}T12:00:00`);
-    if (visibleShifts[0]?.date) return new Date(`${visibleShifts[0].date}T12:00:00`);
-    return new Date();
-  }, [selectedSchedule?.week_start, visibleShifts]);
+    const departmentScoped = currentEmployeeDepartment
+      ? base.filter((s) => normalizedValue(s.employee_department) === currentEmployeeDepartment)
+      : base;
 
-  const monthMetadata = useMemo(() => {
-    const year = calendarAnchorDate.getFullYear();
-    const month = calendarAnchorDate.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const leadDays = firstDay.getDay();
-    const daysInMonth = lastDay.getDate();
-    const cells: Array<{ date: string | null; dayLabel: string }> = [];
-    for (let i = 0; i < leadDays; i += 1) {
-      cells.push({ date: null, dayLabel: '' });
-    }
-    for (let day = 1; day <= daysInMonth; day += 1) {
-      const date = new Date(year, month, day);
-      cells.push({ date: toISODate(date), dayLabel: String(day) });
-    }
-    while (cells.length % 7 !== 0) {
-      cells.push({ date: null, dayLabel: '' });
-    }
+    if (!showOnlyMine) return departmentScoped;
+    return departmentScoped.filter((s) => s.employee_id === user?.employeeId);
+  }, [shifts, currentEmployeeDepartment, isManager, showOnlyMine, user?.employeeId]);
+
+  const weekMetadata = useMemo(() => {
+    const anchor = selectedSchedule?.week_start
+      ? new Date(`${selectedSchedule.week_start}T12:00:00`)
+      : visibleShifts[0]?.date
+        ? new Date(`${visibleShifts[0].date}T12:00:00`)
+        : new Date();
+    const weekStartDate = startOfWeek(anchor);
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(weekStartDate);
+      d.setDate(weekStartDate.getDate() + i);
+      return {
+        date: toISODate(d),
+        weekday: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        dayLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      };
+    });
     return {
-      monthLabel: calendarAnchorDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-      monthStartISO: toISODate(firstDay),
-      monthEndISO: toISODate(lastDay),
-      cells,
+      label: `${days[0].dayLabel} - ${days[6].dayLabel}`,
+      weekStartISO: days[0].date,
+      weekEndISO: days[6].date,
+      days,
     };
-  }, [calendarAnchorDate]);
+  }, [selectedSchedule?.week_start, visibleShifts]);
 
   const shiftsByDate = useMemo(() => {
     const map = new Map<string, ShiftWithEmployee[]>();
@@ -147,8 +166,20 @@ export default function SchedulePage() {
   }, [visibleShifts]);
 
   const openShiftsByDate = useMemo(() => {
+    const scopedOpenShifts = isManager
+      ? openShifts
+      : openShifts.filter((shift) => {
+        const shiftDepartment = normalizedValue((shift as OpenShift & { department?: string | null }).department);
+        if (currentEmployeeDepartment && shiftDepartment) {
+          return shiftDepartment === currentEmployeeDepartment;
+        }
+        if (currentEmployeeRole) {
+          return normalizedValue(shift.role) === currentEmployeeRole;
+        }
+        return true;
+      });
     const map = new Map<string, OpenShift[]>();
-    openShifts.forEach((shift) => {
+    scopedOpenShifts.forEach((shift) => {
       const existing = map.get(shift.date);
       if (existing) {
         existing.push(shift);
@@ -157,7 +188,27 @@ export default function SchedulePage() {
       }
     });
     return map;
-  }, [openShifts]);
+  }, [openShifts, isManager, currentEmployeeDepartment, currentEmployeeRole]);
+
+  const departmentTone = (department: string) => {
+    const tones = [
+      'border-blue-200 bg-blue-50/70',
+      'border-purple-200 bg-purple-50/70',
+      'border-emerald-200 bg-emerald-50/70',
+      'border-amber-200 bg-amber-50/70',
+      'border-cyan-200 bg-cyan-50/70',
+      'border-rose-200 bg-rose-50/70',
+    ];
+    const key = (department || '').toLowerCase();
+    let hash = 0;
+    for (let i = 0; i < key.length; i += 1) {
+      hash = (hash * 31 + key.charCodeAt(i)) | 0;
+    }
+    return tones[Math.abs(hash) % tones.length];
+  };
+
+  const getShiftDisplayGroup = (shift: ShiftWithEmployee) =>
+    shift.employee_department || shift.employee_role || shift.role;
 
   async function loadSchedules() {
     const list = await getSchedules();
@@ -198,10 +249,10 @@ export default function SchedulePage() {
     }
     getOpenShifts({
       status: 'open',
-      date_from: monthMetadata.monthStartISO,
-      date_to: monthMetadata.monthEndISO,
+      date_from: weekMetadata.weekStartISO,
+      date_to: weekMetadata.weekEndISO,
     }).then(setOpenShifts).catch(() => setOpenShifts([]));
-  }, [isManager, monthMetadata.monthStartISO, monthMetadata.monthEndISO, selectedScheduleId]);
+  }, [isManager, weekMetadata.weekStartISO, weekMetadata.weekEndISO, selectedScheduleId]);
 
   async function handleGenerateSchedule() {
     if (!isManager) return;
@@ -332,8 +383,8 @@ export default function SchedulePage() {
         loadShifts(selectedScheduleId),
         getOpenShifts({
           status: 'open',
-          date_from: monthMetadata.monthStartISO,
-          date_to: monthMetadata.monthEndISO,
+          date_from: weekMetadata.weekStartISO,
+          date_to: weekMetadata.weekEndISO,
         }).then(setOpenShifts).catch(() => setOpenShifts([])),
       ]);
       toast('Shift drop request submitted.', { variant: 'success' });
@@ -350,8 +401,8 @@ export default function SchedulePage() {
       await offerForOpenShift(openShiftId);
       await getOpenShifts({
         status: 'open',
-        date_from: monthMetadata.monthStartISO,
-        date_to: monthMetadata.monthEndISO,
+        date_from: weekMetadata.weekStartISO,
+        date_to: weekMetadata.weekEndISO,
       }).then(setOpenShifts).catch(() => setOpenShifts([]));
       toast('Pickup request submitted.', { variant: 'success' });
     } catch (err: any) {
@@ -538,8 +589,8 @@ export default function SchedulePage() {
       <Card className="p-4 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="font-semibold text-foreground">{monthMetadata.monthLabel}</h2>
-            <p className="text-xs text-muted-foreground">Monthly calendar view of scheduled and open shifts</p>
+            <h2 className="font-semibold text-foreground">Week of {weekMetadata.label}</h2>
+            <p className="text-xs text-muted-foreground">Weekly schedule with department-scoped shift visibility</p>
           </div>
           {!isManager && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -549,31 +600,31 @@ export default function SchedulePage() {
           )}
         </div>
 
-        <div className="grid grid-cols-7 gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-            <div key={day} className="px-2 py-1">{day}</div>
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {weekMetadata.days.map((day) => (
+            <div key={day.date} className="px-2 py-1">{day.weekday}</div>
           ))}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
-          {monthMetadata.cells.map((cell, idx) => {
-            const dayShifts = cell.date ? shiftsByDate.get(cell.date) ?? [] : [];
-            const dayOpenShifts = !isManager && cell.date ? openShiftsByDate.get(cell.date) ?? [] : [];
+          {weekMetadata.days.map((day) => {
+            const dayShifts = shiftsByDate.get(day.date) ?? [];
+            const dayOpenShifts = !isManager ? openShiftsByDate.get(day.date) ?? [] : [];
             return (
               <div
-                key={`${cell.date ?? 'blank'}-${idx}`}
-                className={`rounded-xl border p-2 min-h-[170px] space-y-2 ${cell.date ? 'bg-card border-border' : 'bg-muted/20 border-transparent'}`}
+                key={day.date}
+                className="rounded-xl border p-2 min-h-[190px] space-y-2 bg-card border-border"
               >
-                {cell.date && (
-                  <>
-                    <div className="text-xs font-semibold text-foreground">{cell.dayLabel}</div>
+                <div className="text-xs font-semibold text-foreground">{day.dayLabel}</div>
                     {dayShifts.map((shift) => {
                       const isOwnShift = !!user?.employeeId && shift.employee_id === user.employeeId;
                       const isSwapDraftOpen = swapDraftShiftId === shift.id;
+                      const department = getShiftDisplayGroup(shift);
                       return (
-                        <div key={shift.id} className="rounded-lg border border-border bg-background p-2 space-y-1">
+                        <div key={shift.id} className={`rounded-lg border p-2 space-y-1 ${departmentTone(department)}`}>
                           <div className="text-xs font-semibold text-foreground">{shift.start_time} - {shift.end_time}</div>
                           <div className="text-xs text-foreground">{shift.role}</div>
+                          <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{department}</div>
                           <div className="text-[11px] text-muted-foreground">{shift.employee_name}</div>
 
                           {isManager && (
@@ -652,10 +703,8 @@ export default function SchedulePage() {
                       </div>
                     ))}
 
-                    {dayShifts.length === 0 && dayOpenShifts.length === 0 && (
-                      <div className="pt-2 text-[11px] text-muted-foreground">No shifts</div>
-                    )}
-                  </>
+                {dayShifts.length === 0 && dayOpenShifts.length === 0 && (
+                  <div className="pt-2 text-[11px] text-muted-foreground">No shifts</div>
                 )}
               </div>
             );
