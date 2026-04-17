@@ -1,6 +1,5 @@
 import { getDb } from './db';
 import { BurnoutRisk } from './types';
-import { getComplianceConfig } from './routes/compliance';
 
 /**
  * Minimum number of employees in a group before individual burnout scores are
@@ -35,15 +34,9 @@ export function calculateBurnoutRisks(scheduleId: number): BurnoutRisk[] {
 
   // Determine the schedule's site jurisdiction for configurable thresholds
   const schedule = db.prepare('SELECT site_id FROM schedules WHERE id = ?').get(scheduleId) as { site_id: number | null } | undefined;
-  const site = schedule?.site_id
-    ? (db.prepare('SELECT jurisdiction FROM sites WHERE id = ?').get(schedule.site_id) as { jurisdiction: string } | undefined)
-    : undefined;
-  const jurisdiction = site?.jurisdiction ?? 'default';
-  const config = getComplianceConfig(jurisdiction);
-
-  const CLOPEN_THRESHOLD_HOURS = config['min_rest_hours'] ?? 10;
-  const MAX_CONSECUTIVE_DAYS   = config['max_consecutive_days'] ?? 6;
-  const MAX_WEEKLY_HOURS       = config['max_weekly_hours'] ?? 40;
+  const CLOPEN_THRESHOLD_HOURS = 10;
+  const MAX_CONSECUTIVE_DAYS   = 6;
+  const MAX_WEEKLY_HOURS       = 40;
 
   const employees = db.prepare('SELECT * FROM employees').all() as any[];
   const shifts = db.prepare(
@@ -105,10 +98,10 @@ export function calculateBurnoutRisks(scheduleId: number): BurnoutRisk[] {
       riskScore += 5;
     }
 
-    // Minor worker checks: flag if hours exceed jurisdiction minor limits
+    // Minor worker checks: flag if hours exceed standard minor limits
     if (emp.is_minor) {
-      const minorMaxWeekly = config['minor_max_weekly_hours'] ?? 40;
-      const minorMaxDaily  = config['minor_max_daily_hours'] ?? 8;
+      const minorMaxWeekly = 40;
+      const minorMaxDaily  = 8;
       if (weeklyHours > minorMaxWeekly) {
         factors.push(`Minor worker exceeded weekly limit: ${weeklyHours.toFixed(1)}h > ${minorMaxWeekly}h`);
         riskScore += 25;

@@ -11,13 +11,6 @@ const BURNOUT_MED_THRESHOLD  = 50;    // risk_score >= this → cap at 92 % of w
 const BURNOUT_HIGH_HOURS_FACTOR = 0.85;
 const BURNOUT_MED_HOURS_FACTOR  = 0.92;
 
-// ── Standby (on-call) revenue thresholds ─────────────────────────────────────
-// Minimum revenue required before designating on-call backups for the day.
-// Thresholds are chosen to match the same staffing tiers used in computeDayNeeds.
-const STANDBY_VERY_HIGH_REVENUE = 7000; // >= $7 k → 3 standbys
-const STANDBY_HIGH_REVENUE      = 5000; // >= $5 k → 2 standbys
-// Days at or above the week's average daily revenue get 1 standby (computed inline)
-
 interface GenerateOptions {
   weekStart: string; // YYYY-MM-DD (Monday)
   laborBudget: number;
@@ -287,9 +280,6 @@ export function generateSchedule(options: GenerateOptions): number {
   const insertShift = db.prepare(
     'INSERT INTO shifts (schedule_id, employee_id, date, start_time, end_time, role, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
   );
-  const insertStandby = db.prepare(
-    'INSERT OR IGNORE INTO standby_assignments (schedule_id, employee_id, date, role) VALUES (?, ?, ?, ?)'
-  );
 
   // ── Helper: count consecutive days worked immediately before targetDate ───
   // Counts days worked in this week that form an unbroken chain ending at
@@ -329,7 +319,7 @@ export function generateSchedule(options: GenerateOptions): number {
     const forecast = getScheduleForecast(date);
     const dayNeeds = computeDayNeeds(forecast, date, dayOfWeek, settings.target_labor_pct, avgCheckPerHead, tableTurnoverRate);
 
-    // Track employees assigned a regular shift today (for standby selection)
+    // Track employees assigned a regular shift today
     const scheduledTodayIds = new Set<number>();
 
     // ── 4. Burnout-aware priority sort ────────────────────────────────────
@@ -414,44 +404,6 @@ export function generateSchedule(options: GenerateOptions): number {
       }
     }
 
-    // ── 7. Standby / callout-coverage pool ───────────────────────────────
-    // Reserve on-call workers for each day to cover last-minute callouts.
-    // Number of standbys scales with forecast revenue so high-revenue shifts
-    // always have adequate backup coverage.
-    const dayRevenue = forecast?.expected_revenue ?? 3000;
-    const avgDailyRevenue = totalWeekRevenue / 7;
-
-    let standbysNeeded = 0;
-    if (dayRevenue >= STANDBY_VERY_HIGH_REVENUE) standbysNeeded = 3;       // very high revenue
-    else if (dayRevenue >= STANDBY_HIGH_REVENUE) standbysNeeded = 2;        // high revenue
-    else if (dayRevenue >= avgDailyRevenue)       standbysNeeded = 1;        // average+
-
-    if (standbysNeeded > 0) {
-      // Prefer Servers and Kitchen for standby since they are most commonly needed
-      const standbyRolePriority = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
-      let standbyAssigned = 0;
-
-      for (const rolePref of standbyRolePriority) {
-        if (standbyAssigned >= standbysNeeded) break;
-
-        for (const emp of sorted) {
-          if (standbyAssigned >= standbysNeeded) break;
-          if (scheduledTodayIds.has(emp.id)) continue;
-          if (emp.role !== rolePref) continue;
-
-          const avail = allAvailability.find(
-            a => a.employee_id === emp.id && a.day_of_week === dayOfWeek
-          );
-          if (!avail) continue;
-
-          // Don't designate someone who is already at their weekly hours limit
-          if ((employeeWeeklyHours[emp.id] ?? 0) >= emp.weekly_hours_max) continue;
-
-          insertStandby.run(scheduleId, emp.id, date, emp.role);
-          standbyAssigned++;
-        }
-      }
-    }
   }
 
   return scheduleId;

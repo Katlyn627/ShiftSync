@@ -7,7 +7,6 @@ import { getDb, closeDb } from '../db';
 import { seedDemoData } from '../seed';
 import authRouter from '../routes/auth';
 import schedulesRouter from '../routes/schedules';
-import swapsRouter from '../routes/swaps';
 import express from 'express';
 import request from 'supertest';
 
@@ -25,7 +24,6 @@ beforeAll(async () => {
   app.use(express.json());
   app.use('/api/auth', authRouter);
   app.use('/api/schedules', schedulesRouter);
-  app.use('/api/swaps', swapsRouter);
 
   const managerRes = await request(app)
     .post('/api/auth/login')
@@ -78,29 +76,6 @@ describe('Role-based access: labor-cost endpoint', () => {
 
   test('unauthenticated cannot access labor-cost', async () => {
     const res = await request(app).get('/api/schedules/1/labor-cost');
-    expect(res.status).toBe(401);
-  });
-});
-
-describe('Role-based access: staffing-suggestions endpoint', () => {
-  test('manager can access staffing-suggestions', async () => {
-    const res = await request(app)
-      .get('/api/schedules/staffing-suggestions?week_start=2025-01-06')
-      .set('Authorization', `Bearer ${managerToken}`);
-    expect([200, 400]).toContain(res.status); // 200 or 400 (bad week_start is fine)
-  });
-
-  test('non-manager cannot access staffing-suggestions', async () => {
-    const res = await request(app)
-      .get('/api/schedules/staffing-suggestions?week_start=2025-01-06')
-      .set('Authorization', `Bearer ${staffToken}`);
-    expect(res.status).toBe(403);
-    expect(res.body.error).toMatch(/manager/i);
-  });
-
-  test('unauthenticated cannot access staffing-suggestions', async () => {
-    const res = await request(app)
-      .get('/api/schedules/staffing-suggestions?week_start=2025-01-06');
     expect(res.status).toBe(401);
   });
 });
@@ -209,29 +184,3 @@ describe('Role-based access: schedule delete endpoint', () => {
   });
 });
 
-describe('Role-based access: swap approve/reject endpoints', () => {
-  test('non-manager cannot approve a swap', async () => {
-    const res = await request(app)
-      .put('/api/swaps/1/approve')
-      .set('Authorization', `Bearer ${staffToken}`)
-      .send({});
-    expect(res.status).toBe(403);
-    expect(res.body.error).toMatch(/manager/i);
-  });
-
-  test('non-manager cannot reject a swap', async () => {
-    const res = await request(app)
-      .put('/api/swaps/1/reject')
-      .set('Authorization', `Bearer ${staffToken}`)
-      .send({});
-    expect(res.status).toBe(403);
-    expect(res.body.error).toMatch(/manager/i);
-  });
-
-  test('unauthenticated cannot approve a swap', async () => {
-    const res = await request(app)
-      .put('/api/swaps/1/approve')
-      .send({});
-    expect(res.status).toBe(401);
-  });
-});
