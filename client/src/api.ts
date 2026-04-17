@@ -54,6 +54,11 @@ export const updateEmployee = (id: number, data: Partial<Employee>) =>
   request<Employee>(`/employees/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteEmployee = (id: number) =>
   request<{ success: boolean }>(`/employees/${id}`, { method: 'DELETE' });
+export const importEmployees = (data: string, format: 'auto' | 'csv' | 'tsv' | 'json' = 'auto') =>
+  request<{ imported: number; employees: Employee[] }>('/employees/import', {
+    method: 'POST',
+    body: JSON.stringify({ data, format }),
+  });
 
 export const getAvailability = (empId: number) =>
   request<Availability[]>(`/employees/${empId}/availability`);

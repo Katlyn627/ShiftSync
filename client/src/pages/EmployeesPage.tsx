@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getEmployees, getSites, createEmployee, updateEmployee, deleteEmployee, getPositions, Employee, Site, Position } from '../api';
+import { getEmployees, getSites, createEmployee, updateEmployee, deleteEmployee, getPositions, importEmployees, Employee, Site, Position } from '../api';
 import { useAuth } from '../AuthContext';
 import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS, PageHeader } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
@@ -38,6 +38,9 @@ export default function EmployeesPage() {
   const [showForm, setShowForm]   = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm]           = useState({ name: '', role: '', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
+  const [importData, setImportData] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -86,6 +89,25 @@ export default function EmployeesPage() {
     if (!confirm('Delete this employee?')) return;
     await deleteEmployee(id);
     load();
+  };
+
+  const handleImport = async () => {
+    setImportMessage(null);
+    if (!importData.trim()) {
+      setImportMessage('Paste employee data first.');
+      return;
+    }
+    setImporting(true);
+    try {
+      const result = await importEmployees(importData, 'auto');
+      setImportMessage(result.imported === 1 ? 'Imported 1 employee.' : `Imported ${result.imported} employees.`);
+      setImportData('');
+      await load();
+    } catch (err: any) {
+      setImportMessage(err.message || 'Failed to import employees.');
+    } finally {
+      setImporting(false);
+    }
   };
 
   const siteMap = Object.fromEntries(sites.map(s => [s.id, s]));
@@ -200,6 +222,25 @@ export default function EmployeesPage() {
           </form>
         </Card>
       )}
+
+      <Card className="p-5 space-y-3">
+        <h2 className="text-sm font-semibold text-foreground">Import from Spreadsheet Data</h2>
+        <p className="text-xs text-muted-foreground">
+          Paste spreadsheet rows with headers like <span className="font-medium">name, role, hourly_rate, weekly_hours_max, email, phone</span> or paste a JSON array.
+        </p>
+        <textarea
+          className="w-full min-h-36 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          placeholder={'name,role,hourly_rate,weekly_hours_max,email,phone\nJane Smith,Server,18,35,jane@example.com,555-0101'}
+          value={importData}
+          onChange={(e) => setImportData(e.target.value)}
+        />
+        <div className="flex items-center gap-2">
+          <Button type="button" size="sm" onClick={handleImport} disabled={importing}>
+            {importing ? 'Importing…' : 'Import Employees'}
+          </Button>
+          {importMessage && <span className="text-xs text-muted-foreground">{importMessage}</span>}
+        </div>
+      </Card>
 
       {/* ── Employees Table ── */}
       <Card className="p-0 overflow-hidden">
