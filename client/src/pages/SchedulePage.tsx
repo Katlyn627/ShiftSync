@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  createSwap,
   createShift,
   deleteSchedule,
   deleteShift,
+  dropShift,
   Employee,
   generateSchedule,
   getEmployees,
+  getOpenShifts,
   getScheduleShifts,
   getSchedules,
+  offerForOpenShift,
+  OpenShift,
   Schedule,
   ShiftWithEmployee,
   updateSchedule,
@@ -26,6 +31,12 @@ function getCurrentWeekStartISO() {
 
 function toSortableValue(shift: ShiftWithEmployee) {
   return `${shift.date} ${shift.start_time}`;
+}
+
+function toISODate(date: Date) {
+  const adjusted = new Date(date);
+  adjusted.setMinutes(adjusted.getMinutes() - adjusted.getTimezoneOffset());
+  return adjusted.toISOString().split('T')[0];
 }
 
 const DEFAULT_ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
@@ -65,6 +76,12 @@ export default function SchedulePage() {
   });
 
   const [showOnlyMine, setShowOnlyMine] = useState(false);
+  const [openShifts, setOpenShifts] = useState<OpenShift[]>([]);
+  const [claimingOpenShiftId, setClaimingOpenShiftId] = useState<number | null>(null);
+  const [submittingShiftActionId, setSubmittingShiftActionId] = useState<number | null>(null);
+  const [swapDraftShiftId, setSwapDraftShiftId] = useState<number | null>(null);
+  const [swapTargetId, setSwapTargetId] = useState('');
+  const [swapReason, setSwapReason] = useState('');
 
   const roleOptions = useMemo(() => {
     const roles = new Set<string>(DEFAULT_ROLES);
@@ -83,6 +100,64 @@ export default function SchedulePage() {
     if (isManager || !showOnlyMine) return base;
     return base.filter((s) => s.employee_id === user?.employeeId);
   }, [shifts, isManager, showOnlyMine, user?.employeeId]);
+
+  const calendarAnchorDate = useMemo(() => {
+    if (selectedSchedule?.week_start) return new Date(`${selectedSchedule.week_start}T12:00:00`);
+    if (visibleShifts[0]?.date) return new Date(`${visibleShifts[0].date}T12:00:00`);
+    return new Date();
+  }, [selectedSchedule?.week_start, visibleShifts]);
+
+  const monthMetadata = useMemo(() => {
+    const year = calendarAnchorDate.getFullYear();
+    const month = calendarAnchorDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const leadDays = firstDay.getDay();
+    const daysInMonth = lastDay.getDate();
+    const cells: Array<{ date: string | null; dayLabel: string }> = [];
+    for (let i = 0; i < leadDays; i += 1) {
+      cells.push({ date: null, dayLabel: '' });
+    }
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = new Date(year, month, day);
+      cells.push({ date: toISODate(date), dayLabel: String(day) });
+    }
+    while (cells.length % 7 !== 0) {
+      cells.push({ date: null, dayLabel: '' });
+    }
+    return {
+      monthLabel: calendarAnchorDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      monthStartISO: toISODate(firstDay),
+      monthEndISO: toISODate(lastDay),
+      cells,
+    };
+  }, [calendarAnchorDate]);
+
+  const shiftsByDate = useMemo(() => {
+    const map = new Map<string, ShiftWithEmployee[]>();
+    visibleShifts.forEach((shift) => {
+      const existing = map.get(shift.date);
+      if (existing) {
+        existing.push(shift);
+      } else {
+        map.set(shift.date, [shift]);
+      }
+    });
+    return map;
+  }, [visibleShifts]);
+
+  const openShiftsByDate = useMemo(() => {
+    const map = new Map<string, OpenShift[]>();
+    openShifts.forEach((shift) => {
+      const existing = map.get(shift.date);
+      if (existing) {
+        existing.push(shift);
+      } else {
+        map.set(shift.date, [shift]);
+      }
+    });
+    return map;
+  }, [openShifts]);
 
   async function loadSchedules() {
     const list = await getSchedules();
@@ -115,6 +190,18 @@ export default function SchedulePage() {
     if (!selectedSchedule) return;
     setNewShift((prev) => ({ ...prev, date: selectedSchedule.week_start }));
   }, [selectedSchedule]);
+
+  useEffect(() => {
+    if (isManager) {
+      setOpenShifts([]);
+      return;
+    }
+    getOpenShifts({
+      status: 'open',
+      date_from: monthMetadata.monthStartISO,
+      date_to: monthMetadata.monthEndISO,
+    }).then(setOpenShifts).catch(() => setOpenShifts([]));
+  }, [isManager, monthMetadata.monthStartISO, monthMetadata.monthEndISO, selectedScheduleId]);
 
   async function handleGenerateSchedule() {
     if (!isManager) return;
@@ -233,6 +320,78 @@ export default function SchedulePage() {
     }
   }
 
+  async function handleDropShift(shift: ShiftWithEmployee) {
+    if (!selectedScheduleId || !user?.employeeId || shift.employee_id !== user.employeeId) return;
+    const reason = prompt('Why are you dropping this shift?');
+    if (reason === null) return;
+    setSubmittingShiftActionId(shift.id);
+    try {
+      await dropShift(shift.id, reason.trim() || 'No reason provided');
+      setSwapDraftShiftId(null);
+      await Promise.all([
+        loadShifts(selectedScheduleId),
+        getOpenShifts({
+          status: 'open',
+          date_from: monthMetadata.monthStartISO,
+          date_to: monthMetadata.monthEndISO,
+        }).then(setOpenShifts).catch(() => setOpenShifts([])),
+      ]);
+      toast('Shift drop request submitted.', { variant: 'success' });
+    } catch (err: any) {
+      toast(err.message || 'Failed to drop shift.', { variant: 'error' });
+    } finally {
+      setSubmittingShiftActionId(null);
+    }
+  }
+
+  async function handleOfferOpenShift(openShiftId: number) {
+    setClaimingOpenShiftId(openShiftId);
+    try {
+      await offerForOpenShift(openShiftId);
+      await getOpenShifts({
+        status: 'open',
+        date_from: monthMetadata.monthStartISO,
+        date_to: monthMetadata.monthEndISO,
+      }).then(setOpenShifts).catch(() => setOpenShifts([]));
+      toast('Pickup request submitted.', { variant: 'success' });
+    } catch (err: any) {
+      toast(err.message || 'Unable to pick up this shift.', { variant: 'error' });
+    } finally {
+      setClaimingOpenShiftId(null);
+    }
+  }
+
+  function beginSwapRequest(shiftId: number) {
+    setSwapDraftShiftId(shiftId);
+    setSwapReason('');
+    setSwapTargetId('');
+  }
+
+  async function handleRequestSwap(shift: ShiftWithEmployee) {
+    if (!selectedScheduleId || !user?.employeeId || shift.employee_id !== user.employeeId) return;
+    if (!swapTargetId) {
+      toast('Choose a teammate to swap with.', { variant: 'warning' });
+      return;
+    }
+    setSubmittingShiftActionId(shift.id);
+    try {
+      await createSwap({
+        shift_id: shift.id,
+        requester_id: user.employeeId,
+        target_id: Number(swapTargetId),
+        reason: swapReason.trim() || undefined,
+      });
+      setSwapDraftShiftId(null);
+      setSwapReason('');
+      setSwapTargetId('');
+      toast('Swap request sent.', { variant: 'success' });
+    } catch (err: any) {
+      toast(err.message || 'Failed to request swap.', { variant: 'error' });
+    } finally {
+      setSubmittingShiftActionId(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status" aria-live="polite">
@@ -348,69 +507,160 @@ export default function SchedulePage() {
         </Card>
       )}
 
-      <Card className="p-0 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-muted/40 border-b border-border text-left">
-              <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Date</th>
-              <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Time</th>
-              <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Employee</th>
-              <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Role</th>
-              {isManager && <th className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Actions</th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {visibleShifts.map((shift) => {
-              const editing = isManager && editingShiftId === shift.id;
-              return (
-                <tr key={shift.id} className="hover:bg-muted/20">
-                  {editing ? (
-                    <>
-                      <td className="px-4 py-2"><input className={EDIT_INPUT_CLASS} type="date" value={editForm.date} onChange={(e) => setEditForm((p) => ({ ...p, date: e.target.value }))} /></td>
-                      <td className="px-4 py-2 flex gap-2">
-                        <input className={EDIT_INPUT_CLASS} type="time" value={editForm.start_time} onChange={(e) => setEditForm((p) => ({ ...p, start_time: e.target.value }))} />
-                        <input className={EDIT_INPUT_CLASS} type="time" value={editForm.end_time} onChange={(e) => setEditForm((p) => ({ ...p, end_time: e.target.value }))} />
-                      </td>
-                      <td className="px-4 py-2">
-                        <select className={NATIVE_SELECT_CLASS} aria-label="Edit shift employee" value={editForm.employee_id} onChange={(e) => setEditForm((p) => ({ ...p, employee_id: e.target.value }))}>
-                          <option value="" disabled hidden>Select employee</option>
-                          {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-                        </select>
-                      </td>
-                      <td className="px-4 py-2">
-                        <select className={NATIVE_SELECT_CLASS} value={editForm.role} onChange={(e) => setEditForm((p) => ({ ...p, role: e.target.value }))}>
-                          {roleOptions.map((role) => <option key={role}>{role}</option>)}
-                        </select>
-                      </td>
-                      <td className="px-4 py-2 text-right space-x-2">
-                        <Button size="sm" onClick={saveShiftEdit}>Save</Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditingShiftId(null)}>Cancel</Button>
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="px-4 py-3">{shift.date}</td>
-                      <td className="px-4 py-3">{shift.start_time} - {shift.end_time}</td>
-                      <td className="px-4 py-3">{shift.employee_name}</td>
-                      <td className="px-4 py-3">{shift.role}</td>
-                      {isManager && (
-                        <td className="px-4 py-3 text-right space-x-2">
-                          <Button size="sm" variant="outline" onClick={() => startEditing(shift)}>Edit</Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleDeleteShift(shift.id)}>Delete</Button>
-                        </td>
-                      )}
-                    </>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {visibleShifts.length === 0 && (
-          <div className="py-10 text-center text-sm text-muted-foreground">
-            No shifts to display.
+      {isManager && editingShiftId && (
+        <Card className="p-4 space-y-3">
+          <h2 className="font-semibold text-foreground">Edit Shift</h2>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <Input label="Date" type="date" value={editForm.date} onChange={(e) => setEditForm((p) => ({ ...p, date: e.target.value }))} />
+            <Input label="Start" type="time" value={editForm.start_time} onChange={(e) => setEditForm((p) => ({ ...p, start_time: e.target.value }))} />
+            <Input label="End" type="time" value={editForm.end_time} onChange={(e) => setEditForm((p) => ({ ...p, end_time: e.target.value }))} />
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Employee</label>
+              <select className={NATIVE_SELECT_CLASS} value={editForm.employee_id} onChange={(e) => setEditForm((p) => ({ ...p, employee_id: e.target.value }))}>
+                <option value="" disabled hidden>Select employee</option>
+                {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Role</label>
+              <select className={NATIVE_SELECT_CLASS} value={editForm.role} onChange={(e) => setEditForm((p) => ({ ...p, role: e.target.value }))}>
+                {roleOptions.map((role) => <option key={role}>{role}</option>)}
+              </select>
+            </div>
           </div>
-        )}
+          <div className="flex gap-2">
+            <Button size="sm" onClick={saveShiftEdit}>Save</Button>
+            <Button size="sm" variant="outline" onClick={() => setEditingShiftId(null)}>Cancel</Button>
+          </div>
+        </Card>
+      )}
+
+      <Card className="p-4 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-foreground">{monthMetadata.monthLabel}</h2>
+            <p className="text-xs text-muted-foreground">Monthly calendar view of scheduled and open shifts</p>
+          </div>
+          {!isManager && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="inline-flex h-2 w-2 rounded-full bg-primary/70" />
+              You can use <strong>Drop Shift</strong> and <strong>Swap Shift</strong> on your scheduled shifts
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-7 gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+            <div key={day} className="px-2 py-1">{day}</div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+          {monthMetadata.cells.map((cell, idx) => {
+            const dayShifts = cell.date ? shiftsByDate.get(cell.date) ?? [] : [];
+            const dayOpenShifts = !isManager && cell.date ? openShiftsByDate.get(cell.date) ?? [] : [];
+            return (
+              <div
+                key={`${cell.date ?? 'blank'}-${idx}`}
+                className={`rounded-xl border p-2 min-h-[170px] space-y-2 ${cell.date ? 'bg-card border-border' : 'bg-muted/20 border-transparent'}`}
+              >
+                {cell.date && (
+                  <>
+                    <div className="text-xs font-semibold text-foreground">{cell.dayLabel}</div>
+                    {dayShifts.map((shift) => {
+                      const isOwnShift = !!user?.employeeId && shift.employee_id === user.employeeId;
+                      const isSwapDraftOpen = swapDraftShiftId === shift.id;
+                      return (
+                        <div key={shift.id} className="rounded-lg border border-border bg-background p-2 space-y-1">
+                          <div className="text-xs font-semibold text-foreground">{shift.start_time} - {shift.end_time}</div>
+                          <div className="text-xs text-foreground">{shift.role}</div>
+                          <div className="text-[11px] text-muted-foreground">{shift.employee_name}</div>
+
+                          {isManager && (
+                            <div className="flex gap-1 pt-1">
+                              <Button size="sm" variant="outline" onClick={() => startEditing(shift)}>Edit</Button>
+                              <Button size="sm" variant="destructive" onClick={() => handleDeleteShift(shift.id)}>Delete</Button>
+                            </div>
+                          )}
+
+                          {!isManager && isOwnShift && (
+                            <div className="space-y-2 pt-1">
+                              <div className="flex flex-wrap gap-1.5">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDropShift(shift)}
+                                  isLoading={submittingShiftActionId === shift.id}
+                                >
+                                  Drop Shift
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => beginSwapRequest(shift.id)}
+                                >
+                                  Swap Shift
+                                </Button>
+                              </div>
+                              {isSwapDraftOpen && (
+                                <div className="space-y-1.5 rounded-md border border-border p-2">
+                                  <select
+                                    className={NATIVE_SELECT_CLASS}
+                                    value={swapTargetId}
+                                    onChange={(e) => setSwapTargetId(e.target.value)}
+                                  >
+                                    <option value="" disabled hidden>Select teammate</option>
+                                    {employees
+                                      .filter((e) => e.id !== user?.employeeId)
+                                      .map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                  </select>
+                                  <input
+                                    className={EDIT_INPUT_CLASS}
+                                    placeholder="Reason (optional)"
+                                    value={swapReason}
+                                    onChange={(e) => setSwapReason(e.target.value)}
+                                  />
+                                  <div className="flex gap-1.5">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleRequestSwap(shift)}
+                                      isLoading={submittingShiftActionId === shift.id}
+                                    >
+                                      Send Swap
+                                    </Button>
+                                    <Button size="sm" variant="outline" onClick={() => setSwapDraftShiftId(null)}>Cancel</Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {!isManager && dayOpenShifts.map((openShift) => (
+                      <div key={`open-${openShift.id}`} className="rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-1">
+                        <div className="text-xs font-semibold text-foreground">{openShift.start_time} - {openShift.end_time}</div>
+                        <div className="text-xs text-foreground">{openShift.role} (Open)</div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleOfferOpenShift(openShift.id)}
+                          isLoading={claimingOpenShiftId === openShift.id}
+                        >
+                          Pickup Shift
+                        </Button>
+                      </div>
+                    ))}
+
+                    {dayShifts.length === 0 && dayOpenShifts.length === 0 && (
+                      <div className="pt-2 text-[11px] text-muted-foreground">No shifts</div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </Card>
     </div>
   );
