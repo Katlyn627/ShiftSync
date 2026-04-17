@@ -16,9 +16,16 @@ declare module 'express-session' {
 // Default positions per industry (mirrors the frontend INDUSTRIES definitions)
 const INDUSTRY_DEFAULT_POSITIONS: Record<string, string[]> = {
   restaurant: [
-    'General Manager', 'Assistant Manager', 'Executive Chef', 'Sous Chef',
-    'Line Cook', 'Prep Cook', 'Dishwasher', 'Server', 'Lead Server',
-    'Bartender', 'Barback', 'Host', 'Busser',
+    'Manager',
+    'Head Chef',
+    'Sous Chef',
+    'Line Cook',
+    'Dishwasher',
+    'Server',
+    'Host',
+    'Busser',
+    'Food Runner',
+    'Expo',
   ],
   hotel: [
     'General Manager', 'Front Desk Supervisor', 'Front Desk Agent', 'Night Auditor',
@@ -360,6 +367,11 @@ router.post('/register-manager', (req: Request, res: Response) => {
     state,
     timezone,
     industry,
+    location,
+    businessHours,
+    employeeCount,
+    fohRoles,
+    bohRoles,
     // Manager personal info
     managerName,
     username,
@@ -368,8 +380,8 @@ router.post('/register-manager', (req: Request, res: Response) => {
     positions,
   } = req.body;
 
-  if (!businessName || !city || !state || !timezone || !industry) {
-    return res.status(400).json({ error: 'businessName, city, state, timezone, and industry are required' });
+  if (!businessName || !city || !state || !timezone || !industry || !location || !businessHours || employeeCount == null) {
+    return res.status(400).json({ error: 'businessName, city, state, timezone, industry, location, businessHours, and employeeCount are required' });
   }
   if (!managerName || !username || !password) {
     return res.status(400).json({ error: 'managerName, username, and password are required' });
@@ -377,6 +389,20 @@ router.post('/register-manager', (req: Request, res: Response) => {
   if (password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
   }
+
+  const parsedEmployeeCount = Number(employeeCount);
+  if (!Number.isFinite(parsedEmployeeCount) || parsedEmployeeCount < 1 || parsedEmployeeCount > 50) {
+    return res.status(400).json({ error: 'employeeCount must be a number between 1 and 50' });
+  }
+
+  const defaultFohRoles = ['Busser', 'Host', 'Server', 'Food Runner', 'Expo'];
+  const defaultBohRoles = ['Line Cook', 'Head Chef', 'Sous Chef', 'Dishwasher', 'Manager'];
+  const normalizedFohRoles = Array.isArray(fohRoles) && fohRoles.length > 0
+    ? fohRoles.filter((role: unknown) => typeof role === 'string' && role.trim().length > 0).map((role: string) => role.trim())
+    : defaultFohRoles;
+  const normalizedBohRoles = Array.isArray(bohRoles) && bohRoles.length > 0
+    ? bohRoles.filter((role: unknown) => typeof role === 'string' && role.trim().length > 0).map((role: string) => role.trim())
+    : defaultBohRoles;
 
   const db = getDb();
 
@@ -403,10 +429,24 @@ router.post('/register-manager', (req: Request, res: Response) => {
     // 1. Create site
     const siteResult = db
       .prepare(
-        `INSERT INTO sites (name, city, state, timezone, site_type, jurisdiction)
-         VALUES (?, ?, ?, ?, ?, 'default')`
+        `INSERT INTO sites (
+          name, city, state, timezone, site_type, jurisdiction,
+          address, business_hours, employee_capacity, foh_roles, boh_roles
+        )
+         VALUES (?, ?, ?, ?, ?, 'default', ?, ?, ?, ?, ?)`
       )
-      .run(businessName, city, state, timezone, industry);
+      .run(
+        businessName,
+        city,
+        state,
+        timezone,
+        industry,
+        location,
+        businessHours,
+        parsedEmployeeCount,
+        JSON.stringify(normalizedFohRoles),
+        JSON.stringify(normalizedBohRoles),
+      );
     const siteId = siteResult.lastInsertRowid as number;
 
     // 2. Create manager employee record
@@ -460,6 +500,13 @@ router.post('/register-manager', (req: Request, res: Response) => {
       token,
       user: { ...payload, photoUrl: null },
       positions: positionList,
+      site: {
+        location,
+        business_hours: businessHours,
+        employee_capacity: parsedEmployeeCount,
+        foh_roles: normalizedFohRoles,
+        boh_roles: normalizedBohRoles,
+      },
     });
   } catch (err: any) {
     console.error('register-manager error:', err);
@@ -487,4 +534,3 @@ router.get('/me', (req: Request, res: Response) => {
 });
 
 export default router;
-

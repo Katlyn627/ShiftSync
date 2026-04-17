@@ -79,17 +79,25 @@ function computeDayNeeds(
 
   serverCount = Math.min(serverCount, 8); // hard cap
 
-  // ── Kitchen scales with server count ─────────────────────────────────────
-  let kitchenCount = Math.max(1, Math.ceil(serverCount * 0.7));
+  // ── BOH scales with server count ─────────────────────────────────────────
+  let kitchenCount = Math.max(2, Math.ceil(serverCount * 0.8));
   if (dayOfWeek === 0 || dayOfWeek === 6) {
     kitchenCount = Math.ceil(kitchenCount * 1.1);
   }
   if (targetLaborPct < 28) kitchenCount = Math.max(1, kitchenCount - 1);
   else if (targetLaborPct > 35) kitchenCount = kitchenCount + 1;
 
-  // ── Bar and Host ──────────────────────────────────────────────────────────
-  const barCount  = serverCount >= 4 ? 2 : 1;
-  const hostCount = serverCount >= 4 ? 2 : 1;
+  // ── FOH support roles ─────────────────────────────────────────────────────
+  const hostCount = Math.max(1, Math.ceil(serverCount * 0.25));
+  const busserCount = Math.max(1, Math.ceil(serverCount * 0.3));
+  const foodRunnerCount = Math.max(1, Math.ceil(serverCount * 0.35));
+  const expoCount = Math.max(1, Math.ceil(serverCount * 0.25));
+
+  // ── BOH specialist roles ──────────────────────────────────────────────────
+  const headChefCount = 1;
+  const sousChefCount = Math.max(1, Math.ceil(kitchenCount * 0.3));
+  const lineCookCount = Math.max(1, kitchenCount);
+  const dishwasherCount = Math.max(1, Math.ceil(kitchenCount * 0.35));
 
   return {
     date,
@@ -97,10 +105,15 @@ function computeDayNeeds(
     shiftsNeeded: [
       { role: 'Server',  start: '11:00', end: '19:00', count: Math.ceil(serverCount  / 2) },
       { role: 'Server',  start: '15:00', end: '23:00', count: Math.floor(serverCount  / 2) },
-      { role: 'Kitchen', start: '10:00', end: '18:00', count: Math.ceil(kitchenCount / 2) },
-      { role: 'Kitchen', start: '14:00', end: '22:00', count: Math.floor(kitchenCount / 2) },
-      { role: 'Bar',     start: '16:00', end: '00:00', count: barCount },
-      { role: 'Host',    start: '11:00', end: '19:00', count: hostCount },
+      { role: 'Host',    start: '10:00', end: '18:00', count: hostCount },
+      { role: 'Busser',  start: '11:00', end: '19:00', count: busserCount },
+      { role: 'Food Runner', start: '12:00', end: '20:00', count: foodRunnerCount },
+      { role: 'Expo',    start: '13:00', end: '21:00', count: expoCount },
+      { role: 'Head Chef', start: '08:00', end: '16:00', count: headChefCount },
+      { role: 'Sous Chef', start: '10:00', end: '18:00', count: sousChefCount },
+      { role: 'Line Cook', start: '10:00', end: '18:00', count: Math.ceil(lineCookCount / 2) },
+      { role: 'Line Cook', start: '14:00', end: '22:00', count: Math.floor(lineCookCount / 2) },
+      { role: 'Dishwasher', start: '15:00', end: '23:00', count: dishwasherCount },
       { role: 'Manager', start: '09:00', end: '17:00', count: 1 },
     ],
   };

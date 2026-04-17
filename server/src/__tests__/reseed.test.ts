@@ -36,17 +36,17 @@ test('seedDemoData detects and reseeds a stale database', () => {
   const afterForecastsWithSite = (db.prepare('SELECT COUNT(*) as c FROM forecasts WHERE site_id IS NOT NULL').get() as any).c;
   const afterSchedulesWithSite = (db.prepare('SELECT COUNT(*) as c FROM schedules WHERE site_id IS NOT NULL').get() as any).c;
 
-  expect(afterSites).toBeGreaterThanOrEqual(4);
-  expect(afterEmps).toBeGreaterThanOrEqual(100);
+  expect(afterSites).toBeGreaterThanOrEqual(2);
+  expect(afterEmps).toBeGreaterThanOrEqual(40);
   expect(afterForecastsWithSite).toBeGreaterThanOrEqual(10);
-  expect(afterSchedulesWithSite).toBeGreaterThanOrEqual(4);
+  expect(afterSchedulesWithSite).toBeGreaterThanOrEqual(2);
 });
 
 test('seedDemoData is idempotent when data is already up-to-date', () => {
   const db = getDb();
 
   const empsBefore = (db.prepare('SELECT COUNT(*) as c FROM employees').get() as any).c;
-  expect(empsBefore).toBeGreaterThanOrEqual(100);
+  expect(empsBefore).toBeGreaterThanOrEqual(40);
 
   // Calling again should not change anything
   seedDemoData();

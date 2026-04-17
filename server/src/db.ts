@@ -29,6 +29,11 @@ function initSchema(db: Database.Database): void {
       timezone TEXT NOT NULL DEFAULT 'America/Chicago',
       site_type TEXT NOT NULL DEFAULT 'restaurant', -- restaurant | hotel
       jurisdiction TEXT NOT NULL DEFAULT 'default',  -- compliance rule set: default | eu | us-ca | …
+      address TEXT NOT NULL DEFAULT '',
+      business_hours TEXT NOT NULL DEFAULT '',
+      employee_capacity INTEGER NOT NULL DEFAULT 0,
+      foh_roles TEXT NOT NULL DEFAULT '[]',
+      boh_roles TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -211,6 +216,21 @@ function initSchema(db: Database.Database): void {
   if (!siteCols.some(c => c.name === 'jurisdiction')) {
     db.exec("ALTER TABLE sites ADD COLUMN jurisdiction TEXT NOT NULL DEFAULT 'default'");
   }
+  if (!siteCols.some(c => c.name === 'address')) {
+    db.exec("ALTER TABLE sites ADD COLUMN address TEXT NOT NULL DEFAULT ''");
+  }
+  if (!siteCols.some(c => c.name === 'business_hours')) {
+    db.exec("ALTER TABLE sites ADD COLUMN business_hours TEXT NOT NULL DEFAULT ''");
+  }
+  if (!siteCols.some(c => c.name === 'employee_capacity')) {
+    db.exec("ALTER TABLE sites ADD COLUMN employee_capacity INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!siteCols.some(c => c.name === 'foh_roles')) {
+    db.exec("ALTER TABLE sites ADD COLUMN foh_roles TEXT NOT NULL DEFAULT '[]'");
+  }
+  if (!siteCols.some(c => c.name === 'boh_roles')) {
+    db.exec("ALTER TABLE sites ADD COLUMN boh_roles TEXT NOT NULL DEFAULT '[]'");
+  }
 
   // Migrate availability table: add availability_type column if absent
   const availCols = db.pragma('table_info(availability)') as { name: string }[];
@@ -227,6 +247,27 @@ function initSchema(db: Database.Database): void {
   const swapCols = db.pragma('table_info(shift_swaps)') as { name: string }[];
   if (!swapCols.some(c => c.name === 'open_shift_id')) {
     db.exec('ALTER TABLE shift_swaps ADD COLUMN open_shift_id INTEGER REFERENCES open_shifts(id) ON DELETE SET NULL');
+  }
+
+  // Migrate open_shifts table for older databases used before drop/pickup enhancements
+  const openShiftCols = db.pragma('table_info(open_shifts)') as { name: string }[];
+  if (!openShiftCols.some(c => c.name === 'source_shift_id')) {
+    db.exec('ALTER TABLE open_shifts ADD COLUMN source_shift_id INTEGER REFERENCES shifts(id) ON DELETE SET NULL');
+  }
+  if (!openShiftCols.some(c => c.name === 'source_swap_id')) {
+    db.exec('ALTER TABLE open_shifts ADD COLUMN source_swap_id INTEGER');
+  }
+  if (!openShiftCols.some(c => c.name === 'required_certifications')) {
+    db.exec("ALTER TABLE open_shifts ADD COLUMN required_certifications TEXT NOT NULL DEFAULT '[]'");
+  }
+  if (!openShiftCols.some(c => c.name === 'reason')) {
+    db.exec('ALTER TABLE open_shifts ADD COLUMN reason TEXT');
+  }
+  if (!openShiftCols.some(c => c.name === 'deadline')) {
+    db.exec('ALTER TABLE open_shifts ADD COLUMN deadline TEXT');
+  }
+  if (!openShiftCols.some(c => c.name === 'claimed_by')) {
+    db.exec('ALTER TABLE open_shifts ADD COLUMN claimed_by INTEGER REFERENCES employees(id) ON DELETE SET NULL');
   }
 
   // Migrate forecasts table: replace UNIQUE(date) with UNIQUE(date, site_id) for per-site revenue

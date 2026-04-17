@@ -7,6 +7,11 @@ export interface Site {
   site_type: 'restaurant' | 'hotel' | 'retail' | 'healthcare' | 'fitness' | 'salon_spa' | 'warehouse' | 'education' | 'childcare' | 'security' | 'office' | 'other';
   /** Jurisdiction code used to select applicable compliance rules, e.g. 'default', 'eu', 'us-ca' */
   jurisdiction: string;
+  address: string;
+  business_hours: string;
+  employee_capacity: number;
+  foh_roles: string;
+  boh_roles: string;
   created_at: string;
 }
 

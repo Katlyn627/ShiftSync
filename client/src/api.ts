@@ -36,12 +36,17 @@ export const registerManager = (data: {
   state: string;
   timezone: string;
   industry: string;
+  location: string;
+  businessHours: string;
+  employeeCount: number;
+  fohRoles: string[];
+  bohRoles: string[];
   managerName: string;
   username: string;
   password: string;
   positions?: string[];
 }) =>
-  request<{ token: string; user: any; positions: string[] }>('/auth/register-manager', {
+  request<{ token: string; user: any; positions: string[]; site: any }>('/auth/register-manager', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -188,6 +193,11 @@ export interface Site {
   state: string;
   timezone: string;
   site_type: SiteType;
+  address?: string;
+  business_hours?: string;
+  employee_capacity?: number;
+  foh_roles?: string;
+  boh_roles?: string;
   created_at: string;
 }
 

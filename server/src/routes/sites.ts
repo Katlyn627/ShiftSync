@@ -11,14 +11,29 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 router.post('/', requireManager, (req: Request, res: Response) => {
-  const { name, city, state, timezone, site_type, jurisdiction } = req.body;
+  const { name, city, state, timezone, site_type, jurisdiction, address, business_hours, employee_capacity, foh_roles, boh_roles } = req.body;
   if (!name || !city || !state) {
     return res.status(400).json({ error: 'name, city, and state are required' });
   }
   const db = getDb();
   const result = db.prepare(
-    'INSERT INTO sites (name, city, state, timezone, site_type, jurisdiction) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(name, city, state, timezone ?? 'America/New_York', site_type ?? 'restaurant', jurisdiction ?? 'default');
+    `INSERT INTO sites (
+      name, city, state, timezone, site_type, jurisdiction,
+      address, business_hours, employee_capacity, foh_roles, boh_roles
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    name,
+    city,
+    state,
+    timezone ?? 'America/New_York',
+    site_type ?? 'restaurant',
+    jurisdiction ?? 'default',
+    address ?? '',
+    business_hours ?? '',
+    employee_capacity ?? 0,
+    typeof foh_roles === 'string' ? foh_roles : JSON.stringify(foh_roles ?? []),
+    typeof boh_roles === 'string' ? boh_roles : JSON.stringify(boh_roles ?? []),
+  );
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(site);
 });
@@ -42,9 +57,12 @@ router.put('/:id', requireManager, (req: Request, res: Response) => {
   const existing = db.prepare('SELECT * FROM sites WHERE id = ?').get(req.params.id) as any;
   if (!existing) return res.status(404).json({ error: 'Site not found' });
 
-  const { name, city, state, timezone, site_type, jurisdiction } = req.body;
+  const { name, city, state, timezone, site_type, jurisdiction, address, business_hours, employee_capacity, foh_roles, boh_roles } = req.body;
   db.prepare(
-    'UPDATE sites SET name=?, city=?, state=?, timezone=?, site_type=?, jurisdiction=? WHERE id=?'
+    `UPDATE sites
+      SET name=?, city=?, state=?, timezone=?, site_type=?, jurisdiction=?,
+          address=?, business_hours=?, employee_capacity=?, foh_roles=?, boh_roles=?
+      WHERE id=?`
   ).run(
     name ?? existing.name,
     city ?? existing.city,
@@ -52,6 +70,15 @@ router.put('/:id', requireManager, (req: Request, res: Response) => {
     timezone ?? existing.timezone,
     site_type ?? existing.site_type,
     jurisdiction ?? existing.jurisdiction,
+    address ?? existing.address ?? '',
+    business_hours ?? existing.business_hours ?? '',
+    employee_capacity ?? existing.employee_capacity ?? 0,
+    foh_roles == null
+      ? (existing.foh_roles ?? '[]')
+      : (typeof foh_roles === 'string' ? foh_roles : JSON.stringify(foh_roles)),
+    boh_roles == null
+      ? (existing.boh_roles ?? '[]')
+      : (typeof boh_roles === 'string' ? boh_roles : JSON.stringify(boh_roles)),
     req.params.id
   );
   const updated = db.prepare('SELECT * FROM sites WHERE id = ?').get(req.params.id);
