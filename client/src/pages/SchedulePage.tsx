@@ -544,7 +544,7 @@ export default function SchedulePage() {
           {!isManager && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="inline-flex h-2 w-2 rounded-full bg-primary/70" />
-              Your scheduled shifts include <strong>Drop Shift</strong> and <strong>Swap Shift</strong>
+              You can use <strong>Drop Shift</strong> and <strong>Swap Shift</strong> on your scheduled shifts
             </div>
           )}
         </div>
