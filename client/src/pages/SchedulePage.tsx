@@ -16,7 +16,7 @@ import {
 import { useAuth } from '../AuthContext';
 import { Button, Card, Input, NATIVE_SELECT_CLASS, PageHeader, useToast } from '../components/ui';
 
-function weekStartDateISO() {
+function getCurrentWeekStartISO() {
   const d = new Date();
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
@@ -29,6 +29,7 @@ function toSortableValue(shift: ShiftWithEmployee) {
 }
 
 const DEFAULT_ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
+const EDIT_INPUT_CLASS = 'w-full rounded-md border border-input bg-background px-2 py-1';
 
 export default function SchedulePage() {
   const { user } = useAuth();
@@ -41,13 +42,13 @@ export default function SchedulePage() {
   const [shifts, setShifts] = useState<ShiftWithEmployee[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
 
-  const [weekStart, setWeekStart] = useState(weekStartDateISO());
+  const [weekStart, setWeekStart] = useState(getCurrentWeekStartISO());
   const [laborBudget, setLaborBudget] = useState(5000);
   const [generating, setGenerating] = useState(false);
 
   const [newShift, setNewShift] = useState({
     employee_id: '',
-    date: weekStartDateISO(),
+    date: getCurrentWeekStartISO(),
     start_time: '09:00',
     end_time: '17:00',
     role: 'Server',
@@ -63,7 +64,7 @@ export default function SchedulePage() {
     role: '',
   });
 
-  const [showOnlyMine, setShowOnlyMine] = useState(true);
+  const [showOnlyMine, setShowOnlyMine] = useState(false);
 
   const roleOptions = useMemo(() => {
     const roles = new Set<string>(DEFAULT_ROLES);
@@ -156,8 +157,12 @@ export default function SchedulePage() {
 
   async function handleCreateShift() {
     if (!isManager || !selectedScheduleId) return;
-    if (!newShift.employee_id) {
-      toast('Select an employee first.', { variant: 'warning' });
+    if (!newShift.employee_id || !newShift.date || !newShift.start_time || !newShift.end_time || !newShift.role) {
+      toast('Complete all shift fields before adding.', { variant: 'warning' });
+      return;
+    }
+    if (newShift.end_time <= newShift.start_time) {
+      toast('Shift end time must be after start time.', { variant: 'warning' });
       return;
     }
     setCreatingShift(true);
@@ -192,6 +197,14 @@ export default function SchedulePage() {
 
   async function saveShiftEdit() {
     if (!isManager || !selectedScheduleId || !editingShiftId) return;
+    if (!editForm.employee_id || !editForm.date || !editForm.start_time || !editForm.end_time || !editForm.role) {
+      toast('Complete all shift fields before saving.', { variant: 'warning' });
+      return;
+    }
+    if (editForm.end_time <= editForm.start_time) {
+      toast('Shift end time must be after start time.', { variant: 'warning' });
+      return;
+    }
     try {
       await updateShift(editingShiftId, {
         employee_id: Number(editForm.employee_id),
@@ -221,7 +234,15 @@ export default function SchedulePage() {
   }
 
   if (loading) {
-    return <div className="text-sm text-muted-foreground">Loading schedule…</div>;
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status" aria-live="polite">
+        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+        </svg>
+        Loading schedule…
+      </div>
+    );
   }
 
   return (
@@ -296,13 +317,14 @@ export default function SchedulePage() {
           <h2 className="font-semibold text-foreground">Add Shift</h2>
           <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
             <div className="space-y-1.5 md:col-span-2">
-              <label className="text-xs font-medium text-muted-foreground">Employee</label>
+              <label htmlFor="new-shift-employee" className="text-xs font-medium text-muted-foreground">Employee</label>
               <select
+                id="new-shift-employee"
                 className={NATIVE_SELECT_CLASS}
                 value={newShift.employee_id}
                 onChange={(e) => setNewShift((prev) => ({ ...prev, employee_id: e.target.value }))}
               >
-                <option value="">Select employee</option>
+                <option value="" disabled hidden>Select employee</option>
                 {employees.map((e) => (
                   <option key={e.id} value={e.id}>{e.name}</option>
                 ))}
@@ -344,13 +366,14 @@ export default function SchedulePage() {
                 <tr key={shift.id} className="hover:bg-muted/20">
                   {editing ? (
                     <>
-                      <td className="px-4 py-2"><input className="w-full rounded-md border border-input bg-background px-2 py-1" type="date" value={editForm.date} onChange={(e) => setEditForm((p) => ({ ...p, date: e.target.value }))} /></td>
+                      <td className="px-4 py-2"><input className={EDIT_INPUT_CLASS} type="date" value={editForm.date} onChange={(e) => setEditForm((p) => ({ ...p, date: e.target.value }))} /></td>
                       <td className="px-4 py-2 flex gap-2">
-                        <input className="w-full rounded-md border border-input bg-background px-2 py-1" type="time" value={editForm.start_time} onChange={(e) => setEditForm((p) => ({ ...p, start_time: e.target.value }))} />
-                        <input className="w-full rounded-md border border-input bg-background px-2 py-1" type="time" value={editForm.end_time} onChange={(e) => setEditForm((p) => ({ ...p, end_time: e.target.value }))} />
+                        <input className={EDIT_INPUT_CLASS} type="time" value={editForm.start_time} onChange={(e) => setEditForm((p) => ({ ...p, start_time: e.target.value }))} />
+                        <input className={EDIT_INPUT_CLASS} type="time" value={editForm.end_time} onChange={(e) => setEditForm((p) => ({ ...p, end_time: e.target.value }))} />
                       </td>
                       <td className="px-4 py-2">
-                        <select className={NATIVE_SELECT_CLASS} value={editForm.employee_id} onChange={(e) => setEditForm((p) => ({ ...p, employee_id: e.target.value }))}>
+                        <select className={NATIVE_SELECT_CLASS} aria-label="Edit shift employee" value={editForm.employee_id} onChange={(e) => setEditForm((p) => ({ ...p, employee_id: e.target.value }))}>
+                          <option value="" disabled hidden>Select employee</option>
                           {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
                         </select>
                       </td>
