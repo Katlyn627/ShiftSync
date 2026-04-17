@@ -62,20 +62,25 @@ router.post('/', requireManager, (req: Request, res: Response) => {
   if (!schedule_id || !date || !start_time || !end_time || !role) {
     return res.status(400).json({ error: 'schedule_id, date, start_time, end_time, and role are required' });
   }
+  if (required_certifications != null) {
+    if (!Array.isArray(required_certifications) || required_certifications.some((c: unknown) => typeof c !== 'string')) {
+      return res.status(400).json({ error: 'required_certifications must be an array of strings' });
+    }
+  }
   const db = getDb();
   const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(schedule_id) as any;
   if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
 
   const certificationsJson = Array.isArray(required_certifications)
-    ? JSON.stringify(required_certifications.filter((c: unknown) => typeof c === 'string'))
+    ? JSON.stringify(required_certifications)
     : '[]';
-  const effectiveSiteId = site_id ?? req.user?.siteId ?? schedule.site_id ?? null;
+  const finalSiteId = site_id ?? req.user?.siteId ?? schedule.site_id ?? null;
   const result = db.prepare(`
     INSERT INTO open_shifts (schedule_id, site_id, date, start_time, end_time, role, required_certifications, reason, deadline, status)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
   `).run(
     schedule_id,
-    effectiveSiteId,
+    finalSiteId,
     date,
     start_time,
     end_time,

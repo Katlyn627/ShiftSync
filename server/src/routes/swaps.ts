@@ -55,8 +55,10 @@ router.post('/', requireAuth, (req: Request, res: Response) => {
 
   const existing = db.prepare(`
     SELECT * FROM shift_swaps
-    WHERE shift_id = ? AND requester_id = ? AND IFNULL(target_id, 0) = IFNULL(?, 0) AND status = 'pending'
-  `).get(shift_id, requester_id, target_id ?? null) as any;
+    WHERE shift_id = ? AND requester_id = ?
+      AND (target_id = ? OR (target_id IS NULL AND ? IS NULL))
+      AND status = 'pending'
+  `).get(shift_id, requester_id, target_id ?? null, target_id ?? null) as any;
   if (existing) return res.json(existing);
 
   const result = db.prepare(`

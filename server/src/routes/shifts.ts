@@ -145,7 +145,11 @@ router.post('/:id/drop', requireAuth, (req: Request, res: Response) => {
   }
 
   const now = Date.now();
-  const shiftStart = Date.parse(`${shift.date}T${shift.start_time}:00`);
+  const rawStartTime = typeof shift.start_time === 'string' ? shift.start_time.trim() : '';
+  const isoTime = /^\d{2}:\d{2}$/.test(rawStartTime)
+    ? `${rawStartTime}:00`
+    : (/^\d{2}:\d{2}:\d{2}$/.test(rawStartTime) ? rawStartTime : '');
+  const shiftStart = isoTime ? Date.parse(`${shift.date}T${isoTime}`) : Number.NaN;
   const hoursUntilShift = Number.isFinite(shiftStart) ? (shiftStart - now) / (1000 * 60 * 60) : 0;
   const isLastMinute = hoursUntilShift <= 24;
 
@@ -155,6 +159,7 @@ router.post('/:id/drop', requireAuth, (req: Request, res: Response) => {
       VALUES (?, ?, NULL, ?, 'pending')
     `).run(shift.id, shift.employee_id, reason ?? null);
 
+    const effectiveReason = typeof reason === 'string' && reason.trim() ? reason.trim() : 'dropped';
     const openShiftInsert = db.prepare(`
       INSERT INTO open_shifts (
         schedule_id, site_id, source_shift_id, source_swap_id, date, start_time, end_time, role, reason, status
@@ -168,7 +173,7 @@ router.post('/:id/drop', requireAuth, (req: Request, res: Response) => {
       shift.start_time,
       shift.end_time,
       shift.role,
-      'callout'
+      effectiveReason
     );
 
     db.prepare(`UPDATE shift_swaps SET open_shift_id = ? WHERE id = ?`).run(openShiftInsert.lastInsertRowid, swapInsert.lastInsertRowid);

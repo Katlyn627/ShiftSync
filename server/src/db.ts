@@ -225,7 +225,7 @@ function initSchema(db: Database.Database): void {
   }
 
   const swapCols = db.pragma('table_info(shift_swaps)') as { name: string }[];
-  if (swapCols.length > 0 && !swapCols.some(c => c.name === 'open_shift_id')) {
+  if (!swapCols.some(c => c.name === 'open_shift_id')) {
     db.exec('ALTER TABLE shift_swaps ADD COLUMN open_shift_id INTEGER REFERENCES open_shifts(id) ON DELETE SET NULL');
   }
 
