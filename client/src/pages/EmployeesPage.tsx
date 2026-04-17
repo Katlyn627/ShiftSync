@@ -100,7 +100,7 @@ export default function EmployeesPage() {
     setImporting(true);
     try {
       const result = await importEmployees(importData, 'auto');
-      setImportMessage(`Imported ${result.imported} employee${result.imported !== 1 ? 's' : ''}.`);
+      setImportMessage(result.imported === 1 ? 'Imported 1 employee.' : `Imported ${result.imported} employees.`);
       setImportData('');
       await load();
     } catch (err: any) {
@@ -224,7 +224,7 @@ export default function EmployeesPage() {
       )}
 
       <Card className="p-5 space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">Import from Excel / Google Sheets / When I Work</h2>
+        <h2 className="text-sm font-semibold text-foreground">Import from Spreadsheet Data</h2>
         <p className="text-xs text-muted-foreground">
           Paste spreadsheet rows with headers like <span className="font-medium">name, role, hourly_rate, weekly_hours_max, email, phone</span> or paste a JSON array.
         </p>

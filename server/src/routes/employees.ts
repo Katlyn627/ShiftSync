@@ -3,6 +3,8 @@ import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
+const DEFAULT_HOURLY_RATE = 15.0;
+const DEFAULT_WEEKLY_HOURS_MAX = 40;
 
 type ParsedEmployeeRow = {
   name: string;
@@ -13,12 +15,27 @@ type ParsedEmployeeRow = {
   phone?: string;
 };
 
-function parseBooleanLike(value: unknown): boolean {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value === 1;
-  if (typeof value !== 'string') return false;
-  const normalized = value.trim().toLowerCase();
-  return ['1', 'true', 'yes', 'y'].includes(normalized);
+type ImportedEmployee = {
+  id: number;
+  name: string;
+  role: string;
+  hourly_rate: number;
+  weekly_hours_max: number;
+  email: string;
+  phone: string;
+  pay_type: string;
+  certifications: string;
+  is_minor: number;
+  union_member: number;
+  site_id: number | null;
+};
+
+function parseOptionalNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const text = String(value).trim();
+  if (!text) return undefined;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function splitRows(input: string): string[] {
@@ -40,24 +57,28 @@ function parseDelimitedLine(line: string, delimiter: ',' | '\t' | ';'): string[]
   const out: string[] = [];
   let current = '';
   let inQuotes = false;
+  let i = 0;
 
-  for (let i = 0; i < line.length; i += 1) {
+  while (i < line.length) {
     const ch = line[i];
     if (ch === '"') {
       if (inQuotes && line[i + 1] === '"') {
         current += '"';
-        i += 1;
+        i += 2;
       } else {
         inQuotes = !inQuotes;
+        i += 1;
       }
       continue;
     }
     if (ch === delimiter && !inQuotes) {
       out.push(current.trim());
       current = '';
+      i += 1;
       continue;
     }
     current += ch;
+    i += 1;
   }
   out.push(current.trim());
   return out;
@@ -88,14 +109,14 @@ function mapSpreadsheetRows(rawText: string): ParsedEmployeeRow[] {
 
     const hourlyRateRaw = rowObj.hourlyrate || rowObj.hourly || rowObj.rate || rowObj.payrate;
     const weeklyHoursRaw = rowObj.weeklyhoursmax || rowObj.maxhours || rowObj.weeklyhours;
-    const hourly_rate = hourlyRateRaw !== undefined && hourlyRateRaw !== '' ? Number(hourlyRateRaw) : undefined;
-    const weekly_hours_max = weeklyHoursRaw !== undefined && weeklyHoursRaw !== '' ? Number(weeklyHoursRaw) : undefined;
+    const hourly_rate = parseOptionalNumber(hourlyRateRaw);
+    const weekly_hours_max = parseOptionalNumber(weeklyHoursRaw);
 
     out.push({
       name,
       role,
-      hourly_rate: Number.isFinite(hourly_rate) ? hourly_rate : undefined,
-      weekly_hours_max: Number.isFinite(weekly_hours_max) ? weekly_hours_max : undefined,
+      hourly_rate,
+      weekly_hours_max,
       email: rowObj.email || undefined,
       phone: rowObj.phone || rowObj.phonenumber || undefined,
     });
@@ -116,13 +137,13 @@ function mapJsonRows(parsed: unknown): ParsedEmployeeRow[] {
       if (!name || !role) return null;
       const hourlyRateCandidate = row?.hourly_rate ?? row?.hourlyRate ?? row?.rate;
       const maxHoursCandidate = row?.weekly_hours_max ?? row?.weeklyHoursMax ?? row?.max_hours;
-      const hourly_rate = hourlyRateCandidate !== undefined ? Number(hourlyRateCandidate) : undefined;
-      const weekly_hours_max = maxHoursCandidate !== undefined ? Number(maxHoursCandidate) : undefined;
+      const hourly_rate = parseOptionalNumber(hourlyRateCandidate);
+      const weekly_hours_max = parseOptionalNumber(maxHoursCandidate);
       return {
         name,
         role,
-        hourly_rate: Number.isFinite(hourly_rate) ? hourly_rate : undefined,
-        weekly_hours_max: Number.isFinite(weekly_hours_max) ? weekly_hours_max : undefined,
+        hourly_rate,
+        weekly_hours_max,
         email: typeof row?.email === 'string' ? row.email : undefined,
         phone: typeof row?.phone === 'string' ? row.phone : undefined,
       } as ParsedEmployeeRow;
@@ -149,8 +170,8 @@ router.post('/', requireManager, (req: Request, res: Response) => {
   ).run(
     name,
     role,
-    hourly_rate ?? 15.0,
-    weekly_hours_max ?? 40,
+    hourly_rate ?? DEFAULT_HOURLY_RATE,
+    weekly_hours_max ?? DEFAULT_WEEKLY_HOURS_MAX,
     email ?? '',
     phone ?? '',
     pay_type ?? 'hourly',
@@ -188,8 +209,9 @@ router.post('/import', requireManager, (req: Request, res: Response) => {
     } else {
       return res.status(400).json({ error: 'format must be auto, csv, tsv, or json' });
     }
-  } catch (error) {
-    return res.status(400).json({ error: 'Unable to parse import data' });
+  } catch (error: any) {
+    const details = error?.message ? `: ${error.message}` : '';
+    return res.status(400).json({ error: `Unable to parse import data${details}` });
   }
 
   if (parsedRows.length === 0) {
@@ -201,15 +223,16 @@ router.post('/import', requireManager, (req: Request, res: Response) => {
   const insertStmt = db.prepare(
     'INSERT INTO employees (name, role, hourly_rate, weekly_hours_max, email, phone, pay_type, certifications, is_minor, union_member, site_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
+  const getByIdStmt = db.prepare('SELECT * FROM employees WHERE id = ?');
 
-  const created: any[] = [];
+  const created: ImportedEmployee[] = [];
   const insertMany = db.transaction((rows: ParsedEmployeeRow[]) => {
     for (const row of rows) {
       const result = insertStmt.run(
         row.name,
         row.role,
-        row.hourly_rate ?? 15.0,
-        row.weekly_hours_max ?? 40,
+        row.hourly_rate ?? DEFAULT_HOURLY_RATE,
+        row.weekly_hours_max ?? DEFAULT_WEEKLY_HOURS_MAX,
         row.email ?? '',
         row.phone ?? '',
         'hourly',
@@ -218,7 +241,7 @@ router.post('/import', requireManager, (req: Request, res: Response) => {
         0,
         siteId
       );
-      created.push(db.prepare('SELECT * FROM employees WHERE id = ?').get(result.lastInsertRowid));
+      created.push(getByIdStmt.get(result.lastInsertRowid) as ImportedEmployee);
     }
   });
 
