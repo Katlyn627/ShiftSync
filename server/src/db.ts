@@ -85,6 +85,47 @@ function initSchema(db: Database.Database): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS open_shifts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      schedule_id INTEGER NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
+      site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL,
+      source_shift_id INTEGER REFERENCES shifts(id) ON DELETE SET NULL,
+      source_swap_id INTEGER,
+      date TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      role TEXT NOT NULL,
+      required_certifications TEXT NOT NULL DEFAULT '[]',
+      reason TEXT,
+      status TEXT NOT NULL DEFAULT 'open', -- open | claimed | cancelled | expired
+      deadline TEXT,
+      claimed_by INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS open_shift_offers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      open_shift_id INTEGER NOT NULL REFERENCES open_shifts(id) ON DELETE CASCADE,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending', -- pending | accepted | rejected | withdrawn | ineligible
+      ineligibility_reason TEXT,
+      manager_notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(open_shift_id, employee_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS shift_swaps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shift_id INTEGER NOT NULL REFERENCES shifts(id) ON DELETE CASCADE,
+      requester_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      target_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+      reason TEXT,
+      status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected
+      manager_notes TEXT,
+      open_shift_id INTEGER REFERENCES open_shifts(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
@@ -181,6 +222,11 @@ function initSchema(db: Database.Database): void {
   const scheduleCols = db.pragma('table_info(schedules)') as { name: string }[];
   if (!scheduleCols.some(c => c.name === 'site_id')) {
     db.exec("ALTER TABLE schedules ADD COLUMN site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL");
+  }
+
+  const swapCols = db.pragma('table_info(shift_swaps)') as { name: string }[];
+  if (swapCols.length > 0 && !swapCols.some(c => c.name === 'open_shift_id')) {
+    db.exec('ALTER TABLE shift_swaps ADD COLUMN open_shift_id INTEGER REFERENCES open_shifts(id) ON DELETE SET NULL');
   }
 
   // Migrate forecasts table: replace UNIQUE(date) with UNIQUE(date, site_id) for per-site revenue

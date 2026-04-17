@@ -15,6 +15,8 @@ import schedulesRouter from './routes/schedules';
 import shiftsRouter from './routes/shifts';
 import sitesRouter from './routes/sites';
 import positionsRouter from './routes/positions';
+import openShiftsRouter from './routes/openShifts';
+import swapsRouter from './routes/swaps';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -88,6 +90,8 @@ app.use('/api/schedules', schedulesRouter);
 app.use('/api/shifts', shiftsRouter);
 app.use('/api/sites', sitesRouter);
 app.use('/api/positions', positionsRouter);
+app.use('/api/open-shifts', openShiftsRouter);
+app.use('/api/swaps', swapsRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

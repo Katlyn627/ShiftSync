@@ -118,6 +118,72 @@ router.post('/', requireManager, (req: Request, res: Response) => {
   res.status(201).json(created);
 });
 
+router.post('/:id/drop', requireAuth, (req: Request, res: Response) => {
+  const { reason } = req.body || {};
+  const db = getDb();
+  const shift = db.prepare(`
+    SELECT s.*, e.site_id
+    FROM shifts s
+    JOIN employees e ON e.id = s.employee_id
+    WHERE s.id = ?
+  `).get(req.params.id) as any;
+  if (!shift) return res.status(404).json({ error: 'Shift not found' });
+
+  if (!req.user?.isManager && req.user?.employeeId !== shift.employee_id) {
+    return res.status(403).json({ error: 'You can only drop your own shifts' });
+  }
+  if (shift.status === 'cancelled') {
+    return res.status(400).json({ error: 'Shift is already cancelled' });
+  }
+
+  const existing = db.prepare(`
+    SELECT * FROM shift_swaps
+    WHERE shift_id = ? AND requester_id = ? AND target_id IS NULL AND status = 'pending'
+  `).get(shift.id, shift.employee_id) as any;
+  if (existing) {
+    return res.status(400).json({ error: 'A pending drop request already exists for this shift' });
+  }
+
+  const now = Date.now();
+  const shiftStart = Date.parse(`${shift.date}T${shift.start_time}:00`);
+  const hoursUntilShift = Number.isFinite(shiftStart) ? (shiftStart - now) / (1000 * 60 * 60) : 0;
+  const isLastMinute = hoursUntilShift <= 24;
+
+  const tx = db.transaction(() => {
+    const swapInsert = db.prepare(`
+      INSERT INTO shift_swaps (shift_id, requester_id, target_id, reason, status)
+      VALUES (?, ?, NULL, ?, 'pending')
+    `).run(shift.id, shift.employee_id, reason ?? null);
+
+    const openShiftInsert = db.prepare(`
+      INSERT INTO open_shifts (
+        schedule_id, site_id, source_shift_id, source_swap_id, date, start_time, end_time, role, reason, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
+    `).run(
+      shift.schedule_id,
+      shift.site_id ?? null,
+      shift.id,
+      swapInsert.lastInsertRowid,
+      shift.date,
+      shift.start_time,
+      shift.end_time,
+      shift.role,
+      'callout'
+    );
+
+    db.prepare(`UPDATE shift_swaps SET open_shift_id = ? WHERE id = ?`).run(openShiftInsert.lastInsertRowid, swapInsert.lastInsertRowid);
+    return swapInsert.lastInsertRowid;
+  });
+
+  const swapId = tx();
+  const swap = db.prepare('SELECT * FROM shift_swaps WHERE id = ?').get(swapId);
+  res.status(201).json({
+    swap,
+    is_last_minute: isLastMinute,
+    hours_until_shift: Number.isFinite(hoursUntilShift) ? Math.round(hoursUntilShift * 10) / 10 : 0,
+  });
+});
+
 
 router.delete('/:id', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
