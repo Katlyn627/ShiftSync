@@ -39,6 +39,10 @@ function toISODate(date: Date) {
   return adjusted.toISOString().split('T')[0];
 }
 
+function normalizedValue(value?: string | null) {
+  return (value || '').trim().toLowerCase();
+}
+
 function startOfWeek(date: Date) {
   const next = new Date(date);
   const day = next.getDay();
@@ -103,19 +107,26 @@ export default function SchedulePage() {
     [schedules, selectedScheduleId],
   );
 
+  const currentEmployee = useMemo(
+    () => employees.find((e) => e.id === user?.employeeId) ?? null,
+    [employees, user?.employeeId],
+  );
+
+  const currentEmployeeDepartment = normalizedValue(currentEmployee?.department);
+  const currentEmployeeRole = normalizedValue(currentEmployee?.role ?? user?.employeeRole);
+
   const visibleShifts = useMemo(() => {
     const base = [...shifts]
       .sort((a, b) => toSortableValue(a).localeCompare(toSortableValue(b)));
     if (isManager) return base;
 
-    const employeeDepartment = (employees.find((e) => e.id === user?.employeeId)?.department || user?.employeeRole || '').trim().toLowerCase();
-    const departmentScoped = employeeDepartment
-      ? base.filter((s) => (s.employee_department || s.employee_role || s.role).trim().toLowerCase() === employeeDepartment)
+    const departmentScoped = currentEmployeeDepartment
+      ? base.filter((s) => normalizedValue(s.employee_department) === currentEmployeeDepartment)
       : base;
 
     if (!showOnlyMine) return departmentScoped;
     return departmentScoped.filter((s) => s.employee_id === user?.employeeId);
-  }, [shifts, employees, isManager, showOnlyMine, user?.employeeId, user?.employeeRole]);
+  }, [shifts, currentEmployeeDepartment, isManager, showOnlyMine, user?.employeeId]);
 
   const weekMetadata = useMemo(() => {
     const anchor = selectedSchedule?.week_start
@@ -155,10 +166,18 @@ export default function SchedulePage() {
   }, [visibleShifts]);
 
   const openShiftsByDate = useMemo(() => {
-    const employeeDepartment = (employees.find((e) => e.id === user?.employeeId)?.department || user?.employeeRole || '').trim().toLowerCase();
-    const scopedOpenShifts = isManager || !employeeDepartment
+    const scopedOpenShifts = isManager
       ? openShifts
-      : openShifts.filter((shift) => shift.role.trim().toLowerCase() === employeeDepartment);
+      : openShifts.filter((shift) => {
+        const shiftDepartment = normalizedValue((shift as OpenShift & { department?: string | null }).department);
+        if (currentEmployeeDepartment && shiftDepartment) {
+          return shiftDepartment === currentEmployeeDepartment;
+        }
+        if (currentEmployeeRole) {
+          return normalizedValue(shift.role) === currentEmployeeRole;
+        }
+        return true;
+      });
     const map = new Map<string, OpenShift[]>();
     scopedOpenShifts.forEach((shift) => {
       const existing = map.get(shift.date);
@@ -169,7 +188,7 @@ export default function SchedulePage() {
       }
     });
     return map;
-  }, [openShifts, employees, isManager, user?.employeeId, user?.employeeRole]);
+  }, [openShifts, isManager, currentEmployeeDepartment, currentEmployeeRole]);
 
   const departmentTone = (department: string) => {
     const tones = [
@@ -183,10 +202,13 @@ export default function SchedulePage() {
     const key = (department || '').toLowerCase();
     let hash = 0;
     for (let i = 0; i < key.length; i += 1) {
-      hash = (hash * 31 + key.charCodeAt(i)) % tones.length;
+      hash = (hash * 31 + key.charCodeAt(i)) | 0;
     }
     return tones[Math.abs(hash) % tones.length];
   };
+
+  const getShiftDisplayGroup = (shift: ShiftWithEmployee) =>
+    shift.employee_department || shift.employee_role || shift.role;
 
   async function loadSchedules() {
     const list = await getSchedules();
@@ -597,7 +619,7 @@ export default function SchedulePage() {
                     {dayShifts.map((shift) => {
                       const isOwnShift = !!user?.employeeId && shift.employee_id === user.employeeId;
                       const isSwapDraftOpen = swapDraftShiftId === shift.id;
-                      const department = shift.employee_department || shift.employee_role || shift.role;
+                      const department = getShiftDisplayGroup(shift);
                       return (
                         <div key={shift.id} className={`rounded-lg border p-2 space-y-1 ${departmentTone(department)}`}>
                           <div className="text-xs font-semibold text-foreground">{shift.start_time} - {shift.end_time}</div>

@@ -542,6 +542,7 @@ export interface OpenShift {
   id: number;
   schedule_id: number;
   site_id: number | null;
+  department?: string | null;
   date: string;
   start_time: string;
   end_time: string;
