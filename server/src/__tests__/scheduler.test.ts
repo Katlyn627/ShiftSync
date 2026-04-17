@@ -1,7 +1,6 @@
 import fs from 'fs';
 import os from 'os';
 import { computeWeeklyStaffingNeeds, generateSchedule } from '../scheduler';
-import { getScheduleCoverageReport } from '../coverage';
 import { getDb, closeDb } from '../db';
 import path from 'path';
 
@@ -91,7 +90,6 @@ describe('generateSchedule - enhanced algorithm', () => {
     const db = getDb();
     // Clean up previous test data
     db.prepare('DELETE FROM shifts WHERE schedule_id IN (SELECT id FROM schedules WHERE week_start = ?)').run(WEEK);
-    db.prepare('DELETE FROM standby_assignments WHERE schedule_id IN (SELECT id FROM schedules WHERE week_start = ?)').run(WEEK);
     db.prepare('DELETE FROM schedules WHERE week_start = ?').run(WEEK);
   });
 
@@ -107,64 +105,6 @@ describe('generateSchedule - enhanced algorithm', () => {
     const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(scheduleId) as any;
     expect(schedule).toBeTruthy();
     expect(schedule.week_start).toBe(WEEK);
-  });
-
-  test('standby assignments are created for high-revenue days', () => {
-    const db = getDb();
-    // Insert a very high revenue forecast
-    db.prepare('INSERT OR REPLACE INTO forecasts (date, expected_revenue, expected_covers) VALUES (?, ?, ?)')
-      .run('2025-03-03', 8000, 200);
-
-    // Seed employees: enough to fill regular shifts + have leftover for standbys
-    seedEmployee(db, 200, 'Server', 15, 40);
-    seedEmployee(db, 201, 'Server', 15, 40);
-    seedEmployee(db, 202, 'Server', 15, 40);
-    seedEmployee(db, 203, 'Kitchen', 15, 40);
-    seedEmployee(db, 204, 'Kitchen', 15, 40);
-    seedEmployee(db, 205, 'Bar', 15, 40);
-    seedEmployee(db, 206, 'Host', 15, 40);
-    seedEmployee(db, 207, 'Manager', 20, 40);
-    seedEmployee(db, 208, 'Server', 15, 40); // extra for standby
-    seedEmployee(db, 209, 'Kitchen', 15, 40); // extra for standby
-
-    const empIds = [200, 201, 202, 203, 204, 205, 206, 207, 208, 209];
-    for (const id of empIds) {
-      for (let day = 0; day < 7; day++) seedAvailability(db, id, day);
-    }
-
-    const scheduleId = generateSchedule({ weekStart: WEEK, laborBudget: 20000 });
-
-    const standbys = db.prepare(
-      "SELECT * FROM standby_assignments WHERE schedule_id = ? AND date = '2025-03-03'"
-    ).all(scheduleId) as any[];
-
-    // Should have standbys for a high-revenue day
-    expect(standbys.length).toBeGreaterThan(0);
-  });
-
-  test('coverage report has correct structure', () => {
-    const db = getDb();
-    seedEmployee(db, 300, 'Manager', 20, 40);
-    for (let day = 0; day < 7; day++) seedAvailability(db, 300, day);
-
-    const scheduleId = generateSchedule({ weekStart: WEEK, laborBudget: 10000 });
-    const report = getScheduleCoverageReport(scheduleId);
-
-    expect(report.schedule_id).toBe(scheduleId);
-    expect(report.week_start).toBe(WEEK);
-    expect(report.days).toHaveLength(7);
-    expect(report).toHaveProperty('total_standby_count');
-    expect(report).toHaveProperty('days_at_risk');
-
-    for (const day of report.days) {
-      expect(day).toHaveProperty('date');
-      expect(day).toHaveProperty('expected_revenue');
-      expect(day).toHaveProperty('scheduled_count');
-      expect(day).toHaveProperty('standby_count');
-      expect(day).toHaveProperty('standbys');
-      expect(day).toHaveProperty('coverage_status');
-      expect(['good', 'at_risk', 'critical']).toContain(day.coverage_status);
-    }
   });
 
   test('employees do not exceed 6 consecutive working days', () => {

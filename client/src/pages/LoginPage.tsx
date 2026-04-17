@@ -13,10 +13,10 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
 
 /* ── Feature highlights shown on the hero panel ── */
 const FEATURES = [
-  { icon: '📅', label: 'Smart Scheduling', desc: 'AI-powered shift planning that adapts to your team' },
-  { icon: '🔄', label: 'Shift Swaps', desc: 'Employees coordinate swaps — managers approve in one tap' },
-  { icon: '🌡️', label: 'Burnout Detection', desc: 'Real-time wellbeing signals before problems escalate' },
-  { icon: '⚖️', label: 'Fairness Engine', desc: 'Balanced hours distribution across your whole team' },
+  { icon: '📅', label: 'Weekly Scheduling', desc: 'Build and publish employee schedules in one place' },
+  { icon: '👥', label: 'Team Management', desc: 'Managers can add and maintain employee profiles' },
+  { icon: '⏱️', label: 'Shift Editing', desc: 'Quickly add, edit, and remove shifts as needs change' },
+  { icon: '✅', label: 'Simple Workflow', desc: 'Clear manager and employee views with no extra complexity' },
 ];
 
 export default function LoginPage() {

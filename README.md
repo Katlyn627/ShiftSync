@@ -2,7 +2,7 @@
 
 # ShiftSync
 
-**Smart scheduling & shift-swap platform for restaurants and hotels**
+**Simple manager/employee scheduling app**
 
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev)
@@ -51,16 +51,10 @@
 
 | | Feature | Description |
 |---|---|---|
-| ⚡ | **AI-Generated Schedules** | Auto-builds weekly rosters from forecasted revenue, historical demand, employee availability, and labor budgets |
-| 🔥 | **Burnout Risk Detection** | Flags doubles, clopens (close-then-open), and excessive consecutive days before publishing |
-| 🔄 | **Intelligent Shift Swaps** | Employee-driven swap requests with automatic role-match, overtime, and availability checks |
-| 💰 | **Real-Time Labor Cost Tracking** | Live budget vs. actual comparisons with daily and per-role breakdowns |
-| 📊 | **Demand-Based Staffing** | Recommends staffing levels per day based on revenue forecasts |
-| 📈 | **Profitability Metrics** | Prime cost, RevPASH, table turnover rate, sales by day, and turnover risk on the manager dashboard |
-| 🏪 | **Open Shift Marketplace** | Post uncovered shifts; employees self-claim with automatic eligibility checks (role, certifications, rest, overtime) |
-| 📋 | **Burnout Surveys** | Validated WHO-aligned burnout measurement campaigns with anonymized, aggregated results |
-| ⚖️ | **Workforce Fairness** | Monitor equitable distribution of hours, night shifts, and weekends with schedule instability tracking |
-| 🔐 | **Role-Based Access** | Manager and employee views with Google OAuth or username/password login |
+| 📅 | **Weekly Scheduling** | Create, view, and publish weekly schedules |
+| 👥 | **Employee Management** | Add, update, and organize team members |
+| 🕒 | **Shift Management** | Add, edit, reassign, and delete shifts |
+| 🔐 | **Role-Based Access** | Separate manager and employee access with secure login |
 
 ---
 
