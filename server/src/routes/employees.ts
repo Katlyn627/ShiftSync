@@ -4,6 +4,132 @@ import { requireAuth, requireManager } from '../middleware/auth';
 
 const router = Router();
 
+type ParsedEmployeeRow = {
+  name: string;
+  role: string;
+  hourly_rate?: number;
+  weekly_hours_max?: number;
+  email?: string;
+  phone?: string;
+};
+
+function parseBooleanLike(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return ['1', 'true', 'yes', 'y'].includes(normalized);
+}
+
+function splitRows(input: string): string[] {
+  return input
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function detectDelimiter(headerLine: string): ',' | '\t' | ';' {
+  if (headerLine.includes('\t')) return '\t';
+  if (headerLine.includes(';')) return ';';
+  return ',';
+}
+
+function parseDelimitedLine(line: string, delimiter: ',' | '\t' | ';'): string[] {
+  const out: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (ch === delimiter && !inQuotes) {
+      out.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  out.push(current.trim());
+  return out;
+}
+
+function normalizeHeader(header: string): string {
+  return header.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function mapSpreadsheetRows(rawText: string): ParsedEmployeeRow[] {
+  const rows = splitRows(rawText);
+  if (rows.length < 2) return [];
+
+  const delimiter = detectDelimiter(rows[0]);
+  const headers = parseDelimitedLine(rows[0], delimiter).map(normalizeHeader);
+  const out: ParsedEmployeeRow[] = [];
+
+  for (const rowLine of rows.slice(1)) {
+    const cols = parseDelimitedLine(rowLine, delimiter);
+    const rowObj: Record<string, string> = {};
+    headers.forEach((header, idx) => {
+      rowObj[header] = (cols[idx] ?? '').trim();
+    });
+
+    const name = rowObj.name || [rowObj.firstname, rowObj.lastname].filter(Boolean).join(' ').trim();
+    const role = rowObj.role || rowObj.roletitle || rowObj.position || rowObj.jobtitle;
+    if (!name || !role) continue;
+
+    const hourlyRateRaw = rowObj.hourlyrate || rowObj.hourly || rowObj.rate || rowObj.payrate;
+    const weeklyHoursRaw = rowObj.weeklyhoursmax || rowObj.maxhours || rowObj.weeklyhours;
+    const hourly_rate = hourlyRateRaw !== undefined && hourlyRateRaw !== '' ? Number(hourlyRateRaw) : undefined;
+    const weekly_hours_max = weeklyHoursRaw !== undefined && weeklyHoursRaw !== '' ? Number(weeklyHoursRaw) : undefined;
+
+    out.push({
+      name,
+      role,
+      hourly_rate: Number.isFinite(hourly_rate) ? hourly_rate : undefined,
+      weekly_hours_max: Number.isFinite(weekly_hours_max) ? weekly_hours_max : undefined,
+      email: rowObj.email || undefined,
+      phone: rowObj.phone || rowObj.phonenumber || undefined,
+    });
+  }
+
+  return out;
+}
+
+function mapJsonRows(parsed: unknown): ParsedEmployeeRow[] {
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((row: any) => {
+      const name = typeof row?.name === 'string'
+        ? row.name.trim()
+        : [row?.first_name, row?.last_name].filter((v: unknown) => typeof v === 'string' && v.trim()).join(' ').trim();
+      const role = [row?.role, row?.role_title, row?.position, row?.job_title]
+        .find((v: unknown) => typeof v === 'string' && v.trim()) as string | undefined;
+      if (!name || !role) return null;
+      const hourlyRateCandidate = row?.hourly_rate ?? row?.hourlyRate ?? row?.rate;
+      const maxHoursCandidate = row?.weekly_hours_max ?? row?.weeklyHoursMax ?? row?.max_hours;
+      const hourly_rate = hourlyRateCandidate !== undefined ? Number(hourlyRateCandidate) : undefined;
+      const weekly_hours_max = maxHoursCandidate !== undefined ? Number(maxHoursCandidate) : undefined;
+      return {
+        name,
+        role,
+        hourly_rate: Number.isFinite(hourly_rate) ? hourly_rate : undefined,
+        weekly_hours_max: Number.isFinite(weekly_hours_max) ? weekly_hours_max : undefined,
+        email: typeof row?.email === 'string' ? row.email : undefined,
+        phone: typeof row?.phone === 'string' ? row.phone : undefined,
+      } as ParsedEmployeeRow;
+    })
+    .filter((row): row is ParsedEmployeeRow => row !== null);
+}
+
 router.get('/', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const siteId = req.user?.siteId;
@@ -35,6 +161,72 @@ router.post('/', requireManager, (req: Request, res: Response) => {
   );
   const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(employee);
+});
+
+router.post('/import', requireManager, (req: Request, res: Response) => {
+  const { data, format } = req.body ?? {};
+  if (typeof data !== 'string' || !data.trim()) {
+    return res.status(400).json({ error: 'data is required' });
+  }
+
+  let parsedRows: ParsedEmployeeRow[] = [];
+
+  try {
+    const desiredFormat = typeof format === 'string' ? format.toLowerCase() : 'auto';
+    if (desiredFormat === 'json') {
+      parsedRows = mapJsonRows(JSON.parse(data));
+    } else if (desiredFormat === 'csv' || desiredFormat === 'tsv' || desiredFormat === 'auto') {
+      if (desiredFormat === 'auto') {
+        try {
+          parsedRows = mapJsonRows(JSON.parse(data));
+        } catch (_) {
+          parsedRows = mapSpreadsheetRows(data);
+        }
+      } else {
+        parsedRows = mapSpreadsheetRows(data);
+      }
+    } else {
+      return res.status(400).json({ error: 'format must be auto, csv, tsv, or json' });
+    }
+  } catch (error) {
+    return res.status(400).json({ error: 'Unable to parse import data' });
+  }
+
+  if (parsedRows.length === 0) {
+    return res.status(400).json({ error: 'No valid employee rows found. Include at least name and role columns.' });
+  }
+
+  const db = getDb();
+  const siteId = req.user?.siteId ?? null;
+  const insertStmt = db.prepare(
+    'INSERT INTO employees (name, role, hourly_rate, weekly_hours_max, email, phone, pay_type, certifications, is_minor, union_member, site_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  );
+
+  const created: any[] = [];
+  const insertMany = db.transaction((rows: ParsedEmployeeRow[]) => {
+    for (const row of rows) {
+      const result = insertStmt.run(
+        row.name,
+        row.role,
+        row.hourly_rate ?? 15.0,
+        row.weekly_hours_max ?? 40,
+        row.email ?? '',
+        row.phone ?? '',
+        'hourly',
+        '[]',
+        0,
+        0,
+        siteId
+      );
+      created.push(db.prepare('SELECT * FROM employees WHERE id = ?').get(result.lastInsertRowid));
+    }
+  });
+
+  insertMany(parsedRows);
+  return res.status(201).json({
+    imported: created.length,
+    employees: created,
+  });
 });
 
 // Allow managers to update any employee; allow employees to update their own profile fields

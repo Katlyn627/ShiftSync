@@ -82,6 +82,27 @@ describe('Employee route auth protection', () => {
     expect(res.body.name).toBe('New Employee');
   });
 
+  test('manager can bulk import employees from spreadsheet text', async () => {
+    const res = await request(app)
+      .post('/api/employees/import')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({
+        data: 'name,role,hourly_rate,weekly_hours_max,email\nImport One,Server,18,35,import1@example.com\nImport Two,Host,16,30,import2@example.com',
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.imported).toBe(2);
+  });
+
+  test('non-manager cannot bulk import employees', async () => {
+    const res = await request(app)
+      .post('/api/employees/import')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({
+        data: 'name,role\nDenied User,Server',
+      });
+    expect(res.status).toBe(403);
+  });
+
   test('non-manager cannot update employee', async () => {
     const listRes = await request(app)
       .get('/api/employees')
