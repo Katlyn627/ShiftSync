@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { registerManager, type SiteType } from '../api';
+import { registerManager } from '../api';
 import { Button, Input } from '../components/ui';
 
 // ── Industry definitions ──────────────────────────────────────────────────
 interface IndustryOption {
-  value: SiteType;
+  value: 'restaurant';
   label: string;
   description: string;
   icon: string;
@@ -16,125 +16,21 @@ interface IndustryOption {
 const INDUSTRIES: IndustryOption[] = [
   {
     value: 'restaurant',
-    label: 'Restaurant / Food Service',
-    description: 'Cafés, diners, fast-casual, fine dining',
+    label: 'Restaurant',
+    description: 'Built for front-of-house and back-of-house teams',
     icon: '🍽️',
     defaultPositions: [
-      'General Manager', 'Assistant Manager', 'Executive Chef', 'Sous Chef',
-      'Line Cook', 'Prep Cook', 'Dishwasher', 'Server', 'Lead Server',
-      'Bartender', 'Barback', 'Host', 'Busser',
+      'Manager',
+      'Head Chef',
+      'Sous Chef',
+      'Line Cook',
+      'Dishwasher',
+      'Server',
+      'Host',
+      'Busser',
+      'Food Runner',
+      'Expo',
     ],
-  },
-  {
-    value: 'hotel',
-    label: 'Hotel / Hospitality',
-    description: 'Hotels, motels, resorts, bed & breakfasts',
-    icon: '🏨',
-    defaultPositions: [
-      'General Manager', 'Front Desk Supervisor', 'Front Desk Agent', 'Night Auditor',
-      'Concierge', 'Housekeeping Supervisor', 'Room Attendant', 'Laundry Attendant',
-      'Maintenance Technician', 'Security Officer', 'Bellhop', 'Valet',
-    ],
-  },
-  {
-    value: 'retail',
-    label: 'Retail',
-    description: 'Clothing, grocery, hardware, specialty stores',
-    icon: '🛒',
-    defaultPositions: [
-      'Store Manager', 'Assistant Manager', 'Shift Supervisor', 'Sales Associate',
-      'Cashier', 'Stock Associate', 'Inventory Clerk', 'Loss Prevention Officer',
-      'Visual Merchandiser', 'Customer Service Rep',
-    ],
-  },
-  {
-    value: 'healthcare',
-    label: 'Healthcare',
-    description: 'Clinics, medical offices, pharmacies, labs',
-    icon: '🏥',
-    defaultPositions: [
-      'Medical Director', 'Physician', 'Registered Nurse', 'Licensed Practical Nurse',
-      'Medical Assistant', 'Receptionist', 'Medical Records Clerk', 'Pharmacy Technician',
-      'Lab Technician', 'Physical Therapist',
-    ],
-  },
-  {
-    value: 'fitness',
-    label: 'Gym / Fitness',
-    description: 'Gyms, yoga studios, sports facilities',
-    icon: '💪',
-    defaultPositions: [
-      'Gym Manager', 'Personal Trainer', 'Group Fitness Instructor', 'Front Desk Associate',
-      'Membership Advisor', 'Maintenance Technician', 'Childcare Attendant',
-    ],
-  },
-  {
-    value: 'salon_spa',
-    label: 'Salon / Spa',
-    description: 'Hair salons, nail salons, day spas, barbershops',
-    icon: '💅',
-    defaultPositions: [
-      'Salon Manager', 'Hair Stylist', 'Colorist', 'Esthetician',
-      'Nail Technician', 'Massage Therapist', 'Receptionist', 'Shampoo Assistant',
-    ],
-  },
-  {
-    value: 'warehouse',
-    label: 'Warehouse / Logistics',
-    description: 'Distribution centers, fulfillment, shipping',
-    icon: '📦',
-    defaultPositions: [
-      'Warehouse Manager', 'Shift Supervisor', 'Warehouse Associate', 'Forklift Operator',
-      'Picker', 'Packer', 'Receiving Clerk', 'Shipping Clerk', 'Quality Control Inspector',
-    ],
-  },
-  {
-    value: 'education',
-    label: 'Education',
-    description: 'Schools, tutoring centers, training facilities',
-    icon: '🎓',
-    defaultPositions: [
-      'Principal', 'Assistant Principal', 'Teacher', 'Teaching Assistant',
-      'Substitute Teacher', 'School Counselor', 'Administrative Assistant',
-      'Custodian', 'Security Guard',
-    ],
-  },
-  {
-    value: 'childcare',
-    label: 'Childcare',
-    description: 'Daycare centers, preschools, after-school programs',
-    icon: '👶',
-    defaultPositions: [
-      'Center Director', 'Lead Teacher', 'Assistant Teacher', 'Floater',
-      'Administrative Coordinator', 'Cook', 'Bus Driver',
-    ],
-  },
-  {
-    value: 'security',
-    label: 'Security Services',
-    description: 'Security companies, guard services, facility security',
-    icon: '🛡️',
-    defaultPositions: [
-      'Security Director', 'Site Supervisor', 'Security Officer', 'Patrol Officer',
-      'Dispatcher', 'Access Control Officer', 'Mobile Patrol Officer',
-    ],
-  },
-  {
-    value: 'office',
-    label: 'Office / Corporate',
-    description: 'Administrative offices, co-working, corporate teams',
-    icon: '🏢',
-    defaultPositions: [
-      'Office Manager', 'Administrative Assistant', 'Receptionist', 'HR Coordinator',
-      'Accounting Clerk', 'IT Support Specialist', 'Data Entry Clerk', 'Executive Assistant',
-    ],
-  },
-  {
-    value: 'other',
-    label: 'Other',
-    description: "Something else — you'll define your own roles",
-    icon: '✨',
-    defaultPositions: ['Manager', 'Supervisor', 'Team Lead', 'Employee'],
   },
 ];
 
@@ -161,6 +57,10 @@ const STEPS: { id: Step; label: string }[] = [
   { id: 'confirm', label: 'Confirm' },
 ];
 
+function parseCsvRoles(csv: string): string[] {
+  return csv.split(',').map(role => role.trim()).filter(Boolean);
+}
+
 export default function RegisterBusinessPage() {
   const navigate = useNavigate();
   const { loginWithToken } = useAuth();
@@ -174,7 +74,12 @@ export default function RegisterBusinessPage() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [timezone, setTimezone] = useState('America/Chicago');
-  const [industry, setIndustry] = useState<SiteType | ''>('');
+  const industry = 'restaurant' as const;
+  const [location, setLocation] = useState('');
+  const [businessHours, setBusinessHours] = useState('');
+  const [employeeCount, setEmployeeCount] = useState(20);
+  const [fohRolesCsv, setFohRolesCsv] = useState('Busser, Host, Server, Food Runner, Expo');
+  const [bohRolesCsv, setBohRolesCsv] = useState('Line Cook, Head Chef, Sous Chef, Dishwasher, Manager');
 
   // Step 2 — Manager account
   const [managerName, setManagerName] = useState('');
@@ -198,8 +103,11 @@ export default function RegisterBusinessPage() {
 
   const handleBusinessNext = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!businessName.trim() || !city.trim() || !state.trim() || !timezone || !industry) {
-      return setError('Please fill in all fields and select an industry.');
+    if (!businessName.trim() || !city.trim() || !state.trim() || !timezone || !industry || !location.trim() || !businessHours.trim()) {
+      return setError('Please fill in all business details.');
+    }
+    if (!Number.isFinite(employeeCount) || employeeCount < 1 || employeeCount > 50) {
+      return setError('Employee count must be between 1 and 50.');
     }
     if (selectedIndustry && positions.length === 0) {
       setPositions([...selectedIndustry.defaultPositions]);
@@ -248,6 +156,11 @@ export default function RegisterBusinessPage() {
         state: state.trim(),
         timezone,
         industry,
+        location: location.trim(),
+        businessHours: businessHours.trim(),
+        employeeCount,
+        fohRoles: parseCsvRoles(fohRolesCsv),
+        bohRoles: parseCsvRoles(bohRolesCsv),
         managerName: managerName.trim(),
         username: username.trim(),
         password,
@@ -309,9 +222,9 @@ export default function RegisterBusinessPage() {
           {step === 'business' && (
             <form onSubmit={handleBusinessNext} className="space-y-5">
               <div>
-                <h2 className="text-lg font-semibold text-foreground">Tell us about your business</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">We'll tailor ShiftSync to fit your industry.</p>
-              </div>
+                  <h2 className="text-lg font-semibold text-foreground">Tell us about your restaurant</h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">Set up location, hours, team size, and FOH/BOH roles.</p>
+                </div>
 
               <Input
                 label="Business Name"
@@ -341,6 +254,34 @@ export default function RegisterBusinessPage() {
                 />
               </div>
 
+              <Input
+                label="Business Location / Address"
+                type="text"
+                required
+                value={location}
+                onChange={e => setLocation(e.target.value)}
+                placeholder="e.g. 120 Main St, Chicago, IL"
+              />
+
+              <Input
+                label="Hours of Operation"
+                type="text"
+                required
+                value={businessHours}
+                onChange={e => setBusinessHours(e.target.value)}
+                placeholder="e.g. Mon-Sun 11:00 AM - 11:00 PM"
+              />
+
+              <Input
+                label="Total Employees"
+                type="number"
+                min={1}
+                max={50}
+                required
+                value={employeeCount}
+                onChange={e => setEmployeeCount(Number(e.target.value))}
+              />
+
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">Timezone</label>
                 <select
@@ -355,27 +296,28 @@ export default function RegisterBusinessPage() {
                 </select>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Industry / Business Type</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {INDUSTRIES.map(ind => (
-                    <button
-                      key={ind.value}
-                      type="button"
-                      onClick={() => setIndustry(ind.value)}
-                      className={`text-left p-3 rounded-xl border transition-colors ${
-                        industry === ind.value
-                          ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                          : 'border-border hover:border-primary/40 hover:bg-muted/30'
-                      }`}
-                    >
-                      <div className="text-xl mb-1">{ind.icon}</div>
-                      <div className="text-xs font-semibold text-foreground leading-tight">{ind.label}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5 leading-tight">{ind.description}</div>
-                    </button>
-                  ))}
-                </div>
+              <div className="rounded-xl border border-border bg-muted/20 p-3 text-sm">
+                <div className="font-medium text-foreground">Industry</div>
+                <div className="text-muted-foreground">{INDUSTRIES[0].icon} {INDUSTRIES[0].label}</div>
               </div>
+
+              <Input
+                label="FOH Roles (comma-separated)"
+                type="text"
+                required
+                value={fohRolesCsv}
+                onChange={e => setFohRolesCsv(e.target.value)}
+                placeholder="Busser, Host, Server, Food Runner, Expo"
+              />
+
+              <Input
+                label="BOH Roles (comma-separated)"
+                type="text"
+                required
+                value={bohRolesCsv}
+                onChange={e => setBohRolesCsv(e.target.value)}
+                placeholder="Line Cook, Head Chef, Sous Chef, Dishwasher, Manager"
+              />
 
               {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -535,8 +477,28 @@ export default function RegisterBusinessPage() {
                   <span className="font-medium text-foreground">{city}, {state}</span>
                 </div>
                 <div className="px-4 py-3 flex gap-3">
+                  <span className="text-muted-foreground w-28 shrink-0">Address</span>
+                  <span className="font-medium text-foreground">{location}</span>
+                </div>
+                <div className="px-4 py-3 flex gap-3">
                   <span className="text-muted-foreground w-28 shrink-0">Industry</span>
                   <span className="font-medium text-foreground">{selectedIndustry?.icon} {selectedIndustry?.label}</span>
+                </div>
+                <div className="px-4 py-3 flex gap-3">
+                  <span className="text-muted-foreground w-28 shrink-0">Hours</span>
+                  <span className="font-medium text-foreground">{businessHours}</span>
+                </div>
+                <div className="px-4 py-3 flex gap-3">
+                  <span className="text-muted-foreground w-28 shrink-0">Employees</span>
+                  <span className="font-medium text-foreground">{employeeCount}</span>
+                </div>
+                <div className="px-4 py-3 flex gap-3">
+                  <span className="text-muted-foreground w-28 shrink-0">FOH</span>
+                  <span className="font-medium text-foreground">{fohRolesCsv}</span>
+                </div>
+                <div className="px-4 py-3 flex gap-3">
+                  <span className="text-muted-foreground w-28 shrink-0">BOH</span>
+                  <span className="font-medium text-foreground">{bohRolesCsv}</span>
                 </div>
                 <div className="px-4 py-3 flex gap-3">
                   <span className="text-muted-foreground w-28 shrink-0">Timezone</span>
