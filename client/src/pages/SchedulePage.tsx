@@ -535,7 +535,7 @@ export default function SchedulePage() {
         icon="📅"
       />
 
-      <Card className="p-4 space-y-3">
+      <Card className="space-y-3 border border-emerald-200/70 p-4 shadow-[0_10px_24px_rgba(13,148,136,0.08)]">
         {schedules.length === 0 ? (
           isManager ? (
             <div className="space-y-3">
@@ -619,7 +619,7 @@ export default function SchedulePage() {
       </Card>
 
       {isManager && selectedScheduleId && (
-        <Card className="p-4 space-y-3">
+        <Card className="space-y-3 border border-emerald-200/70 p-4 shadow-[0_8px_20px_rgba(13,148,136,0.06)]">
           <h2 className="font-semibold text-foreground">Quick Shift Creation</h2>
           <p className="text-xs text-muted-foreground">Pick role/time once, then drag employees into the schedule grid.</p>
           <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
@@ -691,7 +691,7 @@ export default function SchedulePage() {
       )}
 
       {isManager && editingShiftId && (
-        <Card className="p-4 space-y-3">
+        <Card className="space-y-3 border border-emerald-200/70 p-4">
           <h2 className="font-semibold text-foreground">Edit Shift</h2>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <Input label="Date" type="date" value={editForm.date} onChange={(e) => setEditForm((p) => ({ ...p, date: e.target.value }))} />
@@ -728,7 +728,7 @@ export default function SchedulePage() {
         </Card>
       )}
 
-      <Card className="p-4 space-y-4">
+      <Card className="space-y-4 rounded-[22px] border border-emerald-200/70 bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.07)]">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="font-semibold text-foreground">Week of {weekMetadata.label}</h2>
@@ -744,7 +744,7 @@ export default function SchedulePage() {
 
         <div className={`grid grid-cols-1 ${scheduleDays.length > 1 ? 'md:grid-cols-7' : ''} gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground`}>
           {scheduleDays.map((day) => (
-            <div key={day.date} className="px-2 py-1">{day.weekday}</div>
+            <div key={day.date} className="rounded-xl bg-muted/70 px-3 py-2 text-center">{day.weekday}</div>
           ))}
         </div>
 
@@ -756,7 +756,7 @@ export default function SchedulePage() {
             return (
               <div
                 key={day.date}
-                className={`rounded-xl border p-2 min-h-[190px] space-y-2 bg-card ${isDropActive ? 'border-primary border-2' : 'border-border'}`}
+                className={`min-h-[210px] space-y-2 rounded-2xl border bg-card p-2.5 ${isDropActive ? 'border-primary border-2' : 'border-border'}`}
                 onDragOver={(e) => {
                   if (!isManager || draggedEmployeeId === null) return;
                   e.preventDefault();
@@ -779,7 +779,7 @@ export default function SchedulePage() {
                   const isSwapDraftOpen = swapDraftShiftId === shift.id;
                   const department = getShiftDisplayGroup(shift);
                   return (
-                    <div key={shift.id} className={`rounded-lg border p-2 space-y-1 ${departmentTone(department)}`}>
+                    <div key={shift.id} className={`shift-block rounded-lg border p-2 space-y-1.5 shadow-sm ${departmentTone(department)}`}>
                       <div className="text-xs text-foreground">
                         <span className="font-bold text-sm">{formatTime12(shift.start_time)}</span>
                         <span className="text-muted-foreground"> — {formatTime12(shift.end_time)}</span>
@@ -851,7 +851,7 @@ export default function SchedulePage() {
                 })}
 
                 {dayOpenShifts.map((openShift) => (
-                  <div key={`open-${openShift.id}`} className="rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-1">
+                  <div key={`open-${openShift.id}`} className="shift-block rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-1.5">
                     <div className="text-xs text-foreground">
                       <span className="font-bold text-sm">{formatTime12(openShift.start_time)}</span>
                       <span className="text-muted-foreground"> — {formatTime12(openShift.end_time)}</span>

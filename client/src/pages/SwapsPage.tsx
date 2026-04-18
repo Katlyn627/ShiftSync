@@ -65,7 +65,7 @@ export default function SwapsPage() {
 
       {/* ── Pending Drops ── */}
       {pendingDrops.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-3 rounded-2xl border border-orange-200/70 bg-white p-4 shadow-[0_10px_26px_rgba(249,115,22,0.08)]">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Shift Drops — Open for Pickup ({pendingDrops.length})
           </h2>
@@ -84,7 +84,7 @@ export default function SwapsPage() {
 
       {/* ── Pending Swaps ── */}
       {pendingSwaps.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-3 rounded-2xl border border-sky-200/70 bg-white p-4 shadow-[0_10px_26px_rgba(14,165,233,0.08)]">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Shift Swaps ({pendingSwaps.length})
           </h2>
@@ -103,7 +103,7 @@ export default function SwapsPage() {
 
       {/* ── History ── */}
       {resolved.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-3 rounded-2xl border border-border bg-white p-4">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">History</h2>
           {resolved.map(swap => (
             <SwapCard key={swap.id} swap={swap} notes="" onNotesChange={() => {}} />
@@ -142,12 +142,12 @@ function SwapCard({
   const isPending = swap.status === 'pending';
   const isDrop = isDropRequest(swap);
   return (
-    <Card className="p-5">
+    <Card className="border border-border/80 bg-white p-5 shadow-[0_8px_22px_rgba(15,23,42,0.06)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         {/* Swap details */}
         <div className="flex-1 min-w-0 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant={statusVariant(swap.status)}>{swap.status.toUpperCase()}</Badge>
+              <Badge variant={statusVariant(swap.status)} className="tracking-wide">{swap.status.toUpperCase()}</Badge>
             {isDrop ? (
               <Badge variant="default" className="bg-orange-100 text-orange-800 border-orange-200">DROP REQUEST</Badge>
             ) : (

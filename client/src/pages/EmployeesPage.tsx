@@ -137,7 +137,7 @@ export default function EmployeesPage() {
         icon="👥"
         actions={
           <Button
-            variant="default"
+            variant="gradient"
             size="sm"
             onClick={() => {
               setShowForm(true);
@@ -152,7 +152,7 @@ export default function EmployeesPage() {
 
       {/* ── Add / Edit Form ── */}
       {showForm && (
-        <Card className="p-5">
+        <Card className="p-5 border-violet-200/70 shadow-[0_12px_28px_rgba(124,58,237,0.08)]">
           <h2 className="text-sm font-semibold text-foreground mb-4">
             {editingId ? 'Edit Employee' : 'Add New Employee'}
           </h2>
@@ -223,7 +223,7 @@ export default function EmployeesPage() {
         </Card>
       )}
 
-      <Card className="p-5 space-y-3">
+      <Card className="p-5 space-y-3 border-violet-200/70">
         <h2 className="text-sm font-semibold text-foreground">Import from Spreadsheet Data</h2>
         <p className="text-xs text-muted-foreground">
           Paste spreadsheet rows with headers like <span className="font-medium">name, role, hourly_rate, weekly_hours_max, email, phone</span> or paste a JSON array.
@@ -243,10 +243,10 @@ export default function EmployeesPage() {
       </Card>
 
       {/* ── Employees Table ── */}
-      <Card className="p-0 overflow-hidden">
+      <Card className="overflow-hidden border-violet-200/70">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-muted/40 border-b border-border text-left">
+            <tr className="border-b border-border text-left bg-slate-50/90">
               <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Employee</th>
               <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Role</th>
               <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Department</th>
@@ -260,7 +260,7 @@ export default function EmployeesPage() {
             {visibleEmployees.map(emp => {
               const site = emp.site_id ? siteMap[emp.site_id] : null;
               return (
-                <tr key={emp.id} className="hover:bg-muted/20 transition-colors">
+                <tr key={emp.id} className="transition-colors hover:bg-violet-50/40">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
