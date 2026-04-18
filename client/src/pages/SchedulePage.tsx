@@ -53,7 +53,7 @@ function startOfWeek(date: Date) {
 
 function formatTime12(time: string) {
   const normalized = typeof time === 'string' ? time.trim() : '';
-  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(normalized)) return time;
+  if (!/^\d{2}:\d{2}$/.test(normalized)) return time;
   const [h = '0', m = '00'] = normalized.split(':');
   const date = new Date();
   date.setHours(Number(h), Number(m), 0, 0);
@@ -354,6 +354,10 @@ export default function SchedulePage() {
     if (!isManager || !selectedScheduleId) return;
     const employee = employees.find((e) => e.id === employeeId);
     if (!employee) return;
+    if (!newShift.start_time || !newShift.end_time || newShift.end_time <= newShift.start_time) {
+      toast('Set a valid start/end time before drag-and-drop scheduling.', { variant: 'warning' });
+      return;
+    }
     try {
       await createShift({
         schedule_id: selectedScheduleId,
@@ -595,7 +599,7 @@ export default function SchedulePage() {
                 value={newShift.employee_id}
                 onChange={(e) => setNewShift((prev) => ({ ...prev, employee_id: e.target.value }))}
               >
-                <option value="">Leave unassigned (open shift)</option>
+                <option value="">leave unassigned (open shift)</option>
                 {employees.map((e) => (
                   <option key={e.id} value={e.id}>{e.name}</option>
                 ))}
