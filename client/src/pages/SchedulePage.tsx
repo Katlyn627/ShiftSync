@@ -532,14 +532,14 @@ export default function SchedulePage() {
               <div className="ml-auto flex items-center gap-2">
                 <Button
                   size="sm"
-                  variant={employeeViewMode === 'weekly' ? 'primary' : 'outline'}
+                  variant={employeeViewMode === 'weekly' ? 'default' : 'outline'}
                   onClick={() => setEmployeeViewMode('weekly')}
                 >
                   Weekly
                 </Button>
                 <Button
                   size="sm"
-                  variant={employeeViewMode === 'daily' ? 'primary' : 'outline'}
+                  variant={employeeViewMode === 'daily' ? 'default' : 'outline'}
                   onClick={() => setEmployeeViewMode('daily')}
                 >
                   Daily
