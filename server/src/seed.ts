@@ -132,6 +132,11 @@ function shiftWindowForRole(role: string, indexInRole: number): { start: string;
   return { start: '13:00', end: '21:00' }; // Expo fallback
 }
 
+function seededPhotoUrl(firstName: string, lastName: string, role: string): string {
+  const seed = encodeURIComponent(`${firstName}-${lastName}-${role}`.toLowerCase());
+  return `https://api.dicebear.com/9.x/initials/svg?seed=${seed}&backgroundType=gradientLinear`;
+}
+
 export function seedDemoData(): void {
   const db = getDb();
 
@@ -182,8 +187,8 @@ export function seedDemoData(): void {
     const insertEmployee = db.prepare(`
       INSERT INTO employees (
         name, first_name, last_name, role, role_title, department,
-        pay_type, hourly_rate, weekly_hours_max, email, phone, hire_date, site_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        pay_type, hourly_rate, weekly_hours_max, email, phone, photo_url, hire_date, site_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertAvailability = db.prepare(
@@ -215,6 +220,7 @@ export function seedDemoData(): void {
           const payType = roleSeed.role === 'Manager' ? 'salaried' : 'hourly';
           const email = `${adjustedFirst.toLowerCase()}.${last.toLowerCase()}@${siteId === siteIds[0] ? 'bellanapoli.com' : 'bluedoor.com'}`;
           const phone = `(555) ${String(1000 + personCursor).padStart(4, '0')}`;
+          const photoUrl = seededPhotoUrl(adjustedFirst, last, roleSeed.role);
 
           const empResult = insertEmployee.run(
             name,
@@ -228,6 +234,7 @@ export function seedDemoData(): void {
             roleSeed.weeklyMax,
             email,
             phone,
+            photoUrl,
             addDays('2022-01-01', personCursor),
             siteId,
           );

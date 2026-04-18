@@ -44,6 +44,10 @@ function normalizedValue(value?: string | null) {
   return (value || '').trim().toLowerCase();
 }
 
+function employeeDepartmentLabel(employee: Employee): string {
+  return (employee.department || employee.role || 'General').trim();
+}
+
 function startOfWeek(date: Date) {
   const next = new Date(date);
   const day = next.getDay();
@@ -122,6 +126,7 @@ export default function SchedulePage() {
   const [swapDraftShiftId, setSwapDraftShiftId] = useState<number | null>(null);
   const [swapTargetId, setSwapTargetId] = useState('');
   const [swapReason, setSwapReason] = useState('');
+  const [selectedDepartmentFilter, setSelectedDepartmentFilter] = useState('all');
 
   const [draggedEmployeeId, setDraggedEmployeeId] = useState<number | null>(null);
   const [dropDate, setDropDate] = useState<string | null>(null);
@@ -145,12 +150,40 @@ export default function SchedulePage() {
 
   const currentEmployeeDepartment = normalizedValue(currentEmployee?.department);
   const currentEmployeeRole = normalizedValue(currentEmployee?.role ?? user?.employeeRole);
+  const normalizedDepartmentFilter = normalizedValue(selectedDepartmentFilter);
+
+  const departmentOptions = useMemo(() => {
+    const options = new Set<string>();
+
+    employees.forEach((employee) => {
+      const label = employeeDepartmentLabel(employee);
+      if (label) options.add(label);
+    });
+
+    shifts.forEach((shift) => {
+      const label = (shift.employee_department || shift.employee_role || shift.role || '').trim();
+      if (label) options.add(label);
+    });
+
+    openShifts.forEach((shift) => {
+      const label = ((shift as OpenShift & { department?: string | null }).department || shift.role || '').trim();
+      if (label) options.add(label);
+    });
+
+    return Array.from(options).sort((a, b) => a.localeCompare(b));
+  }, [employees, shifts, openShifts]);
 
   const visibleShifts = useMemo(() => {
     const base = [...shifts].sort((a, b) => toSortableValue(a).localeCompare(toSortableValue(b)));
-    if (isManager) return base;
+    if (isManager) {
+      if (normalizedDepartmentFilter === 'all') return base;
+      return base.filter((shift) => {
+        const shiftDepartment = normalizedValue(shift.employee_department || shift.employee_role || shift.role);
+        return shiftDepartment === normalizedDepartmentFilter;
+      });
+    }
     return base.filter((s) => s.employee_id === user?.employeeId);
-  }, [shifts, isManager, user?.employeeId]);
+  }, [shifts, isManager, normalizedDepartmentFilter, user?.employeeId]);
 
   const weekMetadata = useMemo(() => {
     const anchor = selectedSchedule?.week_start
@@ -201,7 +234,12 @@ export default function SchedulePage() {
 
   const openShiftsByDate = useMemo(() => {
     const scopedOpenShifts = isManager
-      ? openShifts
+      ? (normalizedDepartmentFilter === 'all'
+        ? openShifts
+        : openShifts.filter((shift) => {
+          const shiftDepartment = normalizedValue((shift as OpenShift & { department?: string | null }).department || shift.role);
+          return shiftDepartment === normalizedDepartmentFilter;
+        }))
       : openShifts.filter((shift) => {
         const shiftDepartment = normalizedValue((shift as OpenShift & { department?: string | null }).department);
         if (currentEmployeeDepartment && shiftDepartment) {
@@ -222,7 +260,7 @@ export default function SchedulePage() {
       }
     });
     return map;
-  }, [openShifts, isManager, currentEmployeeDepartment, currentEmployeeRole]);
+  }, [openShifts, isManager, currentEmployeeDepartment, currentEmployeeRole, normalizedDepartmentFilter]);
 
   const departmentTone = (department: string) => {
     const tones = [
@@ -582,6 +620,21 @@ export default function SchedulePage() {
 
             {isManager && selectedSchedule && (
               <>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Department Filter</label>
+                  <select
+                    className={NATIVE_SELECT_CLASS}
+                    value={selectedDepartmentFilter}
+                    onChange={(e) => setSelectedDepartmentFilter(e.target.value)}
+                  >
+                    <option value="all">All departments</option>
+                    {departmentOptions.map((department) => (
+                      <option key={department} value={normalizedValue(department)}>
+                        {department}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <Button variant="outline" onClick={handleTogglePublish}>
                   {selectedSchedule.status === 'published' ? 'Unpublish' : 'Publish'}
                 </Button>
@@ -668,7 +721,9 @@ export default function SchedulePage() {
           <div className="pt-2 border-t border-border space-y-2">
             <h3 className="text-sm font-semibold text-foreground">Employee Roster (drag into a day)</h3>
             <div className="flex flex-wrap gap-2">
-              {employees.map((employee) => (
+              {employees.map((employee) => {
+                const employeeDepartment = employeeDepartmentLabel(employee);
+                return (
                 <button
                   key={employee.id}
                   type="button"
@@ -678,13 +733,15 @@ export default function SchedulePage() {
                     setDraggedEmployeeId(null);
                     setDropDate(null);
                   }}
-                  className="rounded-md border border-border bg-background px-2 py-1 text-left text-xs"
+                  className={`rounded-md border px-2 py-1 text-left text-xs ${departmentTone(employeeDepartment)}`}
                   title={`Drag to create a shift for ${employee.name}`}
                 >
                   <div className="font-medium text-foreground">{employee.name}</div>
                   <div className="text-muted-foreground">{employee.role}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">{employeeDepartment}</div>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         </Card>
