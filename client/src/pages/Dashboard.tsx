@@ -571,6 +571,12 @@ export default function Dashboard() {
           </div>
           <p className="text-foreground font-semibold">No schedules yet</p>
           <p className="text-sm text-muted-foreground">Go to the Schedule tab to generate your first schedule.</p>
+          <button
+            className="mt-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary/90"
+            onClick={() => navigate('/schedule')}
+          >
+            Open Schedule
+          </button>
         </div>
       )}
 

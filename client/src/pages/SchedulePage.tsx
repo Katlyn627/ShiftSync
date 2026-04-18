@@ -7,6 +7,7 @@ import {
   deleteShift,
   dropShift,
   Employee,
+  generateSchedule,
   getEmployees,
   getOpenShifts,
   getScheduleShifts,
@@ -88,6 +89,9 @@ export default function SchedulePage() {
   const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
   const [shifts, setShifts] = useState<ShiftWithEmployee[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [creatingSchedule, setCreatingSchedule] = useState(false);
+  const [newScheduleWeekStart, setNewScheduleWeekStart] = useState(getCurrentWeekStartISO());
+  const [newScheduleLaborBudget, setNewScheduleLaborBudget] = useState('5000');
 
   const [newShift, setNewShift] = useState({
     employee_id: '',
@@ -308,6 +312,30 @@ export default function SchedulePage() {
     }
   }
 
+  async function handleGenerateSchedule() {
+    if (!isManager) return;
+    if (!newScheduleWeekStart) {
+      toast('Select a week start date.', { variant: 'warning' });
+      return;
+    }
+    const laborBudget = Number(newScheduleLaborBudget);
+    if (!Number.isFinite(laborBudget) || laborBudget <= 0) {
+      toast('Enter a valid labor budget greater than 0.', { variant: 'warning' });
+      return;
+    }
+    setCreatingSchedule(true);
+    try {
+      const created = await generateSchedule(newScheduleWeekStart, laborBudget);
+      await loadSchedules();
+      setSelectedScheduleId(created.id);
+      toast('Schedule generated.', { variant: 'success' });
+    } catch (err: any) {
+      toast(err.message || 'Failed to generate schedule.', { variant: 'error' });
+    } finally {
+      setCreatingSchedule(false);
+    }
+  }
+
   async function handleCreateShift() {
     if (!isManager || !selectedScheduleId) return;
     if (!newShift.date || !newShift.start_time || !newShift.end_time || !newShift.role) {
@@ -507,7 +535,32 @@ export default function SchedulePage() {
 
       <Card className="p-4 space-y-3">
         {schedules.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No schedules available yet.</p>
+          isManager ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">No schedules yet. Generate your first schedule to get started.</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                <Input
+                  label="Week Start"
+                  type="date"
+                  value={newScheduleWeekStart}
+                  onChange={(e) => setNewScheduleWeekStart(e.target.value)}
+                />
+                <Input
+                  label="Labor Budget ($)"
+                  type="number"
+                  min={1}
+                  step={100}
+                  value={newScheduleLaborBudget}
+                  onChange={(e) => setNewScheduleLaborBudget(e.target.value)}
+                />
+                <Button onClick={handleGenerateSchedule} isLoading={creatingSchedule}>
+                  Generate First Schedule
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No schedules available yet.</p>
+          )
         ) : (
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1.5">
