@@ -7,6 +7,7 @@ import {
   deleteShift,
   dropShift,
   Employee,
+  generateSchedule,
   getEmployees,
   getOpenShifts,
   getScheduleShifts,
@@ -77,6 +78,8 @@ function createTimeOptions(stepMinutes = 30) {
 const DEFAULT_ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
 const EDIT_INPUT_CLASS = 'w-full rounded-md border border-input bg-background px-2 py-1';
 const TIME_OPTIONS = createTimeOptions();
+const DEFAULT_SCHEDULE_LABOR_BUDGET = 5000;
+const MIN_SCHEDULE_LABOR_BUDGET = 1;
 
 export default function SchedulePage() {
   const { user } = useAuth();
@@ -88,6 +91,9 @@ export default function SchedulePage() {
   const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
   const [shifts, setShifts] = useState<ShiftWithEmployee[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [creatingSchedule, setCreatingSchedule] = useState(false);
+  const [newScheduleWeekStart, setNewScheduleWeekStart] = useState(getCurrentWeekStartISO());
+  const [newScheduleLaborBudget, setNewScheduleLaborBudget] = useState(String(DEFAULT_SCHEDULE_LABOR_BUDGET));
 
   const [newShift, setNewShift] = useState({
     employee_id: '',
@@ -308,6 +314,30 @@ export default function SchedulePage() {
     }
   }
 
+  async function handleGenerateSchedule() {
+    if (!isManager) return;
+    if (!newScheduleWeekStart) {
+      toast('Select a week start date.', { variant: 'warning' });
+      return;
+    }
+    const laborBudget = Number(newScheduleLaborBudget);
+    if (!Number.isInteger(laborBudget) || laborBudget < MIN_SCHEDULE_LABOR_BUDGET) {
+      toast(`Enter a whole-number labor budget of at least ${MIN_SCHEDULE_LABOR_BUDGET}.`, { variant: 'warning' });
+      return;
+    }
+    setCreatingSchedule(true);
+    try {
+      const created = await generateSchedule(newScheduleWeekStart, laborBudget);
+      await loadSchedules();
+      setSelectedScheduleId(created.id);
+      toast('Schedule generated.', { variant: 'success' });
+    } catch (err: any) {
+      toast(err.message || 'Failed to generate schedule.', { variant: 'error' });
+    } finally {
+      setCreatingSchedule(false);
+    }
+  }
+
   async function handleCreateShift() {
     if (!isManager || !selectedScheduleId) return;
     if (!newShift.date || !newShift.start_time || !newShift.end_time || !newShift.role) {
@@ -507,7 +537,32 @@ export default function SchedulePage() {
 
       <Card className="p-4 space-y-3">
         {schedules.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No schedules available yet.</p>
+          isManager ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">No schedules yet. Generate your first schedule to get started.</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                <Input
+                  label="Week Start"
+                  type="date"
+                  value={newScheduleWeekStart}
+                  onChange={(e) => setNewScheduleWeekStart(e.target.value)}
+                />
+                <Input
+                  label="Labor Budget ($)"
+                  type="number"
+                  min={MIN_SCHEDULE_LABOR_BUDGET}
+                  step={1}
+                  value={newScheduleLaborBudget}
+                  onChange={(e) => setNewScheduleLaborBudget(e.target.value)}
+                />
+                <Button onClick={handleGenerateSchedule} isLoading={creatingSchedule}>
+                  Generate First Schedule
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No schedules available yet.</p>
+          )
         ) : (
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1.5">
