@@ -4,6 +4,32 @@ import { requireManager } from '../middleware/auth';
 
 const router = Router();
 
+function normalizeRolesForStorage(value: unknown, fallback = '[]'): string {
+  if (value == null) return fallback;
+  if (Array.isArray(value)) {
+    const normalized = value
+      .filter((role): role is string => typeof role === 'string')
+      .map(role => role.trim())
+      .filter(Boolean);
+    return JSON.stringify(normalized);
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        const normalized = parsed
+          .filter((role): role is string => typeof role === 'string')
+          .map(role => role.trim())
+          .filter(Boolean);
+        return JSON.stringify(normalized);
+      }
+    } catch {
+      return JSON.stringify(value.split(',').map(v => v.trim()).filter(Boolean));
+    }
+  }
+  return fallback;
+}
+
 router.get('/', (_req: Request, res: Response) => {
   const db = getDb();
   const sites = db.prepare('SELECT * FROM sites ORDER BY name').all();
@@ -31,8 +57,8 @@ router.post('/', requireManager, (req: Request, res: Response) => {
     address ?? '',
     business_hours ?? '',
     employee_capacity ?? 0,
-    typeof foh_roles === 'string' ? foh_roles : JSON.stringify(foh_roles ?? []),
-    typeof boh_roles === 'string' ? boh_roles : JSON.stringify(boh_roles ?? []),
+    normalizeRolesForStorage(foh_roles),
+    normalizeRolesForStorage(boh_roles),
   );
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(site);
@@ -73,12 +99,8 @@ router.put('/:id', requireManager, (req: Request, res: Response) => {
     address ?? existing.address ?? '',
     business_hours ?? existing.business_hours ?? '',
     employee_capacity ?? existing.employee_capacity ?? 0,
-    foh_roles == null
-      ? (existing.foh_roles ?? '[]')
-      : (typeof foh_roles === 'string' ? foh_roles : JSON.stringify(foh_roles)),
-    boh_roles == null
-      ? (existing.boh_roles ?? '[]')
-      : (typeof boh_roles === 'string' ? boh_roles : JSON.stringify(boh_roles)),
+    normalizeRolesForStorage(foh_roles, existing.foh_roles ?? '[]'),
+    normalizeRolesForStorage(boh_roles, existing.boh_roles ?? '[]'),
     req.params.id
   );
   const updated = db.prepare('SELECT * FROM sites WHERE id = ?').get(req.params.id);

@@ -20,6 +20,7 @@ function addDays(base: string, days: number): string {
 const MAX_EMPLOYEES = 50;
 const MIN_EXPECTED_EMPLOYEES = 40;
 const EXPECTED_SITE_NAMES = ['Bella Napoli', 'The Blue Door'];
+const AVERAGE_CHECK_SIZE = 31;
 
 function shouldReseed(db: Database.Database): boolean {
   const siteRows = db.prepare('SELECT name, site_type FROM sites').all() as { name: string; site_type: string }[];
@@ -223,7 +224,7 @@ export function seedDemoData(): void {
             roleSeed.role,
             roleSeed.department,
             payType,
-            payType === 'salaried' ? 0 : hourlyRate,
+            hourlyRate,
             roleSeed.weeklyMax,
             email,
             phone,
@@ -247,15 +248,19 @@ export function seedDemoData(): void {
     const insertForecast = db.prepare(
       'INSERT INTO forecasts (date, site_id, expected_revenue, expected_covers) VALUES (?, ?, ?, ?)' 
     );
+    const BASE_REVENUE_BY_SITE: Record<number, number> = {
+      [siteIds[0]]: 6200,
+      [siteIds[1]]: 5600,
+    };
 
     for (const weekStart of [lastMonday, thisMonday]) {
       for (const siteId of siteIds) {
         for (let d = 0; d < 7; d++) {
           const date = addDays(weekStart, d);
           const weekend = d === 5 || d === 6;
-          const baseRevenue = siteId === siteIds[0] ? 6200 : 5600;
+          const baseRevenue = BASE_REVENUE_BY_SITE[siteId] ?? 5600;
           const expectedRevenue = baseRevenue + (d * 250) + (weekend ? 900 : 0);
-          const expectedCovers = Math.round(expectedRevenue / 31);
+          const expectedCovers = Math.round(expectedRevenue / AVERAGE_CHECK_SIZE);
           insertForecast.run(date, siteId, expectedRevenue, expectedCovers);
         }
       }

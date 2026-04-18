@@ -78,6 +78,7 @@ const router = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'shiftsync-secret-key-change-in-production';
 const JWT_EXPIRES_IN = '24h';
+const MAX_RESTAURANT_EMPLOYEES = 50;
 
 if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
   console.error('FATAL: JWT_SECRET environment variable must be set in production');
@@ -391,8 +392,8 @@ router.post('/register-manager', (req: Request, res: Response) => {
   }
 
   const parsedEmployeeCount = Number(employeeCount);
-  if (!Number.isFinite(parsedEmployeeCount) || parsedEmployeeCount < 1 || parsedEmployeeCount > 50) {
-    return res.status(400).json({ error: 'employeeCount must be a number between 1 and 50' });
+  if (!Number.isFinite(parsedEmployeeCount) || !Number.isInteger(parsedEmployeeCount) || parsedEmployeeCount < 1 || parsedEmployeeCount > MAX_RESTAURANT_EMPLOYEES) {
+    return res.status(400).json({ error: `employeeCount must be a number between 1 and ${MAX_RESTAURANT_EMPLOYEES}` });
   }
 
   const defaultFohRoles = ['Busser', 'Host', 'Server', 'Food Runner', 'Expo'];

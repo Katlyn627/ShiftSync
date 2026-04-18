@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { registerManager, type SiteType } from '../api';
+import { registerManager } from '../api';
 import { Button, Input } from '../components/ui';
 
 // ── Industry definitions ──────────────────────────────────────────────────
 interface IndustryOption {
-  value: SiteType;
+  value: 'restaurant';
   label: string;
   description: string;
   icon: string;
@@ -57,6 +57,10 @@ const STEPS: { id: Step; label: string }[] = [
   { id: 'confirm', label: 'Confirm' },
 ];
 
+function parseCsvRoles(csv: string): string[] {
+  return csv.split(',').map(role => role.trim()).filter(Boolean);
+}
+
 export default function RegisterBusinessPage() {
   const navigate = useNavigate();
   const { loginWithToken } = useAuth();
@@ -70,7 +74,7 @@ export default function RegisterBusinessPage() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [timezone, setTimezone] = useState('America/Chicago');
-  const [industry, setIndustry] = useState<SiteType | ''>('restaurant');
+  const industry = 'restaurant' as const;
   const [location, setLocation] = useState('');
   const [businessHours, setBusinessHours] = useState('');
   const [employeeCount, setEmployeeCount] = useState(20);
@@ -155,8 +159,8 @@ export default function RegisterBusinessPage() {
         location: location.trim(),
         businessHours: businessHours.trim(),
         employeeCount,
-        fohRoles: fohRolesCsv.split(',').map(role => role.trim()).filter(Boolean),
-        bohRoles: bohRolesCsv.split(',').map(role => role.trim()).filter(Boolean),
+        fohRoles: parseCsvRoles(fohRolesCsv),
+        bohRoles: parseCsvRoles(bohRolesCsv),
         managerName: managerName.trim(),
         username: username.trim(),
         password,
