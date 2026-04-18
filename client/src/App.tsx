@@ -59,12 +59,13 @@ export default function App() {
     .slice(0, 2);
 
   return (
-    <div className="min-h-screen bg-[#eaf0f2] p-3 sm:p-6">
+    <div className="min-h-screen bg-background p-3 sm:p-6">
       <div className="mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-[1280px] rounded-[28px] border border-white/60 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:min-h-[calc(100vh-3rem)]">
         <aside className="hidden w-[248px] shrink-0 border-r border-border/80 px-5 py-6 lg:flex lg:flex-col">
           <div className="flex items-center gap-2">
             <Logo size={28} />
             <span className="font-semibold text-foreground">ShiftSync</span>
+            <Badge variant="outline" className="text-[10px]">Scheduling</Badge>
           </div>
           <p className="mt-6 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Menu</p>
           <nav className="mt-2 space-y-1.5">
@@ -97,26 +98,25 @@ export default function App() {
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="border-b border-border/70 px-4 py-3 sm:px-6">
             <div className="flex items-center justify-between gap-3">
-              <div className="hidden max-w-sm flex-1 items-center gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2 md:flex">
+              <button
+                type="button"
+                className="hidden max-w-sm flex-1 items-center gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2 text-left md:flex"
+                aria-label="Search coming soon"
+              >
                 <Search className="h-4 w-4 text-muted-foreground" />
-                <input
-                  readOnly
-                  value="Search anything"
-                  className="w-full bg-transparent text-sm text-muted-foreground outline-none"
-                  aria-label="Search"
-                />
+                <span className="w-full text-sm text-muted-foreground">Search coming soon</span>
                 <Badge variant="outline" className="text-[10px]">⌘F</Badge>
-              </div>
+              </button>
               <div className="ml-auto flex items-center gap-2">
-                <button className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-muted-foreground hover:text-foreground" aria-label="Notifications">
+                <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-muted-foreground hover:text-foreground" aria-label="Notifications">
                   <Bell className="h-4 w-4" />
                 </button>
-                <div className="flex items-center gap-2 rounded-full border border-border bg-white px-2.5 py-1.5">
+                <button type="button" className="flex items-center gap-2 rounded-full border border-border bg-white px-2.5 py-1.5" aria-label="User menu">
                   <div className="w-7 h-7 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[11px] font-bold">
                     {initials}
                   </div>
                   <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </div>
+                </button>
                 <button className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted" onClick={logout}>
                   Logout
                 </button>
@@ -124,7 +124,7 @@ export default function App() {
             </div>
           </header>
 
-          <main className="min-w-0 flex-1 overflow-auto bg-[#f8f9fd] p-4 sm:p-6">
+          <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4 sm:p-6">
             <nav className="mb-4 flex gap-2 overflow-x-auto rounded-xl border border-border bg-white p-2 lg:hidden">
               {navItems.map((item) => {
                 const Icon = item.icon;

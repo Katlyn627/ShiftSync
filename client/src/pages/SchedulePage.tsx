@@ -744,7 +744,7 @@ export default function SchedulePage() {
 
         <div className={`grid grid-cols-1 ${scheduleDays.length > 1 ? 'md:grid-cols-7' : ''} gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground`}>
           {scheduleDays.map((day) => (
-            <div key={day.date} className="rounded-xl bg-slate-100/80 px-3 py-2 text-center">{day.weekday}</div>
+            <div key={day.date} className="rounded-xl bg-muted/70 px-3 py-2 text-center">{day.weekday}</div>
           ))}
         </div>
 
@@ -756,7 +756,7 @@ export default function SchedulePage() {
             return (
               <div
                 key={day.date}
-                className={`min-h-[210px] space-y-2 rounded-2xl border bg-[#fcfdff] p-2.5 ${isDropActive ? 'border-primary border-2' : 'border-slate-200'}`}
+                className={`min-h-[210px] space-y-2 rounded-2xl border bg-card p-2.5 ${isDropActive ? 'border-primary border-2' : 'border-border'}`}
                 onDragOver={(e) => {
                   if (!isManager || draggedEmployeeId === null) return;
                   e.preventDefault();
