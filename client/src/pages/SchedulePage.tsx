@@ -321,7 +321,7 @@ export default function SchedulePage() {
       return;
     }
     const laborBudget = Number(newScheduleLaborBudget);
-    if (!Number.isFinite(laborBudget) || !Number.isInteger(laborBudget) || laborBudget < MIN_SCHEDULE_LABOR_BUDGET) {
+    if (!Number.isInteger(laborBudget) || laborBudget < MIN_SCHEDULE_LABOR_BUDGET) {
       toast(`Enter a whole-number labor budget of at least ${MIN_SCHEDULE_LABOR_BUDGET}.`, { variant: 'warning' });
       return;
     }
