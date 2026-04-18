@@ -59,9 +59,9 @@ router.get('/:id/shifts', (req: Request, res: Response) => {
   const shifts = db.prepare(`
     SELECT s.*, e.name as employee_name, e.role as employee_role, e.department as employee_department, e.hourly_rate
     FROM shifts s
-    JOIN employees e ON s.employee_id = e.id
+    LEFT JOIN employees e ON s.employee_id = e.id
     WHERE s.schedule_id = ? AND s.status != 'cancelled'
-    ORDER BY s.date, s.start_time, e.name
+    ORDER BY s.date, s.start_time, COALESCE(e.name, '')
   `).all(req.params.id);
   res.json(shifts);
 });
