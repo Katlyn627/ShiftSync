@@ -52,7 +52,9 @@ function startOfWeek(date: Date) {
 }
 
 function formatTime12(time: string) {
-  const [h = '0', m = '00'] = time.split(':');
+  const normalized = typeof time === 'string' ? time.trim() : '';
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(normalized)) return time;
+  const [h = '0', m = '00'] = normalized.split(':');
   const date = new Date();
   date.setHours(Number(h), Number(m), 0, 0);
   return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -697,7 +699,7 @@ export default function SchedulePage() {
                 key={day.date}
                 className={`rounded-xl border p-2 min-h-[190px] space-y-2 bg-card ${isDropActive ? 'border-primary border-2' : 'border-border'}`}
                 onDragOver={(e) => {
-                  if (!isManager || draggedEmployeeId == null) return;
+                  if (!isManager || draggedEmployeeId === null) return;
                   e.preventDefault();
                   setDropDate(day.date);
                 }}
@@ -705,7 +707,7 @@ export default function SchedulePage() {
                   if (dropDate === day.date) setDropDate(null);
                 }}
                 onDrop={async (e) => {
-                  if (!isManager || draggedEmployeeId == null) return;
+                  if (!isManager || draggedEmployeeId === null) return;
                   e.preventDefault();
                   setDropDate(null);
                   await handleCreateShiftFromDrag(day.date, draggedEmployeeId);
