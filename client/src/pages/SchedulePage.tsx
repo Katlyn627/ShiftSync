@@ -321,8 +321,8 @@ export default function SchedulePage() {
       return;
     }
     const laborBudget = Number(newScheduleLaborBudget);
-    if (!Number.isFinite(laborBudget) || laborBudget < MIN_SCHEDULE_LABOR_BUDGET) {
-      toast(`Enter a valid labor budget of at least ${MIN_SCHEDULE_LABOR_BUDGET}.`, { variant: 'warning' });
+    if (!Number.isFinite(laborBudget) || !Number.isInteger(laborBudget) || laborBudget < MIN_SCHEDULE_LABOR_BUDGET) {
+      toast(`Enter a whole-number labor budget of at least ${MIN_SCHEDULE_LABOR_BUDGET}.`, { variant: 'warning' });
       return;
     }
     setCreatingSchedule(true);
@@ -551,7 +551,7 @@ export default function SchedulePage() {
                   label="Labor Budget ($)"
                   type="number"
                   min={MIN_SCHEDULE_LABOR_BUDGET}
-                  step={100}
+                  step={1}
                   value={newScheduleLaborBudget}
                   onChange={(e) => setNewScheduleLaborBudget(e.target.value)}
                 />
