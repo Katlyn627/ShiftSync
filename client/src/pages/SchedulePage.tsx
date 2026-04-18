@@ -78,6 +78,8 @@ function createTimeOptions(stepMinutes = 30) {
 const DEFAULT_ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager'];
 const EDIT_INPUT_CLASS = 'w-full rounded-md border border-input bg-background px-2 py-1';
 const TIME_OPTIONS = createTimeOptions();
+const DEFAULT_SCHEDULE_LABOR_BUDGET = 5000;
+const MIN_SCHEDULE_LABOR_BUDGET = 1;
 
 export default function SchedulePage() {
   const { user } = useAuth();
@@ -91,7 +93,7 @@ export default function SchedulePage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [newScheduleWeekStart, setNewScheduleWeekStart] = useState(getCurrentWeekStartISO());
-  const [newScheduleLaborBudget, setNewScheduleLaborBudget] = useState('5000');
+  const [newScheduleLaborBudget, setNewScheduleLaborBudget] = useState(String(DEFAULT_SCHEDULE_LABOR_BUDGET));
 
   const [newShift, setNewShift] = useState({
     employee_id: '',
@@ -319,8 +321,8 @@ export default function SchedulePage() {
       return;
     }
     const laborBudget = Number(newScheduleLaborBudget);
-    if (!Number.isFinite(laborBudget) || laborBudget <= 0) {
-      toast('Enter a valid labor budget greater than 0.', { variant: 'warning' });
+    if (!Number.isFinite(laborBudget) || laborBudget < MIN_SCHEDULE_LABOR_BUDGET) {
+      toast(`Enter a valid labor budget of at least ${MIN_SCHEDULE_LABOR_BUDGET}.`, { variant: 'warning' });
       return;
     }
     setCreatingSchedule(true);
@@ -548,7 +550,7 @@ export default function SchedulePage() {
                 <Input
                   label="Labor Budget ($)"
                   type="number"
-                  min={1}
+                  min={MIN_SCHEDULE_LABOR_BUDGET}
                   step={100}
                   value={newScheduleLaborBudget}
                   onChange={(e) => setNewScheduleLaborBudget(e.target.value)}
