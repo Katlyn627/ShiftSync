@@ -81,7 +81,7 @@ router.put('/:id/approve', requireManager, (req: Request, res: Response) => {
     if (swap.target_id == null) {
       db.prepare(`UPDATE shifts SET status='cancelled' WHERE id = ?`).run(swap.shift_id);
     } else {
-      db.prepare(`UPDATE shifts SET status='swapped' WHERE id = ?`).run(swap.shift_id);
+      db.prepare(`UPDATE shifts SET status='swapped', employee_id=? WHERE id = ?`).run(swap.target_id, swap.shift_id);
     }
   });
   tx();
