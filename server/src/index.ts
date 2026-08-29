@@ -9,6 +9,7 @@ import session from 'express-session';
 import passport from 'passport';
 import { getDb } from './db';
 import { seedDemoData } from './seed';
+import { resolveAuthRuntimeConfig } from './authConfig';
 import authRouter from './routes/auth';
 import employeesRouter from './routes/employees';
 import schedulesRouter from './routes/schedules';
@@ -20,6 +21,7 @@ import swapsRouter from './routes/swaps';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+const authConfig = resolveAuthRuntimeConfig();
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -50,7 +52,7 @@ app.use(express.json());
 // Session required for the OAuth state parameter (stateless JWT is issued at callback)
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'shiftsync-session-secret-change-in-production',
+    secret: authConfig.sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {

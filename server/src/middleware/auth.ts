@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { resolveAuthRuntimeConfig } from '../authConfig';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'shiftsync-secret-key-change-in-production';
+const { jwtSecret: JWT_SECRET } = resolveAuthRuntimeConfig();
 
 export interface AuthPayload {
   userId: number;
