@@ -26,7 +26,7 @@
     "lucide-react": "^0.487.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.21.3",
+    "react-router-dom": "^6.30.5",
     "recharts": "^2.10.3",
     "tailwind-merge": "^3.2.0",
     "tw-animate-css": "^1.3.8"
@@ -35,13 +35,13 @@
     "@capacitor/android": "^8.3.0",
     "@capacitor/cli": "^8.3.0",
     "@capacitor/ios": "^8.3.0",
-    "@tailwindcss/vite": "^4.1.0",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
-    "@vitejs/plugin-react": "^4.2.1",
+    "@vitejs/plugin-react": "^6.1.1",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.3.3",
-    "vite": "^7.3.2",
-    "vitest": "^4.0.18"
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   }
 }
