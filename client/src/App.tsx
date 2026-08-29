@@ -1,10 +1,28 @@
-import { Bell, CalendarDays, ChevronDown, Repeat2, Search, Users } from 'lucide-react';
+import {
+  BarChart3,
+  Bell,
+  CalendarCheck2,
+  CalendarDays,
+  ChevronDown,
+  ClipboardList,
+  FileText,
+  LayoutDashboard,
+  Repeat2,
+  UserCircle2,
+  Users,
+} from 'lucide-react';
 import type { ComponentType } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import LoginPage from './pages/LoginPage';
 import RegisterBusinessPage from './pages/RegisterBusinessPage';
 import SchedulePage from './pages/SchedulePage';
+import DashboardPage from './pages/Dashboard';
+import OpenShiftsPage from './pages/OpenShiftsPage';
+import FairnessPage from './pages/FairnessPage';
+import SurveysPage from './pages/SurveysPage';
+import ProfilePage from './pages/ProfilePage';
+import TimeOffApprovalsPage from './pages/TimeOffApprovalsPage';
 import EmployeesPage from './pages/EmployeesPage';
 import SwapsPage from './pages/SwapsPage';
 import { Badge, Logo } from './components/ui';
@@ -42,12 +60,22 @@ export default function App() {
 
   const navItems: NavItem[] = user.isManager
     ? [
+        { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/schedule', label: 'Schedule', icon: CalendarDays },
+        { to: '/open-shifts', label: 'Open Shifts', icon: ClipboardList },
+        { to: '/surveys', label: 'Surveys', icon: FileText },
+        { to: '/fairness', label: 'Fairness', icon: BarChart3 },
+        { to: '/time-off-approvals', label: 'Time Off', icon: CalendarCheck2 },
         { to: '/employees', label: 'Employees', icon: Users },
         { to: '/swaps', label: 'Shift Swaps', icon: Repeat2 },
       ]
     : [
+        { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/schedule', label: 'My Schedule', icon: CalendarDays },
+        { to: '/open-shifts', label: 'Open Shifts', icon: ClipboardList },
+        { to: '/surveys', label: 'Surveys', icon: FileText },
+        { to: '/profile', label: 'Profile', icon: UserCircle2 },
+        { to: '/time-off', label: 'Time Off', icon: CalendarCheck2 },
         { to: '/swaps', label: 'Shift Swaps', icon: Repeat2 },
       ];
 
@@ -89,38 +117,23 @@ export default function App() {
               );
             })}
           </nav>
-          <div className="mt-auto rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/85 to-cyan-500 p-4 text-white shadow-lg">
-            <p className="text-sm font-semibold">ShiftSync Pro</p>
-            <p className="mt-1 text-xs text-white/85">Unlock advanced scheduling and smart auto-fill tools.</p>
-          </div>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="border-b border-border/70 px-4 py-3 sm:px-6">
-            <div className="flex items-center justify-between gap-3">
-              <button
-                type="button"
-                className="hidden max-w-sm flex-1 items-center gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2 text-left md:flex"
-                aria-label="Search coming soon"
-              >
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <span className="w-full text-sm text-muted-foreground">Search coming soon</span>
-                <Badge variant="outline" className="text-[10px]">⌘F</Badge>
+            <div className="flex items-center justify-end gap-2">
+              <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-muted-foreground hover:text-foreground" aria-label="Notifications">
+                <Bell className="h-4 w-4" />
               </button>
-              <div className="ml-auto flex items-center gap-2">
-                <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-muted-foreground hover:text-foreground" aria-label="Notifications">
-                  <Bell className="h-4 w-4" />
-                </button>
-                <button type="button" className="flex items-center gap-2 rounded-full border border-border bg-white px-2.5 py-1.5" aria-label="User menu">
-                  <div className="w-7 h-7 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[11px] font-bold">
-                    {initials}
-                  </div>
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-                <button className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted" onClick={logout}>
-                  Logout
-                </button>
-              </div>
+              <button type="button" className="flex items-center gap-2 rounded-full border border-border bg-white px-2.5 py-1.5" aria-label="User menu">
+                <div className="w-7 h-7 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[11px] font-bold">
+                  {initials}
+                </div>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+              <button className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted" onClick={logout}>
+                Logout
+              </button>
             </div>
           </header>
 
@@ -145,11 +158,19 @@ export default function App() {
               })}
             </nav>
             <Routes>
-              <Route path="/" element={<Navigate to="/schedule" replace />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/schedule" element={<SchedulePage />} />
-              <Route path="/swaps" element={<SwapsPage />} />
+              <Route path="/open-shifts" element={<OpenShiftsPage />} />
+              <Route path="/surveys" element={<SurveysPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/time-off" element={<ProfilePage />} />
+              {user.isManager && <Route path="/fairness" element={<FairnessPage />} />}
+              {user.isManager && <Route path="/time-off-approvals" element={<TimeOffApprovalsPage />} />}
               {user.isManager && <Route path="/employees" element={<EmployeesPage />} />}
-              <Route path="*" element={<Navigate to="/schedule" replace />} />
+              {user.isManager ? null : <Route path="/employees" element={<Navigate to="/dashboard" replace />} />}
+              <Route path="/swaps" element={<SwapsPage />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </main>
         </div>
