@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PencilLine, Trash2 } from 'lucide-react';
 import {
   createOpenShift,
   createShift,
@@ -84,6 +85,7 @@ const EDIT_INPUT_CLASS = 'w-full rounded-md border border-input bg-background px
 const TIME_OPTIONS = createTimeOptions();
 const DEFAULT_SCHEDULE_LABOR_BUDGET = 5000;
 const MIN_SCHEDULE_LABOR_BUDGET = 1;
+const WEEK_DAY_COLUMN_MIN_WIDTH = 170;
 
 export default function SchedulePage() {
   const { user } = useAuth();
@@ -728,6 +730,7 @@ export default function SchedulePage() {
                   key={employee.id}
                   type="button"
                   draggable
+                  aria-label={`Create shift for ${employee.name}`}
                   onDragStart={() => setDraggedEmployeeId(employee.id)}
                   onDragEnd={() => {
                     setDraggedEmployeeId(null);
@@ -799,139 +802,198 @@ export default function SchedulePage() {
           )}
         </div>
 
-        <div className={`grid grid-cols-1 ${scheduleDays.length > 1 ? 'md:grid-cols-7' : ''} gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground`}>
-          {scheduleDays.map((day) => (
-            <div key={day.date} className="rounded-xl bg-muted/70 px-3 py-2 text-center">{day.weekday}</div>
-          ))}
-        </div>
+        <div className="overflow-x-auto pb-1" data-testid="schedule-week-scroll">
+          <div
+            className="space-y-2"
+            style={{
+              minWidth: scheduleDays.length > 1 ? `${scheduleDays.length * WEEK_DAY_COLUMN_MIN_WIDTH + 32}px` : undefined,
+            }}
+          >
+            <div
+              className="grid gap-2"
+              style={{
+                gridTemplateColumns: `repeat(${scheduleDays.length}, minmax(${WEEK_DAY_COLUMN_MIN_WIDTH}px, 1fr))`,
+              }}
+            >
+              {scheduleDays.map((day) => (
+                <div
+                  key={day.date}
+                  data-testid="schedule-day-column"
+                  className="min-w-[170px]"
+                >
+                  <div className="sticky top-0 z-10 mb-2 rounded-xl bg-muted/70 px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {day.weekday}
+                  </div>
+                </div>
+              ))}
+            </div>
 
-        <div className={`grid grid-cols-1 ${scheduleDays.length > 1 ? 'md:grid-cols-7' : ''} gap-2`}>
-          {scheduleDays.map((day) => {
-            const dayShifts = shiftsByDate.get(day.date) ?? [];
-            const dayOpenShifts = openShiftsByDate.get(day.date) ?? [];
-            const isDropActive = isManager && dropDate === day.date;
-            return (
-              <div
-                key={day.date}
-                className={`min-h-[210px] space-y-2 rounded-2xl border bg-card p-2.5 ${isDropActive ? 'border-primary border-2' : 'border-border'}`}
-                onDragOver={(e) => {
-                  if (!isManager || draggedEmployeeId === null) return;
-                  e.preventDefault();
-                  setDropDate(day.date);
-                }}
-                onDragLeave={() => {
-                  if (dropDate === day.date) setDropDate(null);
-                }}
-                onDrop={async (e) => {
-                  if (!isManager || draggedEmployeeId === null) return;
-                  e.preventDefault();
-                  setDropDate(null);
-                  await handleCreateShiftFromDrag(day.date, draggedEmployeeId);
-                  setDraggedEmployeeId(null);
-                }}
-              >
-                <div className="text-xs font-semibold text-foreground">{day.dayLabel}</div>
-                {dayShifts.map((shift) => {
-                  const isOwnShift = !!user?.employeeId && shift.employee_id === user.employeeId;
-                  const isSwapDraftOpen = swapDraftShiftId === shift.id;
-                  const department = getShiftDisplayGroup(shift);
-                  return (
-                    <div key={shift.id} className={`shift-block rounded-lg border p-2 space-y-1.5 shadow-sm ${departmentTone(department)}`}>
-                      <div className="text-xs text-foreground">
-                        <span className="font-bold text-sm">{formatTime12(shift.start_time)}</span>
-                        <span className="text-muted-foreground"> — {formatTime12(shift.end_time)}</span>
-                      </div>
-                      <div className="text-xs text-foreground">{shift.role}</div>
-                      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{department}</div>
-                      <div className="text-[11px] text-muted-foreground">{shift.employee_name || 'Unassigned'}</div>
-
-                      {isManager && (
-                        <div className="flex gap-1 pt-1">
-                          <Button size="sm" variant="outline" onClick={() => startEditing(shift)}>Edit</Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleDeleteShift(shift.id)}>Delete</Button>
-                        </div>
-                      )}
-
-                      {!isManager && isOwnShift && (
-                        <div className="space-y-2 pt-1">
-                          <div className="flex flex-wrap gap-1.5">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleDropShift(shift)}
-                              isLoading={submittingShiftActionId === shift.id}
-                            >
-                              Drop Shift
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => beginSwapRequest(shift.id)}
-                            >
-                              Swap Shift
-                            </Button>
+            <div
+              className="grid gap-2"
+              style={{
+                gridTemplateColumns: `repeat(${scheduleDays.length}, minmax(${WEEK_DAY_COLUMN_MIN_WIDTH}px, 1fr))`,
+              }}
+            >
+              {scheduleDays.map((day) => {
+                const dayShifts = shiftsByDate.get(day.date) ?? [];
+                const dayOpenShifts = openShiftsByDate.get(day.date) ?? [];
+                const isDropActive = isManager && dropDate === day.date;
+                return (
+                  <div
+                    key={day.date}
+                    data-testid="schedule-day-column"
+                    className={`min-h-[210px] min-w-[170px] space-y-2 rounded-2xl border bg-card p-2.5 ${isDropActive ? 'border-primary border-2' : 'border-border'}`}
+                    onDragOver={(e) => {
+                      if (!isManager || draggedEmployeeId === null) return;
+                      e.preventDefault();
+                      setDropDate(day.date);
+                    }}
+                    onDragLeave={() => {
+                      if (dropDate === day.date) setDropDate(null);
+                    }}
+                    onDrop={async (e) => {
+                      if (!isManager || draggedEmployeeId === null) return;
+                      e.preventDefault();
+                      setDropDate(null);
+                      await handleCreateShiftFromDrag(day.date, draggedEmployeeId);
+                      setDraggedEmployeeId(null);
+                    }}
+                  >
+                    <div className="sticky top-0 z-10 rounded-lg bg-white/90 px-1 py-1 text-xs font-semibold text-foreground backdrop-blur-sm">{day.dayLabel}</div>
+                    {dayShifts.map((shift) => {
+                      const isOwnShift = !!user?.employeeId && shift.employee_id === user.employeeId;
+                      const isSwapDraftOpen = swapDraftShiftId === shift.id;
+                      const department = getShiftDisplayGroup(shift);
+                      const employeeName = shift.employee_name || 'Unassigned';
+                      return (
+                        <div key={shift.id} className={`shift-block overflow-hidden rounded-lg border p-2 shadow-sm ${departmentTone(department)}`}>
+                          <div className="flex min-w-0 items-baseline gap-1 text-xs text-foreground">
+                            <span className="shrink-0 font-bold text-sm">{formatTime12(shift.start_time)}</span>
+                            <span className="truncate text-muted-foreground">— {formatTime12(shift.end_time)}</span>
                           </div>
-                          {isSwapDraftOpen && (
-                            <div className="space-y-1.5 rounded-md border border-border p-2">
-                              <select
-                                className={NATIVE_SELECT_CLASS}
-                                value={swapTargetId}
-                                onChange={(e) => setSwapTargetId(e.target.value)}
+                          <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
+                            <span className="truncate text-xs text-foreground">{shift.role}</span>
+                            <span className="shrink-0 rounded-full border border-current/15 bg-white/60 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                              {department}
+                            </span>
+                          </div>
+                          <div className="mt-1 truncate text-[11px] text-muted-foreground">{employeeName}</div>
+
+                          {isManager && (
+                            <div className="mt-2 flex items-center gap-1.5">
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                type="button"
+                                aria-label={`Edit shift for ${employeeName}`}
+                                title={`Edit shift for ${employeeName}`}
+                                onClick={() => startEditing(shift)}
+                                className="h-7 w-7"
                               >
-                                <option value="" disabled hidden>Select teammate</option>
-                                {employees
-                                  .filter((e) => e.id !== user?.employeeId)
-                                  .map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-                              </select>
-                              <input
-                                className={EDIT_INPUT_CLASS}
-                                placeholder="Reason (optional)"
-                                value={swapReason}
-                                onChange={(e) => setSwapReason(e.target.value)}
-                              />
-                              <div className="flex gap-1.5">
+                                <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="destructive"
+                                type="button"
+                                aria-label={`Delete shift for ${employeeName}`}
+                                title={`Delete shift for ${employeeName}`}
+                                onClick={() => handleDeleteShift(shift.id)}
+                                className="h-7 w-7"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                              </Button>
+                            </div>
+                          )}
+
+                          {!isManager && isOwnShift && (
+                            <div className="space-y-2 pt-1">
+                              <div className="flex flex-wrap gap-1.5">
                                 <Button
                                   size="sm"
-                                  onClick={() => handleRequestSwap(shift)}
+                                  variant="outline"
+                                  onClick={() => handleDropShift(shift)}
                                   isLoading={submittingShiftActionId === shift.id}
+                                  aria-label={`Drop shift for ${employeeName}`}
                                 >
-                                  Send Swap
+                                  Drop
                                 </Button>
-                                <Button size="sm" variant="outline" onClick={() => setSwapDraftShiftId(null)}>Cancel</Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => beginSwapRequest(shift.id)}
+                                  aria-label={`Swap shift for ${employeeName}`}
+                                >
+                                  Swap
+                                </Button>
                               </div>
+                              {isSwapDraftOpen && (
+                                <div className="space-y-1.5 rounded-md border border-border bg-white/80 p-2">
+                                  <select
+                                    className={NATIVE_SELECT_CLASS}
+                                    value={swapTargetId}
+                                    onChange={(e) => setSwapTargetId(e.target.value)}
+                                    aria-label={`Choose teammate for ${employeeName} swap`}
+                                  >
+                                    <option value="" disabled hidden>Select teammate</option>
+                                    {employees
+                                      .filter((e) => e.id !== user?.employeeId)
+                                      .map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                  </select>
+                                  <input
+                                    className={EDIT_INPUT_CLASS}
+                                    placeholder="Reason (optional)"
+                                    aria-label={`Reason for ${employeeName} shift swap`}
+                                    value={swapReason}
+                                    onChange={(e) => setSwapReason(e.target.value)}
+                                  />
+                                  <div className="flex gap-1.5">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleRequestSwap(shift)}
+                                      isLoading={submittingShiftActionId === shift.id}
+                                    >
+                                      Send Swap
+                                    </Button>
+                                    <Button size="sm" variant="outline" onClick={() => setSwapDraftShiftId(null)}>Cancel</Button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
 
-                {dayOpenShifts.map((openShift) => (
-                  <div key={`open-${openShift.id}`} className="shift-block rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-1.5">
-                    <div className="text-xs text-foreground">
-                      <span className="font-bold text-sm">{formatTime12(openShift.start_time)}</span>
-                      <span className="text-muted-foreground"> — {formatTime12(openShift.end_time)}</span>
-                    </div>
-                    <div className="text-xs text-foreground">{openShift.role} (Open)</div>
-                    {!isManager && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleOfferOpenShift(openShift.id)}
-                        isLoading={claimingOpenShiftId === openShift.id}
-                      >
-                        Pickup Shift
-                      </Button>
+                    {dayOpenShifts.map((openShift) => (
+                      <div key={`open-${openShift.id}`} className="overflow-hidden rounded-lg border border-primary/30 bg-primary/5 p-2 shadow-sm">
+                        <div className="flex min-w-0 items-baseline gap-1 text-xs text-foreground">
+                          <span className="shrink-0 font-bold text-sm">{formatTime12(openShift.start_time)}</span>
+                          <span className="truncate text-muted-foreground">— {formatTime12(openShift.end_time)}</span>
+                        </div>
+                        <div className="mt-1 truncate text-xs text-foreground">{openShift.role} (Open)</div>
+                        {!isManager && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleOfferOpenShift(openShift.id)}
+                            isLoading={claimingOpenShiftId === openShift.id}
+                            className="mt-2 w-full"
+                            aria-label={`Pickup open shift for ${openShift.role}`}
+                          >
+                            Pickup
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+
+                    {dayShifts.length === 0 && dayOpenShifts.length === 0 && (
+                      <div className="pt-2 text-[11px] text-muted-foreground">No shifts</div>
                     )}
                   </div>
-                ))}
-
-                {dayShifts.length === 0 && dayOpenShifts.length === 0 && (
-                  <div className="pt-2 text-[11px] text-muted-foreground">No shifts</div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          </div>
         </div>
       </Card>
     </div>
