@@ -116,6 +116,13 @@ describe('App routing and navigation', () => {
     expect(container.textContent).not.toContain('Employees');
   });
 
+  it('allows managers to reach the profile route', async () => {
+    mockUser.isManager = true;
+    await renderApp('/profile');
+
+    expect(container.textContent).toContain('Profile Page');
+  });
+
   it('redirects inaccessible manager pages for employee users', async () => {
     mockUser.isManager = false;
     await renderApp('/fairness');

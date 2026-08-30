@@ -68,7 +68,7 @@ export default function ProfilePage() {
   const [availability, setAvailabilityList] = useState<Availability[]>([]);
   const [colleagues, setColleagues]         = useState<Employee[]>([]);
   const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
-  const [loading, setLoading]               = useState(true);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error' | 'not-found'>('loading');
 
   // Profile edit form
   const [editProfile, setEditProfile]   = useState(false);
@@ -92,44 +92,54 @@ export default function ProfilePage() {
   const [locationError, setLocationError] = useState<string | null>(null);
 
   const loadData = async () => {
+    setLoadState('loading');
+
     try {
-      const all = await getEmployees();
       const empId = user?.employeeId;
-      if (empId) {
-        const me = all.find(e => e.id === empId);
-        if (me) {
-          setMyEmployee(me);
-          setProfileForm({
-            email: me.email ?? '',
-            phone: me.phone ?? '',
-            weekly_hours_max: me.weekly_hours_max,
-          });
-          // Same-role colleagues (excluding self)
-          setColleagues(all.filter(e => e.role === me.role && e.id !== empId));
-          // Load availability and build per-day state
-          const avail = await getAvailability(empId);
-          setAvailabilityList(avail);
-          const newDayState = defaultDayAvailState();
-          for (const a of avail) {
-            const validTypes: DayAvailType[] = ['specific', 'open', 'unavailable'];
-            const type: DayAvailType = validTypes.includes(a.availability_type as DayAvailType)
-              ? (a.availability_type as DayAvailType)
-              : 'specific';
-            newDayState[a.day_of_week] = {
-              type,
-              start_time: a.start_time,
-              end_time: a.end_time,
-              saving: false,
-            };
-          }
-          setDayAvailState(newDayState);
-        }
+      if (!empId) {
+        setLoadState('not-found');
+        return;
       }
+
+      const all = await getEmployees();
+      const me = all.find(e => e.id === empId);
+
+      if (!me) {
+        setLoadState('not-found');
+        return;
+      }
+
+      setMyEmployee(me);
+      setProfileForm({
+        email: me.email ?? '',
+        phone: me.phone ?? '',
+        weekly_hours_max: me.weekly_hours_max,
+      });
+      // Same-role colleagues (excluding self)
+      setColleagues(all.filter(e => e.role === me.role && e.id !== empId));
+      // Load availability and build per-day state
+      const avail = await getAvailability(empId);
+      setAvailabilityList(avail);
+      const newDayState = defaultDayAvailState();
+      for (const a of avail) {
+        const validTypes: DayAvailType[] = ['specific', 'open', 'unavailable'];
+        const type: DayAvailType = validTypes.includes(a.availability_type as DayAvailType)
+          ? (a.availability_type as DayAvailType)
+          : 'specific';
+        newDayState[a.day_of_week] = {
+          type,
+          start_time: a.start_time,
+          end_time: a.end_time,
+          saving: false,
+        };
+      }
+      setDayAvailState(newDayState);
       // Load time-off requests
       const requests = await getTimeOffRequests();
       setTimeOffRequests(requests);
-    } finally {
-      setLoading(false);
+      setLoadState('ready');
+    } catch (err: any) {
+      setLoadState('error');
     }
   };
 
@@ -315,19 +325,53 @@ export default function ProfilePage() {
     ? timeOffRequests
     : timeOffRequests.filter(r => r.employee_id === myEmployee?.id);
 
-  if (loading) {
+  if (loadState === 'loading') {
     return (
-      <div className="flex items-center justify-center py-24 text-muted-foreground text-sm">
-        <svg className="w-4 h-4 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-        </svg>
-        Loading profile…
+      <div className="space-y-6 max-w-2xl mx-auto">
+        <PageHeader
+          title="My Profile"
+          subtitle="View and update your profile, availability, and contact info"
+          color="#6366F1"
+          icon="👤"
+        />
+        <Card className="p-5">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+            </svg>
+            Loading profile…
+          </div>
+        </Card>
       </div>
     );
   }
 
-  if (!myEmployee && !isManager) {
+  if (loadState === 'error') {
+    return (
+      <div className="space-y-6 max-w-2xl mx-auto">
+        <PageHeader
+          title="My Profile"
+          subtitle="Your account details"
+          color="#6366F1"
+          icon="👤"
+        />
+        <Card className="p-5">
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-lg font-bold text-foreground">Unable to load profile</h2>
+              <p className="mt-1 text-sm text-muted-foreground">We couldn’t load your profile. Please try again.</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => void loadData()}>
+              Retry
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (loadState === 'not-found' || !myEmployee) {
     return (
       <div className="space-y-6 max-w-2xl mx-auto">
         <PageHeader
@@ -348,7 +392,7 @@ export default function ProfilePage() {
           </div>
           <div className="mt-4 pt-4 border-t border-border">
             <p className="text-sm text-muted-foreground">
-              Your account isn't linked to an employee record. Please contact a manager to complete your profile setup.
+              Your account is not linked to an employee profile yet. Please contact a manager to complete your setup.
             </p>
           </div>
         </Card>
@@ -620,7 +664,7 @@ export default function ProfilePage() {
                   </svg>
                   Location shared
                 </p>
-                <p className="text-xs text-emerald-800 dark:text-emerald-300 break-words">{myEmployee.location_label}</p>
+                <p className="text-xs text-emerald-800 dark:text-emerald-300 wrap-break-word">{myEmployee.location_label}</p>
                 {myEmployee.location_lat != null && myEmployee.location_lng != null && (
                   <p className="text-xs text-emerald-600 dark:text-emerald-500 mt-1">
                     {myEmployee.location_lat.toFixed(5)}, {myEmployee.location_lng.toFixed(5)}

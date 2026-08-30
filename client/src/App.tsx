@@ -3,7 +3,6 @@ import {
   Bell,
   CalendarCheck2,
   CalendarDays,
-  ChevronDown,
   ClipboardList,
   FileText,
   LayoutDashboard,
@@ -14,6 +13,7 @@ import {
 import { lazy, Suspense, type ComponentType } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import UserMenu from './components/layout/UserMenu';
 import LoginPage from './pages/LoginPage';
 import RegisterBusinessPage from './pages/RegisterBusinessPage';
 import { Badge, Logo } from './components/ui';
@@ -80,13 +80,6 @@ export default function App() {
         { to: '/swaps', label: 'Shift Swaps', icon: Repeat2 },
       ];
 
-  const initials = (user.employeeName || user.username)
-    .split(' ')
-    .map((n: string) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-
   const routeLoadingFallback = (
     <div role="status" aria-live="polite" aria-label="Loading page content" className="flex min-h-[12rem] items-center justify-center text-sm text-muted-foreground">
       Loading page content...
@@ -132,15 +125,7 @@ export default function App() {
               <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-muted-foreground hover:text-foreground" aria-label="Notifications">
                 <Bell className="h-4 w-4" />
               </button>
-              <button type="button" className="flex items-center gap-2 rounded-full border border-border bg-white px-2.5 py-1.5" aria-label="User menu">
-                <div className="w-7 h-7 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[11px] font-bold">
-                  {initials}
-                </div>
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-              <button className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted" onClick={logout}>
-                Logout
-              </button>
+              <UserMenu user={user} onLogout={logout} />
             </div>
           </header>
 
