@@ -5,11 +5,9 @@ import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import session from 'express-session';
 import passport from 'passport';
 import { getDb } from './db';
 import { seedDemoData } from './seed';
-import { resolveAuthRuntimeConfig } from './authConfig';
 import { resolveClientDist } from './clientDist';
 import authRouter from './routes/auth';
 import employeesRouter from './routes/employees';
@@ -19,10 +17,10 @@ import sitesRouter from './routes/sites';
 import positionsRouter from './routes/positions';
 import openShiftsRouter from './routes/openShifts';
 import swapsRouter from './routes/swaps';
+import timeOffRouter from './routes/timeOff';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const authConfig = resolveAuthRuntimeConfig();
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -49,20 +47,6 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
-
-// Session required for the OAuth state parameter (stateless JWT is issued at callback)
-app.use(
-  session({
-    secret: authConfig.sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === 'production',
-      httpOnly: true,
-      sameSite: 'lax', // mitigates CSRF for the OAuth state cookie
-    },
-  })
-);
 app.use(passport.initialize());
 
 // Rate limiting: 300 requests per minute per IP
@@ -95,6 +79,7 @@ app.use('/api/sites', sitesRouter);
 app.use('/api/positions', positionsRouter);
 app.use('/api/open-shifts', openShiftsRouter);
 app.use('/api/swaps', swapsRouter);
+app.use('/api/time-off', timeOffRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
