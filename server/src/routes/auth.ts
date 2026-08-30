@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
+import session from 'express-session';
 import { Strategy as GoogleStrategy, Profile, VerifyCallback } from 'passport-google-oauth20';
 import { getDb } from '../db';
 import type { AuthPayload } from '../middleware/auth';
@@ -306,6 +307,20 @@ const googleNotConfigured = (_req: import('express').Request, res: import('expre
 router.get('/config', (_req: Request, res: Response) => {
   res.json({ googleOAuthEnabled: authConfig.googleOAuthEnabled });
 });
+
+// Session middleware scoped specifically to OAuth flow for state parameter handling
+const oauthSession = session({
+  secret: authConfig.sessionSecret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'lax', // mitigates CSRF for the OAuth state cookie
+  },
+});
+
+router.use('/google', oauthSession);
 
 router.get(
   '/google',
