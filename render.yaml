@@ -2,6 +2,7 @@ services:
   - type: web
     name: shiftsync
     env: node
+    plan: free
     buildCommand: >-
       npm install --include=dev --prefix server &&
       npm run build --prefix server &&
