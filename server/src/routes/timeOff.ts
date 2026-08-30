@@ -51,15 +51,19 @@ function selectRequestById(db: ReturnType<typeof getDb>, id: number) {
   `).get(id);
 }
 
-function validateStringField(value: unknown, fieldName: string, maxLength: number): string | null {
-  if (value == null) return null;
+function validateStringField(
+  value: unknown,
+  fieldName: string,
+  maxLength: number
+): { ok: true; value: string | null } | { ok: false; error: string } {
+  if (value == null) return { ok: true, value: null };
   if (typeof value !== 'string') {
-    throw new Error(`${fieldName} must be a string`);
+    return { ok: false, error: `${fieldName} must be a string` };
   }
   if (value.length > maxLength) {
-    throw new Error(`${fieldName} is too long`);
+    return { ok: false, error: `${fieldName} is too long` };
   }
-  return value;
+  return { ok: true, value };
 }
 
 router.get('/', requireAuth, (req: Request, res: Response) => {
@@ -113,13 +117,11 @@ router.post('/', requireAuth, (req: Request, res: Response) => {
   }
 
   const { start_date, end_date } = req.body || {};
-  let reason: string | null;
-
-  try {
-    reason = validateStringField((req.body || {}).reason, 'reason', MAX_REASON_LENGTH);
-  } catch (err: any) {
-    return res.status(400).json({ error: err.message || 'Invalid request' });
+  const reasonValidation = validateStringField((req.body || {}).reason, 'reason', MAX_REASON_LENGTH);
+  if (!reasonValidation.ok) {
+    return res.status(400).json({ error: reasonValidation.error });
   }
+  const reason = reasonValidation.value;
 
   const startDate = parseDateOnly(start_date);
   const endDate = parseDateOnly(end_date);
@@ -143,10 +145,13 @@ router.post('/', requireAuth, (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Employee not found' });
   }
 
+  const formattedStartDate = startDate.toISOString().slice(0, 10);
+  const formattedEndDate = endDate.toISOString().slice(0, 10);
+
   const result = db.prepare(`
     INSERT INTO time_off_requests (employee_id, start_date, end_date, reason, status)
     VALUES (?, ?, ?, ?, 'pending')
-  `).run(employeeId, start_date, end_date, reason ?? null);
+  `).run(employeeId, formattedStartDate, formattedEndDate, reason ?? null);
 
   const created = selectRequestById(db, Number(result.lastInsertRowid));
   return res.status(201).json(created);
@@ -156,12 +161,11 @@ router.put('/:id/approve', requireManager, (req: Request, res: Response) => {
   const id = parseNumericId(req.params.id);
   if (!id) return res.status(400).json({ error: 'Invalid request id' });
 
-  let managerNotes: string | null;
-  try {
-    managerNotes = validateStringField((req.body || {}).manager_notes, 'manager_notes', MAX_MANAGER_NOTES_LENGTH);
-  } catch (err: any) {
-    return res.status(400).json({ error: err.message || 'Invalid request' });
+  const notesValidation = validateStringField((req.body || {}).manager_notes, 'manager_notes', MAX_MANAGER_NOTES_LENGTH);
+  if (!notesValidation.ok) {
+    return res.status(400).json({ error: notesValidation.error });
   }
+  const managerNotes = notesValidation.value;
 
   const db = getDb();
   const existing = db.prepare(`
@@ -193,12 +197,11 @@ router.put('/:id/reject', requireManager, (req: Request, res: Response) => {
   const id = parseNumericId(req.params.id);
   if (!id) return res.status(400).json({ error: 'Invalid request id' });
 
-  let managerNotes: string | null;
-  try {
-    managerNotes = validateStringField((req.body || {}).manager_notes, 'manager_notes', MAX_MANAGER_NOTES_LENGTH);
-  } catch (err: any) {
-    return res.status(400).json({ error: err.message || 'Invalid request' });
+  const notesValidation = validateStringField((req.body || {}).manager_notes, 'manager_notes', MAX_MANAGER_NOTES_LENGTH);
+  if (!notesValidation.ok) {
+    return res.status(400).json({ error: notesValidation.error });
   }
+  const managerNotes = notesValidation.value;
 
   const db = getDb();
   const existing = db.prepare(`

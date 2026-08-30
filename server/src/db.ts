@@ -132,7 +132,7 @@ function initSchema(db: Database.Database): void {
     );
 
     CREATE TABLE IF NOT EXISTS time_off_requests (
-      id INTEGER PRIMARY KEY,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
       start_date TEXT NOT NULL,
       end_date TEXT NOT NULL,
