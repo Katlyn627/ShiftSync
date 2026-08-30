@@ -10,6 +10,7 @@ import passport from 'passport';
 import { getDb } from './db';
 import { seedDemoData } from './seed';
 import { resolveAuthRuntimeConfig } from './authConfig';
+import { resolveClientDist } from './clientDist';
 import authRouter from './routes/auth';
 import employeesRouter from './routes/employees';
 import schedulesRouter from './routes/schedules';
@@ -100,7 +101,8 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Serve built React frontend in production
-const clientDist = path.resolve(__dirname, '../../client/dist');
+const clientDist = resolveClientDist();
+console.log(`Serving frontend from ${clientDist}`);
 app.use(express.static(clientDist));
 // SPA fallback: serve index.html for all non-API routes so React Router works
 app.get(/^(?!\/api).*/, (_req, res) => {
