@@ -5,6 +5,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy, Profile, VerifyCallback } from 'passport-google-oauth20';
 import { getDb } from '../db';
 import type { AuthPayload } from '../middleware/auth';
+import { resolveAuthRuntimeConfig } from '../authConfig';
 
 // Augment the express-session SessionData type to include our mobile OAuth flag
 declare module 'express-session' {
@@ -76,26 +77,20 @@ const INDUSTRY_DEFAULT_POSITIONS: Record<string, string[]> = {
 
 const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'shiftsync-secret-key-change-in-production';
+const authConfig = resolveAuthRuntimeConfig();
+const JWT_SECRET = authConfig.jwtSecret;
 const JWT_EXPIRES_IN = '24h';
 const MAX_RESTAURANT_EMPLOYEES = 50;
 
-if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
-  console.error('FATAL: JWT_SECRET environment variable must be set in production');
-  process.exit(1);
-} else if (!process.env.JWT_SECRET) {
-  console.warn('Warning: JWT_SECRET not set. Using default secret (development only).');
-}
-
 // ── Google OAuth strategy ──────────────────────────────────────────────────
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const GOOGLE_CLIENT_ID = authConfig.googleClientId;
+const GOOGLE_CLIENT_SECRET = authConfig.googleClientSecret;
 // If GOOGLE_CALLBACK_URL is not set, use a relative path so passport derives the
 // full URL from the incoming request.  This works automatically in every
 // environment (local dev, staging, production) without any extra configuration.
 // If you need an explicit URL (e.g. for a tunnel or non-standard host) set
 // GOOGLE_CALLBACK_URL to the full absolute URL in server/.env.
-const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || '/api/auth/google/callback';
+const GOOGLE_CALLBACK_URL = authConfig.googleCallbackUrl;
 
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   console.log(
@@ -309,12 +304,12 @@ const googleNotConfigured = (_req: import('express').Request, res: import('expre
 // Expose whether Google OAuth is configured so the client can conditionally
 // render the "Sign in with Google" button.
 router.get('/config', (_req: Request, res: Response) => {
-  res.json({ googleOAuthEnabled: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) });
+  res.json({ googleOAuthEnabled: authConfig.googleOAuthEnabled });
 });
 
 router.get(
   '/google',
-  GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
+  authConfig.googleOAuthEnabled
     ? passport.authenticate('google', { scope: ['profile', 'email'], session: false })
     : googleNotConfigured
 );
@@ -323,7 +318,7 @@ router.get(
 // redirects to the shiftsync:// deep-link URL instead of the web CLIENT_URL.
 router.get(
   '/google/mobile',
-  GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
+  authConfig.googleOAuthEnabled
     ? (req, res, next) => {
         req.session._oauthMobile = true;
         passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
@@ -333,10 +328,10 @@ router.get(
 
 router.get(
   '/google/callback',
-  GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
+  authConfig.googleOAuthEnabled
     ? (req, res, next) => {
         passport.authenticate('google', { session: false }, (err: Error | null, userPayload: AuthPayload | false) => {
-          const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
+          const CLIENT_URL = authConfig.clientUrl;
           if (err || !userPayload) {
             const errorMsg = encodeURIComponent('Google sign-in failed. You must be an existing employee.');
             // Support mobile deep-link redirect
