@@ -17,7 +17,7 @@
 
 ## 🌐 Live Demo
 
-**[Open the live ShiftSync application](https://shiftsync-5egy.onrender.com)**
+**[Open the live ShiftSync application](https://shiftsync-5egv.onrender.com)**
 
 Demo manager login:
 
