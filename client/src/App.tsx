@@ -11,23 +11,24 @@ import {
   UserCircle2,
   Users,
 } from 'lucide-react';
-import type { ComponentType } from 'react';
+import { lazy, Suspense, type ComponentType } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import LoginPage from './pages/LoginPage';
 import RegisterBusinessPage from './pages/RegisterBusinessPage';
-import SchedulePage from './pages/SchedulePage';
-import DashboardPage from './pages/Dashboard';
-import OpenShiftsPage from './pages/OpenShiftsPage';
-import FairnessPage from './pages/FairnessPage';
-import SurveysPage from './pages/SurveysPage';
-import ProfilePage from './pages/ProfilePage';
-import TimeOffApprovalsPage from './pages/TimeOffApprovalsPage';
-import EmployeesPage from './pages/EmployeesPage';
-import SwapsPage from './pages/SwapsPage';
 import { Badge, Logo } from './components/ui';
 
 export { Logo as ShiftSyncLogo };
+
+const SchedulePage = lazy(() => import('./pages/SchedulePage'));
+const DashboardPage = lazy(() => import('./pages/Dashboard'));
+const OpenShiftsPage = lazy(() => import('./pages/OpenShiftsPage'));
+const FairnessPage = lazy(() => import('./pages/FairnessPage'));
+const SurveysPage = lazy(() => import('./pages/SurveysPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const TimeOffApprovalsPage = lazy(() => import('./pages/TimeOffApprovalsPage'));
+const EmployeesPage = lazy(() => import('./pages/EmployeesPage'));
+const SwapsPage = lazy(() => import('./pages/SwapsPage'));
 
 type NavItem = {
   to: string;
@@ -85,6 +86,12 @@ export default function App() {
     .join('')
     .toUpperCase()
     .slice(0, 2);
+
+  const routeLoadingFallback = (
+    <div role="status" aria-live="polite" aria-label="Loading page content" className="flex min-h-[12rem] items-center justify-center text-sm text-muted-foreground">
+      Loading page content...
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background p-3 sm:p-6">
@@ -157,21 +164,23 @@ export default function App() {
                 );
               })}
             </nav>
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/schedule" element={<SchedulePage />} />
-              <Route path="/open-shifts" element={<OpenShiftsPage />} />
-              <Route path="/surveys" element={<SurveysPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/time-off" element={<ProfilePage />} />
-              {user.isManager && <Route path="/fairness" element={<FairnessPage />} />}
-              {user.isManager && <Route path="/time-off-approvals" element={<TimeOffApprovalsPage />} />}
-              {user.isManager && <Route path="/employees" element={<EmployeesPage />} />}
-              {user.isManager ? null : <Route path="/employees" element={<Navigate to="/dashboard" replace />} />}
-              <Route path="/swaps" element={<SwapsPage />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
+            <Suspense fallback={routeLoadingFallback}>
+              <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/schedule" element={<SchedulePage />} />
+                <Route path="/open-shifts" element={<OpenShiftsPage />} />
+                <Route path="/surveys" element={<SurveysPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/time-off" element={<ProfilePage />} />
+                {user.isManager && <Route path="/fairness" element={<FairnessPage />} />}
+                {user.isManager && <Route path="/time-off-approvals" element={<TimeOffApprovalsPage />} />}
+                {user.isManager && <Route path="/employees" element={<EmployeesPage />} />}
+                {user.isManager ? null : <Route path="/employees" element={<Navigate to="/dashboard" replace />} />}
+                <Route path="/swaps" element={<SwapsPage />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </Suspense>
           </main>
         </div>
       </div>

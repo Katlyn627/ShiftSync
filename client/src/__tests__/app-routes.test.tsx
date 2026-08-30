@@ -80,19 +80,24 @@ describe('App routing and navigation', () => {
     root = createRoot(container);
   });
 
-  function renderApp(initialEntry = '/dashboard') {
-    act(() => {
+  async function renderApp(initialEntry = '/dashboard') {
+    await act(async () => {
       root.render(
         <MemoryRouter initialEntries={[initialEntry]}>
           <App />
         </MemoryRouter>,
       );
     });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
   }
 
-  it('shows manager-only routes and nav items for the manager role', () => {
+  it('shows manager-only routes and nav items for the manager role', async () => {
     mockUser.isManager = true;
-    renderApp('/fairness');
+    await renderApp('/fairness');
 
     expect(container.textContent).toContain('Fairness');
     expect(container.textContent).toContain('Time Off');
@@ -100,9 +105,9 @@ describe('App routing and navigation', () => {
     expect(container.textContent).not.toContain('Profile Page');
   });
 
-  it('keeps employee routes available while hiding manager-only items', () => {
+  it('keeps employee routes available while hiding manager-only items', async () => {
     mockUser.isManager = false;
-    renderApp('/profile');
+    await renderApp('/profile');
 
     expect(container.textContent).toContain('Profile Page');
     expect(container.textContent).toContain('Open Shifts');
@@ -111,9 +116,9 @@ describe('App routing and navigation', () => {
     expect(container.textContent).not.toContain('Employees');
   });
 
-  it('redirects inaccessible manager pages for employee users', () => {
+  it('redirects inaccessible manager pages for employee users', async () => {
     mockUser.isManager = false;
-    renderApp('/fairness');
+    await renderApp('/fairness');
 
     expect(container.textContent).toContain('Dashboard Page');
     expect(container.textContent).not.toContain('Fairness Page');
