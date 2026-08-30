@@ -41,6 +41,7 @@ export default function EmployeesPage() {
   const [importData, setImportData] = useState('');
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [showImportPanel, setShowImportPanel] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -113,6 +114,8 @@ export default function EmployeesPage() {
   const siteMap = Object.fromEntries(sites.map(s => [s.id, s]));
   const currentSite = user?.siteId ? siteMap[user.siteId] : null;
   const visibleEmployees = employees;
+  const importPanelId = 'employee-import-panel';
+  const importPanelLabelId = 'employee-import-panel-label';
 
   if (loading) {
     return (
@@ -136,17 +139,29 @@ export default function EmployeesPage() {
         color="#7C3AED"
         icon="👥"
         actions={
-          <Button
-            variant="gradient"
-            size="sm"
-            onClick={() => {
-              setShowForm(true);
-              setEditingId(null);
-              setForm({ name: '', role: roles[0] ?? '', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
-            }}
-          >
-            + Add Employee
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-expanded={showImportPanel}
+              aria-controls={importPanelId}
+              onClick={() => setShowImportPanel((v) => !v)}
+            >
+              Import Employees
+            </Button>
+            <Button
+              variant="gradient"
+              size="sm"
+              onClick={() => {
+                setShowForm(true);
+                setEditingId(null);
+                setForm({ name: '', role: roles[0] ?? '', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
+              }}
+            >
+              + Add Employee
+            </Button>
+          </div>
         }
       />
 
@@ -223,24 +238,31 @@ export default function EmployeesPage() {
         </Card>
       )}
 
-      <Card className="p-5 space-y-3 border-violet-200/70">
-        <h2 className="text-sm font-semibold text-foreground">Import from Spreadsheet Data</h2>
-        <p className="text-xs text-muted-foreground">
-          Paste spreadsheet rows with headers like <span className="font-medium">name, role, hourly_rate, weekly_hours_max, email, phone</span> or paste a JSON array.
-        </p>
-        <textarea
-          className="w-full min-h-36 rounded-md border border-input bg-background px-3 py-2 text-sm"
-          placeholder={'name,role,hourly_rate,weekly_hours_max,email,phone\nJane Smith,Server,18,35,jane@example.com,555-0101'}
-          value={importData}
-          onChange={(e) => setImportData(e.target.value)}
-        />
-        <div className="flex items-center gap-2">
-          <Button type="button" size="sm" onClick={handleImport} disabled={importing}>
-            {importing ? 'Importing…' : 'Import Employees'}
-          </Button>
-          {importMessage && <span className="text-xs text-muted-foreground">{importMessage}</span>}
-        </div>
-      </Card>
+      {showImportPanel && (
+        <Card
+          id={importPanelId}
+          role="region"
+          aria-labelledby={importPanelLabelId}
+          className="p-5 space-y-3 border-violet-200/70"
+        >
+          <h2 id={importPanelLabelId} className="text-sm font-semibold text-foreground">Import from Spreadsheet Data</h2>
+          <p className="text-xs text-muted-foreground">
+            Paste spreadsheet rows with headers like <span className="font-medium">name, role, hourly_rate, weekly_hours_max, email, phone</span> or paste a JSON array.
+          </p>
+          <textarea
+            className="w-full min-h-36 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            placeholder={'name,role,hourly_rate,weekly_hours_max,email,phone\nJane Smith,Server,18,35,jane@example.com,555-0101'}
+            value={importData}
+            onChange={(e) => setImportData(e.target.value)}
+          />
+          <div className="flex items-center gap-2">
+            <Button type="button" size="sm" onClick={handleImport} disabled={importing}>
+              {importing ? 'Importing…' : 'Import Employees'}
+            </Button>
+            {importMessage && <span className="text-xs text-muted-foreground">{importMessage}</span>}
+          </div>
+        </Card>
+      )}
 
       {/* ── Employees Table ── */}
       <Card className="overflow-hidden border-violet-200/70">
