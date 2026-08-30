@@ -15,22 +15,16 @@
 
 ---
 
-## 💼 Commercial / Hosted
+## 🌐 Live Demo
 
-**Who it’s for:** independent restaurant and boutique hotel operators with **3–15 locations**.
+**[Open the live ShiftSync application](https://shiftsync-5egy.onrender.com)**
 
-- **Hosted demo (password-gated):** [Request access](mailto:sales@shiftsync.app?subject=ShiftSync%20demo%20access)
-- **Start a 14-day trial:** [Email sales](mailto:sales@shiftsync.app?subject=ShiftSync%2014-day%20trial)
-- **Book a 15-min setup call:** [Email sales](mailto:sales@shiftsync.app?subject=ShiftSync%20setup%20call)
-- **Commercial self-host license:** see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
+Demo manager login:
 
-### Pricing preview (Hosted SaaS)
+- **Username:** `alice`
+- **Password:** `password123`
 
-| Plan | Price |
-| --- | --- |
-| Starter | **$79/location/month** |
-| Growth | **$149/location/month** |
-| Multi-site | **$299+/month** (custom) |
+> The application runs on Render’s free tier. The first visit after inactivity may take up to 60 seconds while the service wakes up. Demo data may reset after a restart or new deployment.
 
 ---
 
@@ -38,7 +32,6 @@
 
 - [Features](#-features)
 - [Screenshots](#-screenshots)
-- [Video Walk-through](#-video-walk-through)
 - [Getting Started](#-getting-started)
 - [Tech Stack](#-tech-stack)
 - [API Reference](#-api-reference)
@@ -62,120 +55,72 @@
 
 ### Login
 
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/222d9020-e6c3-447d-a290-e16c74015574" alt="Login page" width="800" />
-  <br/>
-  <em>Sign in with Google OAuth or username/password — see <a href="docs/demo-data.md">docs/demo-data.md</a> for the full list of pre-loaded accounts.</em>
-</div>
-
----
+<p align="center">
+  <img src="docs/screenshots/login.png" alt="ShiftSync login page" width="900" />
+</p>
 
 ### Manager Dashboard
 
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/342e9822-1601-4276-bea7-1237fd9ff9e4" alt="Manager Dashboard" width="800" />
-  <br/>
-  <em>Weekly KPIs at a glance: projected cost vs. budget, burnout-risk counts, profitability metrics (prime cost, RevPASH, table turnover, sales by day), revenue distribution by daypart, and sales-by-day chart.</em>
-</div>
-
----
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="ShiftSync manager dashboard" width="900" />
+</p>
 
 ### Schedule Builder
 
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/ec4abed0-8318-43ae-9d88-42170ff065ba" alt="Schedule Builder" width="800" />
-  <br/>
-  <em>One-click schedule generation with drag-and-drop reassignment, shift-time editing, and publish/draft toggling. Intelligence filters highlight short-staff risk, overstaffed days, burnout alerts, and budget status at the top of the grid.</em>
-</div>
-
----
+<p align="center">
+  <img src="docs/screenshots/schedule.png" alt="ShiftSync weekly schedule builder" width="900" />
+</p>
 
 ### Employees & Shift Swaps
 
-<div align="center">
-  <table>
-    <tr>
-      <td align="center" width="50%">
-        <img src="https://github.com/user-attachments/assets/2dd1542e-fdec-41d5-8044-bea88ad5e85c" alt="Employees page" width="100%" />
-        <br/>
-        <em><strong>Employees</strong> <em>(Manager only)</em> — Add, edit, or remove team members. Each row shows role, department, site, hourly rate, and weekly-hour cap with color-coded role badges.</em>
-      </td>
-      <td align="center" width="50%">
-        <img src="https://github.com/user-attachments/assets/de27c966-e90d-43ac-9993-8b406d6b9c1f" alt="Shift Swaps page" width="100%" />
-        <br/>
-        <em><strong>Shift Swaps</strong> — Employees request swaps directly from the schedule. Managers review each request with automatic guardrails (role match, overtime limit, availability) before approving or rejecting.</em>
-      </td>
-    </tr>
-  </table>
-</div>
-
----
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/employees.png" alt="ShiftSync employee management page" width="100%" />
+      <br/>
+      <strong>Employee Management</strong> — Review employee roles, departments, locations, pay rates, and maximum weekly hours.
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/shift-swaps.png" alt="ShiftSync shift swaps page" width="100%" />
+      <br/>
+      <strong>Shift Swaps & Drops</strong> — Review employee swap and drop requests through a clear manager workflow.
+    </td>
+  </tr>
+</table>
 
 ### Open Shifts & Surveys
 
-<div align="center">
-  <table>
-    <tr>
-      <td align="center" width="50%">
-        <img src="https://github.com/user-attachments/assets/4d08ebe5-8cce-4085-a96b-25c6383e447a" alt="Open Shifts page" width="100%" />
-        <br/>
-        <em><strong>Open Shift Marketplace</strong> — Post uncovered shifts with reason and certification requirements. Employees self-claim and managers review offers with automatic eligibility checks.</em>
-      </td>
-      <td align="center" width="50%">
-        <img src="https://github.com/user-attachments/assets/a2e3d85f-e592-4f88-b93b-e6711ed5a2bd" alt="Burnout Surveys page" width="100%" />
-        <br/>
-        <em><strong>Burnout Surveys</strong> — Create and manage validated burnout measurement campaigns. Results are anonymized and aggregated (min. group size of 5) — never used punitively.</em>
-      </td>
-    </tr>
-  </table>
-</div>
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/open-shifts.png" alt="ShiftSync open shift marketplace" width="100%" />
+      <br/>
+      <strong>Open Shift Marketplace</strong> — Post uncovered shifts and manage employee offers with eligibility checks.
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/surveys.png" alt="ShiftSync burnout surveys page" width="100%" />
+      <br/>
+      <strong>Burnout Surveys</strong> — Create anonymous wellbeing campaigns with privacy-focused, aggregated results.
+    </td>
+  </tr>
+</table>
 
----
+### Fairness & Time-Off
 
-### Fairness, Time-Off & Profile
-
-<div align="center">
-  <table>
-    <tr>
-      <td align="center" width="50%">
-        <img src="https://github.com/user-attachments/assets/e827db7c-f11e-45eb-ba1f-1b4d1999fcfe" alt="Workforce Fairness page" width="100%" />
-        <br/>
-        <em><strong>Workforce Fairness</strong> <em>(Manager only)</em> — Monitor equitable distribution of hours, night shifts, and weekend assignments with per-role breakdowns and fairness flags.</em>
-      </td>
-      <td align="center" width="50%">
-        <img src="https://github.com/user-attachments/assets/773997ab-3737-4df0-a30b-c43a143139bf" alt="Time-Off Approvals page" width="100%" />
-        <br/>
-        <em><strong>Time-Off Approvals</strong> <em>(Manager only)</em> — Review pending requests, approve or deny with optional notes, and filter by status.</em>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" width="50%" colspan="2">
-        <img src="https://github.com/user-attachments/assets/c572354f-4a9d-4e88-813b-76df9a887de0" alt="Profile page" width="50%" />
-        <br/>
-        <em><strong>My Profile</strong> — Each employee manages their own availability windows, submits time-off requests, and views team-contact info — all in one place.</em>
-      </td>
-    </tr>
-  </table>
-</div>
-
----
-
-## 🎬 Video Walk-through
-
-<div align="center">
-
-<!-- Add your video walk-through here. Options:
-     1. YouTube: replace the src URL below with your YouTube embed link
-        <iframe width="800" height="450" src="https://www.youtube.com/embed/YOUR_VIDEO_ID" frameborder="0" allowfullscreen></iframe>
-     2. GitHub-hosted video: upload the .mp4 to a GitHub issue or release, then use:
-        <video src="YOUR_GITHUB_VIDEO_URL" controls width="800"></video>
-     3. Loom or other platform: paste the embed code provided by that platform.
--->
-
-> 📹 **Video walk-through coming soon.**
-> To add one, upload your screen recording to a GitHub issue or YouTube and paste the embed link here.
-
-</div>
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/fairness.png" alt="ShiftSync workforce fairness page" width="100%" />
+      <br/>
+      <strong>Workforce Fairness</strong> — Monitor equitable workload distribution and schedule instability.
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/time-off.png" alt="ShiftSync time-off approvals page" width="100%" />
+      <br/>
+      <strong>Time-Off Approvals</strong> — Review requests and filter them by approval status.
+    </td>
+  </tr>
+</table>
 
 ---
 
