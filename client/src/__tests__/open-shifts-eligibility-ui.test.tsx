@@ -115,3 +115,4 @@ describe('OpenShiftsPage - Worker Eligibility Feedback', () => {
     expect(offerButtons[1].hasAttribute('disabled')).toBe(true);
   });
 });
+
