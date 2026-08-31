@@ -1174,6 +1174,20 @@ export default function SchedulePage() {
           )}
         </div>
 
+        {isManager && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-muted-foreground">Legend:</span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-yellow-500 bg-yellow-300 px-2 py-0.5 font-semibold text-yellow-950">
+              <span className="inline-block h-2 w-2 rounded-full bg-yellow-500" />
+              Short Staffed Day
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-red-600 bg-red-300 px-2 py-0.5 font-semibold text-red-900">
+              <span className="inline-block h-2 w-2 rounded-full bg-red-600" />
+              Over Staffed Day
+            </span>
+          </div>
+        )}
+
         {isManager && managerSelectedEmployeeSummary && (
           <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3 py-2">
             <div className="text-sm font-semibold text-foreground">{managerSelectedEmployeeSummary.name}</div>
