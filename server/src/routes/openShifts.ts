@@ -31,26 +31,60 @@ router.get('/', requireAuth, (req: Request, res: Response) => {
   const rows = db.prepare(`
     SELECT
       os.*,
+      s.week_start AS schedule_week_start,
       claimer.name AS claimed_by_name,
+      source_emp.name AS source_employee_name,
       (
         SELECT COUNT(*)
         FROM open_shift_offers oso
         WHERE oso.open_shift_id = os.id AND oso.status = 'pending'
       ) AS offer_count
     FROM open_shifts os
+    LEFT JOIN schedules s ON s.id = os.schedule_id
     LEFT JOIN employees claimer ON claimer.id = os.claimed_by
+    LEFT JOIN shifts source_s ON source_s.id = os.source_shift_id
+    LEFT JOIN employees source_emp ON source_emp.id = source_s.employee_id
     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
     ORDER BY os.date ASC, os.start_time ASC, os.id ASC
   `).all(...params) as any[];
 
+  const openShiftIds = rows.map((row) => row.id).filter((id) => typeof id === 'number');
+  const applicantsByOpenShift = new Map<number, any[]>();
+  if (openShiftIds.length > 0) {
+    const placeholders = openShiftIds.map(() => '?').join(', ');
+    const offers = db.prepare(`
+      SELECT
+        oso.open_shift_id,
+        oso.id AS offer_id,
+        oso.employee_id,
+        oso.status,
+        oso.created_at,
+        e.name AS employee_name
+      FROM open_shift_offers oso
+      LEFT JOIN employees e ON e.id = oso.employee_id
+      WHERE oso.status = 'pending' AND oso.open_shift_id IN (${placeholders})
+      ORDER BY oso.created_at ASC
+    `).all(...openShiftIds) as any[];
+
+    offers.forEach((offer) => {
+      const existing = applicantsByOpenShift.get(offer.open_shift_id) || [];
+      existing.push(offer);
+      applicantsByOpenShift.set(offer.open_shift_id, existing);
+    });
+  }
+
   // If requester is an employee, compute eligibility for each open shift
   const employeeId = req.user?.employeeId;
   const withEligibility = rows.map((shift) => {
+    const baseShift = {
+      ...shift,
+      applicants: applicantsByOpenShift.get(shift.id) || [],
+    };
     if (employeeId && shift.status === 'open') {
       const eligibility = evaluateOpenShiftEligibility(employeeId, shift);
-      return { ...shift, eligibility };
+      return { ...baseShift, eligibility };
     }
-    return shift;
+    return baseShift;
   });
 
   res.json(withEligibility);
