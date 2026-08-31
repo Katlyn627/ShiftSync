@@ -22,6 +22,7 @@ import {
   OpenShift,
   Schedule,
   ShiftWithEmployee,
+  StaffingNeed,
   DailyStaffingSuggestion,
   TimeOffRequest,
   updateSchedule,
@@ -147,6 +148,78 @@ function getShiftDurationHours(startTime: string, endTime: string): number {
   let minutes = (endHour * 60 + endMinute) - (startHour * 60 + startMinute);
   if (minutes <= 0) minutes += 24 * 60;
   return minutes / 60;
+}
+
+type CandidateRecommendation = {
+  employee: Employee;
+  score: number;
+  reasons: string[];
+};
+
+type NeedRecommendation = StaffingNeed & {
+  roleLabel: string;
+  candidates: CandidateRecommendation[];
+};
+
+type DayRecommendation = DailyStaffingSuggestion & {
+  recommendedNeeds: NeedRecommendation[];
+  extraNeeds: number;
+};
+
+const ROLE_ACCENTS: Record<string, { text: string; border: string; chip: string }> = {
+  manager: { text: 'text-violet-700', border: 'border-l-violet-500', chip: 'bg-violet-100 text-violet-800' },
+  server: { text: 'text-blue-700', border: 'border-l-blue-500', chip: 'bg-blue-100 text-blue-800' },
+  bartender: { text: 'text-emerald-700', border: 'border-l-emerald-500', chip: 'bg-emerald-100 text-emerald-800' },
+  host: { text: 'text-pink-700', border: 'border-l-pink-500', chip: 'bg-pink-100 text-pink-800' },
+  kitchen: { text: 'text-orange-700', border: 'border-l-orange-500', chip: 'bg-orange-100 text-orange-800' },
+  busser: { text: 'text-cyan-700', border: 'border-l-cyan-500', chip: 'bg-cyan-100 text-cyan-800' },
+  'food runner': { text: 'text-sky-700', border: 'border-l-sky-500', chip: 'bg-sky-100 text-sky-800' },
+  expo: { text: 'text-fuchsia-700', border: 'border-l-fuchsia-500', chip: 'bg-fuchsia-100 text-fuchsia-800' },
+  'head chef': { text: 'text-red-700', border: 'border-l-red-500', chip: 'bg-red-100 text-red-800' },
+  'sous chef': { text: 'text-amber-700', border: 'border-l-amber-500', chip: 'bg-amber-100 text-amber-800' },
+  'line cook': { text: 'text-lime-700', border: 'border-l-lime-500', chip: 'bg-lime-100 text-lime-800' },
+  dishwasher: { text: 'text-slate-700', border: 'border-l-slate-500', chip: 'bg-slate-100 text-slate-800' },
+  default: { text: 'text-slate-700', border: 'border-l-slate-400', chip: 'bg-slate-100 text-slate-800' },
+};
+
+function normalizeStaffingRole(role: string) {
+  const normalized = normalizedValue(role);
+  if (normalized === 'bar') return 'bartender';
+  return normalized;
+}
+
+function getRoleAccent(role: string) {
+  return ROLE_ACCENTS[normalizeStaffingRole(role)] ?? ROLE_ACCENTS.default;
+}
+
+function formatRoleLabel(role: string) {
+  if (normalizeStaffingRole(role) === 'bartender') return 'Bartender';
+  return role;
+}
+
+function parseIsoDateValue(date: string) {
+  return new Date(`${date}T12:00:00`);
+}
+
+function isDateBetween(date: string, startDate: string, endDate: string) {
+  return date >= startDate && date <= endDate;
+}
+
+function availabilityCoversShift(entry: Availability, shiftStart: string, shiftEnd: string) {
+  if (entry.availability_type === 'unavailable') return false;
+  if (entry.availability_type === 'open') return true;
+  const start = parseShiftMinutes(entry.start_time || '00:00');
+  let end = parseShiftMinutes(entry.end_time || '23:59');
+  const shiftStartMinutes = parseShiftMinutes(shiftStart);
+  let shiftEndMinutes = parseShiftMinutes(shiftEnd);
+  if (shiftEndMinutes <= shiftStartMinutes) shiftEndMinutes += 24 * 60;
+  if (end <= start) end += 24 * 60;
+  return start <= shiftStartMinutes && end >= shiftEndMinutes;
+}
+
+function parseShiftMinutes(time: string) {
+  const [hour, minute] = time.split(':').map(Number);
+  return hour * 60 + minute;
 }
 
 export default function SchedulePage() {
@@ -360,16 +433,23 @@ export default function SchedulePage() {
   }, [visibleShifts]);
 
   const staffingStatusByDate = useMemo(() => {
-    const map = new Map<string, { status: 'adequate' | 'understaffed' | 'overstaffed'; delta: number; suggested: number; actual: number }>();
+    const map = new Map<string, {
+      status: 'adequate' | 'understaffed' | 'overstaffed';
+      delta: number;
+      suggested: number;
+      actual: number;
+      roleDeltas: Array<{ role: string; delta: number; suggested: number; actual: number }>;
+    }>();
     staffingSuggestions.forEach((day) => {
-      const suggested = day.staffing.reduce((total, slot) => total + slot.count, 0);
-      const actual = (shiftsByDate.get(day.date) || []).length;
-      const delta = actual - suggested;
-      const status = delta < 0 ? 'understaffed' : delta > 0 ? 'overstaffed' : 'adequate';
-      map.set(day.date, { status, delta, suggested, actual });
+      const suggested = day.staffing_suggested ?? day.staffing.reduce((total, slot) => total + slot.count, 0);
+      const actual = day.staffing_actual ?? suggested + (day.staffing_delta ?? 0);
+      const delta = day.staffing_delta ?? (actual - suggested);
+      const status = day.staffing_status ?? (delta < 0 ? 'understaffed' : delta > 0 ? 'overstaffed' : 'adequate');
+      const roleDeltas = day.role_deltas ?? [];
+      map.set(day.date, { status, delta, suggested, actual, roleDeltas });
     });
     return map;
-  }, [staffingSuggestions, shiftsByDate]);
+  }, [staffingSuggestions]);
 
   const weeklyStaffingSignal = useMemo(() => {
     let understaffedDays = 0;
@@ -380,6 +460,160 @@ export default function SchedulePage() {
     });
     return { understaffedDays, overstaffedDays };
   }, [staffingStatusByDate]);
+
+  const weeklyRoleContributors = useMemo(() => {
+    const totals = new Map<string, number>();
+    staffingStatusByDate.forEach((signal) => {
+      signal.roleDeltas.forEach((roleDelta) => {
+        totals.set(roleDelta.role, (totals.get(roleDelta.role) || 0) + roleDelta.delta);
+      });
+    });
+    const under = Array.from(totals.entries())
+      .map(([role, delta]) => ({ role, delta }))
+      .filter((entry) => entry.delta < 0)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    const over = Array.from(totals.entries())
+      .map(([role, delta]) => ({ role, delta }))
+      .filter((entry) => entry.delta > 0)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    return { under, over };
+  }, [staffingStatusByDate]);
+
+  const staffingRecommendations = useMemo<DayRecommendation[]>(() => {
+    if (!isManager) return [];
+
+    const hoursByEmployee = new Map<number, number>();
+    const shiftsByEmployee = new Map<number, ShiftWithEmployee[]>();
+    const shiftsByEmployeeAndDate = new Map<string, ShiftWithEmployee[]>();
+
+    shifts.forEach((shift) => {
+      if (!shift.employee_id) return;
+      hoursByEmployee.set(shift.employee_id, (hoursByEmployee.get(shift.employee_id) || 0) + getShiftDurationHours(shift.start_time, shift.end_time));
+      const byEmployee = shiftsByEmployee.get(shift.employee_id) || [];
+      byEmployee.push(shift);
+      shiftsByEmployee.set(shift.employee_id, byEmployee);
+
+      const dayKey = `${shift.employee_id}:${shift.date}`;
+      const byEmployeeDay = shiftsByEmployeeAndDate.get(dayKey) || [];
+      byEmployeeDay.push(shift);
+      shiftsByEmployeeAndDate.set(dayKey, byEmployeeDay);
+    });
+
+    return staffingSuggestions.map((day) => {
+      const recommendedNeeds = [...day.staffing]
+        .sort((a, b) => b.count - a.count || a.start.localeCompare(b.start))
+        .slice(0, 3)
+        .map((need) => {
+          const roleKey = normalizeStaffingRole(need.role);
+          const candidates = employees
+            .map((employee) => {
+              const employeeRoleKey = normalizeStaffingRole(employee.role);
+              const employeeDepartmentKey = normalizeStaffingRole(employee.department || '');
+              const matchRole = employeeRoleKey === roleKey;
+              const matchDepartment = employeeDepartmentKey === roleKey;
+              const timeOffConflict = timeOffRequests.some((request) => {
+                if (request.employee_id !== employee.id || request.status !== 'approved') return false;
+                return isDateBetween(day.date, request.start_date, request.end_date);
+              });
+              const availabilityEntries = availability.filter((entry) => entry.employee_id === employee.id && entry.day_of_week === day.day_of_week);
+              const availabilityMatch = availabilityEntries.length === 0
+                ? true
+                : availabilityEntries.some((entry) => availabilityCoversShift(entry, need.start, need.end));
+              const sameDayShifts = shiftsByEmployeeAndDate.get(`${employee.id}:${day.date}`) || [];
+              const overlapConflict = sameDayShifts.some((shift) => {
+                const shiftStart = parseShiftMinutes(shift.start_time);
+                let shiftEnd = parseShiftMinutes(shift.end_time);
+                const needStart = parseShiftMinutes(need.start);
+                let needEnd = parseShiftMinutes(need.end);
+                if (shiftEnd <= shiftStart) shiftEnd += 24 * 60;
+                if (needEnd <= needStart) needEnd += 24 * 60;
+                return shiftStart < needEnd && shiftEnd > needStart;
+              });
+              const weeklyHours = hoursByEmployee.get(employee.id) || 0;
+              const maxHours = employee.weekly_hours_max || 40;
+              const loadRatio = maxHours > 0 ? weeklyHours / maxHours : 0;
+              const currentDayLoad = sameDayShifts.length;
+
+              let score = 0;
+              const reasons: string[] = [];
+
+              if (matchRole) {
+                score += 50;
+                reasons.push('role match');
+              } else if (matchDepartment) {
+                score += 28;
+                reasons.push('department match');
+              } else {
+                score -= 20;
+              }
+
+              if (availabilityMatch) {
+                score += 18;
+                reasons.push('available');
+              } else {
+                score -= 35;
+              }
+
+              if (timeOffConflict) {
+                score -= 120;
+                reasons.push('approved time off');
+              }
+
+              if (overlapConflict) {
+                score -= 100;
+                reasons.push('shift conflict');
+              }
+
+              if (currentDayLoad === 0) {
+                score += 8;
+                reasons.push('free that day');
+              } else if (currentDayLoad === 1) {
+                score += 3;
+              } else {
+                score -= 10;
+              }
+
+              if (loadRatio < 0.7) {
+                score += 12;
+                reasons.push('light weekly load');
+              } else if (loadRatio > 0.95) {
+                score -= 18;
+                reasons.push('near weekly max');
+              }
+
+              if (weeklyHours + getShiftDurationHours(need.start, need.end) > maxHours) {
+                score -= 60;
+                reasons.push('would exceed weekly max');
+              }
+
+              if (matchRole && availabilityMatch && !timeOffConflict && !overlapConflict) {
+                score += 10;
+              }
+
+              return {
+                employee,
+                score,
+                reasons,
+              };
+            })
+            .filter((candidate) => candidate.score > -40)
+            .sort((a, b) => b.score - a.score || a.employee.name.localeCompare(b.employee.name))
+            .slice(0, 3);
+
+          return {
+            ...need,
+            roleLabel: formatRoleLabel(need.role),
+            candidates,
+          };
+        });
+
+      return {
+        ...day,
+        recommendedNeeds,
+        extraNeeds: Math.max(day.staffing.length - recommendedNeeds.length, 0),
+      };
+    });
+  }, [availability, employees, isManager, staffingSuggestions, shifts, timeOffRequests]);
 
   // Identify shifts with rest-window violations (< 11 hours rest from previous shift for the same employee)
   const quickReturnShiftMap = useMemo(() => {
@@ -1226,7 +1460,99 @@ export default function SchedulePage() {
                 {weeklyStaffingSignal.overstaffedDays} overstaffed day{weeklyStaffingSignal.overstaffedDays !== 1 ? 's' : ''}
               </span>
             )}
+            {weeklyRoleContributors.under.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="font-medium text-yellow-900">Short by:</span>
+                {weeklyRoleContributors.under.slice(0, 4).map((entry) => (
+                  <span key={`under-${entry.role}`} className="rounded-full border border-yellow-600 bg-yellow-300 px-1.5 py-0.5 font-semibold text-yellow-950">
+                    {entry.role} {entry.delta}
+                  </span>
+                ))}
+              </div>
+            )}
+            {weeklyRoleContributors.over.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="font-medium text-red-900">Over by:</span>
+                {weeklyRoleContributors.over.slice(0, 4).map((entry) => (
+                  <span key={`over-${entry.role}`} className="rounded-full border border-red-700 bg-red-300 px-1.5 py-0.5 font-semibold text-red-950">
+                    {entry.role} +{entry.delta}
+                  </span>
+                ))}
+              </div>
+            )}
             <span className="text-muted-foreground">Based on expected demand from prior sales patterns.</span>
+          </div>
+        )}
+
+        {isManager && staffingRecommendations.length > 0 && (
+          <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Recommended Assignments</h3>
+                <p className="text-xs text-muted-foreground">Best-fit employees for the top staffing needs each day</p>
+              </div>
+              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                Role-colored cards
+              </span>
+            </div>
+            <div className="grid gap-3 xl:grid-cols-2">
+              {staffingRecommendations.map((day) => (
+                <div key={`recommendation-${day.date}`} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">{day.day_of_week >= 0 ? day.date : day.date}</div>
+                      <div className="text-xs text-muted-foreground">{day.expected_revenue > 0 ? `$${day.expected_revenue.toLocaleString()} expected revenue` : 'Demand-based staffing'}</div>
+                    </div>
+                    {day.staffing_status && day.staffing_status !== 'adequate' && (
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${day.staffing_status === 'understaffed' ? 'bg-yellow-500 text-yellow-950' : 'bg-red-600 text-red-50'}`}>
+                        {day.staffing_status === 'understaffed' ? 'Short' : 'Over'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {day.recommendedNeeds.map((need) => {
+                      const accent = getRoleAccent(need.role);
+                      return (
+                        <div key={`${day.date}-${need.role}-${need.start}-${need.end}`} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className={`truncate text-sm font-semibold ${accent.text}`}>{need.roleLabel}</div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {need.start} - {need.end} · need {need.count}
+                              </div>
+                            </div>
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${accent.chip}`}>
+                              Shift fit
+                            </span>
+                          </div>
+
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {need.candidates.length > 0 ? need.candidates.map((candidate: CandidateRecommendation) => (
+                              <span
+                                key={`${day.date}-${need.role}-${candidate.employee.id}`}
+                                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${candidate.score >= 70 ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : candidate.score >= 35 ? 'border-sky-300 bg-sky-50 text-sky-800' : 'border-slate-300 bg-slate-100 text-slate-700'}`}
+                                title={candidate.reasons.join(', ')}
+                              >
+                                {candidate.employee.name}
+                              </span>
+                            )) : (
+                              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-muted-foreground">
+                                No strong fit found
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {day.extraNeeds > 0 && (
+                    <div className="mt-2 text-[11px] text-muted-foreground">+{day.extraNeeds} more position{day.extraNeeds > 1 ? 's' : ''} available in the full demand list.</div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1302,6 +1628,21 @@ export default function SchedulePage() {
                           </span>
                         )}
                       </div>
+                      {staffingSignal && staffingSignal.status !== 'adequate' && staffingSignal.roleDeltas.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {staffingSignal.roleDeltas
+                            .filter((entry) => staffingSignal.status === 'understaffed' ? entry.delta < 0 : entry.delta > 0)
+                            .map((entry) => (
+                              <span
+                                key={`${day.date}-${entry.role}`}
+                                title={`${entry.role}: scheduled ${entry.actual}, suggested ${entry.suggested}`}
+                                className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${staffingSignal.status === 'understaffed' ? 'border-yellow-600 bg-yellow-400 text-yellow-950' : 'border-red-700 bg-red-500 text-red-50'}`}
+                              >
+                                {entry.role} {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
+                              </span>
+                            ))}
+                        </div>
+                      )}
                     </div>
                     {dayShifts.map((shift) => {
                       const isOwnShift = !!user?.employeeId && shift.employee_id === user.employeeId;
@@ -1309,21 +1650,21 @@ export default function SchedulePage() {
                       const department = getShiftDisplayGroup(shift);
                       const employeeName = shift.employee_name || 'Unassigned';
                       return (
-                        <div key={shift.id} className={`shift-block overflow-hidden rounded-xl border p-2.5 shadow-sm ${departmentTone(department)}`}>
+                        <div key={shift.id} className={`shift-block overflow-hidden rounded-xl border border-slate-200 border-l-4 bg-white p-2.5 shadow-sm ${getRoleAccent(shift.role).border}`}>
                           <div className="flex min-w-0 items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <div className="truncate text-sm font-semibold text-foreground">{shift.role}</div>
-                              <div className="mt-0.5 flex min-w-0 items-baseline gap-1 text-xs text-foreground">
+                              <div className={`truncate text-sm font-semibold ${getRoleAccent(shift.role).text}`}>{formatRoleLabel(shift.role)}</div>
+                              <div className="mt-0.5 flex min-w-0 items-baseline gap-1 text-xs text-slate-700">
                                 <span className="shrink-0 font-bold">{formatTime12(shift.start_time)}</span>
-                                <span className="truncate text-muted-foreground">- {formatTime12(shift.end_time)}</span>
+                                <span className="truncate text-slate-500">- {formatTime12(shift.end_time)}</span>
                               </div>
                             </div>
-                            <span className="shrink-0 rounded-full border border-current/15 bg-white/70 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                            <span className={`shrink-0 rounded-full border border-current/15 bg-white/80 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide ${getRoleAccent(shift.role).text}`}>
                               {department}
                             </span>
                           </div>
 
-                          <div className="mt-1.5 truncate text-[11px] text-muted-foreground">{employeeName}</div>
+                          <div className={`mt-1.5 truncate text-[11px] ${getRoleAccent(shift.role).text}`}>{employeeName}</div>
 
                           {overlappingShiftIds.has(shift.id) && (
                             <div
@@ -1432,16 +1773,16 @@ export default function SchedulePage() {
                     })}
 
                     {dayOpenShifts.map((openShift) => (
-                      <div key={`open-${openShift.id}`} className="overflow-hidden rounded-xl border border-primary/35 bg-primary/5 p-2.5 shadow-sm">
+                      <div key={`open-${openShift.id}`} className={`overflow-hidden rounded-xl border border-slate-200 border-l-4 bg-white p-2.5 shadow-sm ${getRoleAccent(openShift.role).border}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold text-foreground">{openShift.role}</div>
-                            <div className="mt-0.5 flex min-w-0 items-baseline gap-1 text-xs text-foreground">
+                            <div className={`truncate text-sm font-semibold ${getRoleAccent(openShift.role).text}`}>{formatRoleLabel(openShift.role)}</div>
+                            <div className="mt-0.5 flex min-w-0 items-baseline gap-1 text-xs text-slate-700">
                               <span className="shrink-0 font-bold">{formatTime12(openShift.start_time)}</span>
-                              <span className="truncate text-muted-foreground">- {formatTime12(openShift.end_time)}</span>
+                              <span className="truncate text-slate-500">- {formatTime12(openShift.end_time)}</span>
                             </div>
                           </div>
-                          <span className="shrink-0 rounded-full border border-primary/30 bg-white/70 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide text-primary">
+                          <span className={`shrink-0 rounded-full border border-current/15 bg-white/80 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide ${getRoleAccent(openShift.role).text}`}>
                             Open
                           </span>
                         </div>

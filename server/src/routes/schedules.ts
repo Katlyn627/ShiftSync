@@ -36,6 +36,21 @@ function addDaysToIso(baseIsoDate: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+function normalizedRoleKey(role: string) {
+  const normalized = role.trim().toLowerCase();
+  if (normalized === 'bar') return 'bartender';
+  return normalized;
+}
+
+function displayRoleName(roleKey: string) {
+  if (roleKey === 'bartender') return 'Bartender';
+  return roleKey
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 router.post('/generate', requireManager, (req: Request, res: Response) => {
   const { week_start, labor_budget } = req.body;
   if (!week_start) return res.status(400).json({ error: 'week_start is required' });
@@ -121,8 +136,77 @@ router.get('/staffing-suggestions', requireAuth, (req: Request, res: Response) =
   }
 
   try {
-    const suggestions = computeWeeklyStaffingNeeds(weekStart, req.user?.siteId ?? null);
-    res.json(suggestions);
+    const siteId = req.user?.siteId ?? null;
+    const suggestions = computeWeeklyStaffingNeeds(weekStart, siteId);
+    const weekEnd = addDaysToIso(weekStart, 6);
+    const db = getDb();
+
+    const actualShifts = siteId
+      ? db.prepare(`
+          SELECT s.date, s.role
+          FROM shifts s
+          INNER JOIN schedules sched ON sched.id = s.schedule_id
+          WHERE sched.site_id = ?
+            AND sched.week_start = ?
+            AND s.status != 'cancelled'
+            AND s.date BETWEEN ? AND ?
+        `).all(siteId, weekStart, weekStart, weekEnd) as Array<{ date: string; role: string }>
+      : db.prepare(`
+          SELECT s.date, s.role
+          FROM shifts s
+          INNER JOIN schedules sched ON sched.id = s.schedule_id
+          WHERE sched.week_start = ?
+            AND s.status != 'cancelled'
+            AND s.date BETWEEN ? AND ?
+        `).all(weekStart, weekStart, weekEnd) as Array<{ date: string; role: string }>;
+
+    const actualByDate = new Map<string, Map<string, number>>();
+    actualShifts.forEach((shift) => {
+      const dayMap = actualByDate.get(shift.date) || new Map<string, number>();
+      const key = normalizedRoleKey(shift.role);
+      dayMap.set(key, (dayMap.get(key) || 0) + 1);
+      actualByDate.set(shift.date, dayMap);
+    });
+
+    const enriched = suggestions.map((day) => {
+      const suggestedByRole = new Map<string, number>();
+      day.staffing.forEach((need) => {
+        const key = normalizedRoleKey(need.role);
+        suggestedByRole.set(key, (suggestedByRole.get(key) || 0) + need.count);
+      });
+
+      const actualByRole = actualByDate.get(day.date) || new Map<string, number>();
+      const allRoles = new Set<string>([...suggestedByRole.keys(), ...actualByRole.keys()]);
+
+      const roleDeltas = Array.from(allRoles)
+        .map((roleKey) => {
+          const suggested = suggestedByRole.get(roleKey) || 0;
+          const actual = actualByRole.get(roleKey) || 0;
+          return {
+            role: displayRoleName(roleKey),
+            delta: actual - suggested,
+            suggested,
+            actual,
+          };
+        })
+        .filter((entry) => entry.delta !== 0)
+        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+      const suggested = day.staffing.reduce((total, slot) => total + slot.count, 0);
+      const actual = Array.from(actualByRole.values()).reduce((total, count) => total + count, 0);
+      const delta = actual - suggested;
+
+      return {
+        ...day,
+        staffing_status: delta < 0 ? 'understaffed' : delta > 0 ? 'overstaffed' : 'adequate',
+        staffing_delta: delta,
+        staffing_actual: actual,
+        staffing_suggested: suggested,
+        role_deltas: roleDeltas,
+      };
+    });
+
+    res.json(enriched);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to compute staffing suggestions' });
   }

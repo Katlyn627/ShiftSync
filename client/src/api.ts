@@ -338,6 +338,11 @@ export interface DailyStaffingSuggestion {
   expected_revenue: number;
   expected_covers: number;
   staffing: StaffingNeed[];
+  staffing_status?: 'adequate' | 'understaffed' | 'overstaffed';
+  staffing_delta?: number;
+  staffing_actual?: number;
+  staffing_suggested?: number;
+  role_deltas?: Array<{ role: string; delta: number; suggested: number; actual: number }>;
 }
 
 export interface TimeOffRequest {
