@@ -158,7 +158,15 @@ export default function OpenShiftsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Schedule</label>
                 <select
                   required value={createForm.schedule_id}
-                  onChange={e => setCreateForm(f => ({ ...f, schedule_id: e.target.value }))}
+                  onChange={e => {
+                    const schedId = e.target.value;
+                    const selected = schedules.find(s => String(s.id) === schedId);
+                    setCreateForm(f => ({
+                      ...f,
+                      schedule_id: schedId,
+                      date: selected ? selected.week_start : f.date
+                    }));
+                  }}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                 >
                   <option value="">Select schedule…</option>
@@ -174,9 +182,16 @@ export default function OpenShiftsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                  <input type="text" required value={createForm.role} placeholder="e.g. Server"
+                  <select
+                    required value={createForm.role}
                     onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">Select Role…</option>
+                    {['Server', 'Line Cook', 'Head Chef', 'Sous Chef', 'Dishwasher', 'Host', 'Busser', 'Food Runner', 'Expo', 'Bar', 'Manager'].map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
