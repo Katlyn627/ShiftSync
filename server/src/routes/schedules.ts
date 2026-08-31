@@ -109,6 +109,25 @@ router.post('/:id/duplicate', requireManager, (req: Request, res: Response) => {
   res.status(201).json(newSchedule);
 });
 
+router.get('/staffing-suggestions', requireAuth, (req: Request, res: Response) => {
+  const weekStart = typeof req.query.week_start === 'string' ? req.query.week_start.trim() : '';
+  if (!weekStart) {
+    return res.status(400).json({ error: 'week_start is required (YYYY-MM-DD)' });
+  }
+
+  const parsed = parseDateOnly(weekStart);
+  if (!parsed) {
+    return res.status(400).json({ error: 'week_start must be a valid YYYY-MM-DD date' });
+  }
+
+  try {
+    const suggestions = computeWeeklyStaffingNeeds(weekStart, req.user?.siteId ?? null);
+    res.json(suggestions);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to compute staffing suggestions' });
+  }
+});
+
 router.get('/:id', (req: Request, res: Response) => {
   const db = getDb();
   const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id);

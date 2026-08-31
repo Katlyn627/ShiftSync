@@ -16,11 +16,13 @@ import {
   getOpenShifts,
   getScheduleShifts,
   getSchedules,
+  getStaffingSuggestions,
   getTimeOffRequests,
   offerForOpenShift,
   OpenShift,
   Schedule,
   ShiftWithEmployee,
+  DailyStaffingSuggestion,
   TimeOffRequest,
   updateSchedule,
   updateShift,
@@ -198,6 +200,7 @@ export default function SchedulePage() {
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all');
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
+  const [staffingSuggestions, setStaffingSuggestions] = useState<DailyStaffingSuggestion[]>([]);
 
   const [draggedEmployeeId, setDraggedEmployeeId] = useState<number | null>(null);
   const [dropDate, setDropDate] = useState<string | null>(null);
@@ -356,6 +359,28 @@ export default function SchedulePage() {
     return map;
   }, [visibleShifts]);
 
+  const staffingStatusByDate = useMemo(() => {
+    const map = new Map<string, { status: 'adequate' | 'understaffed' | 'overstaffed'; delta: number; suggested: number; actual: number }>();
+    staffingSuggestions.forEach((day) => {
+      const suggested = day.staffing.reduce((total, slot) => total + slot.count, 0);
+      const actual = (shiftsByDate.get(day.date) || []).length;
+      const delta = actual - suggested;
+      const status = delta < 0 ? 'understaffed' : delta > 0 ? 'overstaffed' : 'adequate';
+      map.set(day.date, { status, delta, suggested, actual });
+    });
+    return map;
+  }, [staffingSuggestions, shiftsByDate]);
+
+  const weeklyStaffingSignal = useMemo(() => {
+    let understaffedDays = 0;
+    let overstaffedDays = 0;
+    staffingStatusByDate.forEach((signal) => {
+      if (signal.status === 'understaffed') understaffedDays += 1;
+      if (signal.status === 'overstaffed') overstaffedDays += 1;
+    });
+    return { understaffedDays, overstaffedDays };
+  }, [staffingStatusByDate]);
+
   // Identify shifts with rest-window violations (< 11 hours rest from previous shift for the same employee)
   const quickReturnShiftMap = useMemo(() => {
     const map = new Map<number, { restHours: number; prevShiftSummary: string }>();
@@ -512,6 +537,16 @@ export default function SchedulePage() {
     }
     loadShifts(selectedScheduleId).catch(() => setShifts([]));
   }, [selectedScheduleId]);
+
+  useEffect(() => {
+    if (!selectedSchedule?.week_start) {
+      setStaffingSuggestions([]);
+      return;
+    }
+    getStaffingSuggestions(selectedSchedule.week_start)
+      .then(setStaffingSuggestions)
+      .catch(() => setStaffingSuggestions([]));
+  }, [selectedSchedule?.week_start]);
 
   useEffect(() => {
     if (!selectedSchedule) return;
@@ -1139,6 +1174,20 @@ export default function SchedulePage() {
           )}
         </div>
 
+        {isManager && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-muted-foreground">Legend:</span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-yellow-500 bg-yellow-300 px-2 py-0.5 font-semibold text-yellow-950">
+              <span className="inline-block h-2 w-2 rounded-full bg-yellow-500" />
+              Short Staffed Day
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-red-600 bg-red-300 px-2 py-0.5 font-semibold text-red-900">
+              <span className="inline-block h-2 w-2 rounded-full bg-red-600" />
+              Over Staffed Day
+            </span>
+          </div>
+        )}
+
         {isManager && managerSelectedEmployeeSummary && (
           <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3 py-2">
             <div className="text-sm font-semibold text-foreground">{managerSelectedEmployeeSummary.name}</div>
@@ -1161,6 +1210,23 @@ export default function SchedulePage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {isManager && (weeklyStaffingSignal.understaffedDays > 0 || weeklyStaffingSignal.overstaffedDays > 0) && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-slate-50 px-3 py-2 text-xs">
+            <span className="font-semibold text-foreground">Week Staffing Signal:</span>
+            {weeklyStaffingSignal.understaffedDays > 0 && (
+              <span className="rounded-full border border-yellow-500 bg-yellow-300 px-2 py-0.5 font-semibold text-yellow-900">
+                {weeklyStaffingSignal.understaffedDays} understaffed day{weeklyStaffingSignal.understaffedDays !== 1 ? 's' : ''}
+              </span>
+            )}
+            {weeklyStaffingSignal.overstaffedDays > 0 && (
+              <span className="rounded-full border border-red-600 bg-red-300 px-2 py-0.5 font-semibold text-red-900">
+                {weeklyStaffingSignal.overstaffedDays} overstaffed day{weeklyStaffingSignal.overstaffedDays !== 1 ? 's' : ''}
+              </span>
+            )}
+            <span className="text-muted-foreground">Based on expected demand from prior sales patterns.</span>
           </div>
         )}
 
@@ -1200,11 +1266,17 @@ export default function SchedulePage() {
                 const dayShifts = shiftsByDate.get(day.date) ?? [];
                 const dayOpenShifts = openShiftsByDate.get(day.date) ?? [];
                 const isDropActive = isManager && dropDate === day.date;
+                const staffingSignal = staffingStatusByDate.get(day.date);
+                const staffingClass = staffingSignal?.status === 'understaffed'
+                  ? 'border-yellow-500 bg-yellow-300/95'
+                  : staffingSignal?.status === 'overstaffed'
+                    ? 'border-red-600 bg-red-300/95'
+                    : 'border-border';
                 return (
                   <div
                     key={day.date}
                     data-testid="schedule-day-column"
-                    className={`min-h-52.5 min-w-55 space-y-2 rounded-2xl border bg-card p-2.5 ${isDropActive ? 'border-primary border-2' : 'border-border'}`}
+                    className={`min-h-52.5 min-w-55 space-y-2 rounded-2xl border p-2.5 ${isDropActive ? 'border-primary border-2 bg-card' : staffingClass}`}
                     onDragOver={(e) => {
                       if (!isManager || draggedEmployeeId === null) return;
                       e.preventDefault();
@@ -1221,7 +1293,16 @@ export default function SchedulePage() {
                       setDraggedEmployeeId(null);
                     }}
                   >
-                    <div className="sticky top-0 z-10 rounded-lg bg-white/90 px-1 py-1 text-xs font-semibold text-foreground backdrop-blur-sm">{day.dayLabel}</div>
+                    <div className="sticky top-0 z-10 rounded-lg bg-white/90 px-1 py-1 text-xs font-semibold text-foreground backdrop-blur-sm">
+                      <div className="flex items-center justify-between gap-1">
+                        <span>{day.dayLabel}</span>
+                        {staffingSignal && staffingSignal.status !== 'adequate' && (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${staffingSignal.status === 'understaffed' ? 'bg-yellow-500 text-yellow-950' : 'bg-red-600 text-red-50'}`}>
+                            {staffingSignal.status === 'understaffed' ? 'Short' : 'Over'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                     {dayShifts.map((shift) => {
                       const isOwnShift = !!user?.employeeId && shift.employee_id === user.employeeId;
                       const isSwapDraftOpen = swapDraftShiftId === shift.id;
