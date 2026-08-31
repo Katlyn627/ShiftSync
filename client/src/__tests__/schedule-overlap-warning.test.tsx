@@ -105,3 +105,4 @@ describe('SchedulePage - Shift Conflict & Double-Booking Badge', () => {
     expect(container.textContent).toContain('Time Conflict (Overlapping)');
   });
 });
+
