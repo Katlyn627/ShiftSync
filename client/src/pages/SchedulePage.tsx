@@ -80,6 +80,23 @@ function calculateRestHoursClient(
   return diffMs / (1000 * 60 * 60);
 }
 
+function getShiftIntervalMsClient(shift: { date: string; start_time: string; end_time: string }): { startMs: number; endMs: number } {
+  const [y, m, d] = shift.date.split('-').map(Number);
+  const [sh, sm] = shift.start_time.split(':').map(Number);
+  const [eh, em] = shift.end_time.split(':').map(Number);
+  const startMin = sh * 60 + sm;
+  let endMin = eh * 60 + em;
+  const overnight = endMin <= startMin;
+
+  const startDate = new Date(Date.UTC(y, m - 1, d, Math.floor(startMin / 60), startMin % 60));
+  const endDate = new Date(Date.UTC(y, m - 1, d + (overnight ? 1 : 0), Math.floor(endMin / 60), endMin % 60));
+
+  return {
+    startMs: startDate.getTime(),
+    endMs: endDate.getTime(),
+  };
+}
+
 function startOfWeek(date: Date) {
   const next = new Date(date);
   const day = next.getDay();
@@ -300,6 +317,35 @@ export default function SchedulePage() {
     });
 
     return map;
+  }, [shifts]);
+
+  // Identify shifts that overlap in time with another shift for the same employee
+  const overlappingShiftIds = useMemo(() => {
+    const conflictSet = new Set<number>();
+    const byEmployee = new Map<number, ShiftWithEmployee[]>();
+    shifts.forEach((s) => {
+      if (!s.employee_id) return;
+      const list = byEmployee.get(s.employee_id) || [];
+      list.push(s);
+      byEmployee.set(s.employee_id, list);
+    });
+
+    byEmployee.forEach((empShifts) => {
+      for (let i = 0; i < empShifts.length; i++) {
+        for (let j = i + 1; j < empShifts.length; j++) {
+          const shiftA = empShifts[i];
+          const shiftB = empShifts[j];
+          const intA = getShiftIntervalMsClient(shiftA);
+          const intB = getShiftIntervalMsClient(shiftB);
+          if (intA.startMs < intB.endMs && intA.endMs > intB.startMs) {
+            conflictSet.add(shiftA.id);
+            conflictSet.add(shiftB.id);
+          }
+        }
+      }
+    });
+
+    return conflictSet;
   }, [shifts]);
 
   const openShiftsByDate = useMemo(() => {
@@ -1077,6 +1123,16 @@ export default function SchedulePage() {
                             </span>
                           </div>
                           <div className="mt-1 truncate text-[11px] text-muted-foreground">{employeeName}</div>
+
+                          {overlappingShiftIds.has(shift.id) && (
+                            <div
+                              className="mt-1.5 flex items-center gap-1 rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 border border-red-200"
+                              title="Time Conflict: This employee is scheduled for overlapping shifts at the same time"
+                            >
+                              <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" />
+                              <span>Time Conflict (Overlapping)</span>
+                            </div>
+                          )}
 
                           {quickReturnShiftMap.has(shift.id) && (
                             <div

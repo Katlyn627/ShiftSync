@@ -13,11 +13,64 @@ export interface RestViolation {
   message: string;
 }
 
+export interface ShiftOverlapConflict {
+  conflictingShift: ShiftTimeEntry;
+  message: string;
+}
+
 export const MIN_REST_HOURS = 11;
 
 export function parseTimeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
+}
+
+/**
+ * Converts a shift into absolute UTC millisecond start and end points.
+ */
+export function getShiftIntervalMs(shift: ShiftTimeEntry): { startMs: number; endMs: number } {
+  const [y, m, d] = shift.date.split('-').map(Number);
+  const startMin = parseTimeToMinutes(shift.start_time);
+  let endMin = parseTimeToMinutes(shift.end_time);
+  const overnight = endMin <= startMin;
+
+  const startDate = new Date(Date.UTC(y, m - 1, d, Math.floor(startMin / 60), startMin % 60));
+  const endDate = new Date(Date.UTC(y, m - 1, d + (overnight ? 1 : 0), Math.floor(endMin % (24 * 60) / 60), endMin % 60));
+
+  return {
+    startMs: startDate.getTime(),
+    endMs: endDate.getTime(),
+  };
+}
+
+/**
+ * Checks if a proposed shift overlaps in time with any existing shift for the same employee.
+ * Two intervals [startA, endA) and [startB, endB) overlap if startA < endB and endA > startB.
+ */
+export function checkShiftOverlap(
+  proposedShift: ShiftTimeEntry,
+  existingShifts: ShiftTimeEntry[],
+  excludeShiftId?: number
+): ShiftOverlapConflict | null {
+  const proposed = getShiftIntervalMs(proposedShift);
+
+  const filtered = existingShifts.filter((s) => {
+    if (excludeShiftId && s.id === excludeShiftId) return false;
+    return Boolean(s.date && s.start_time && s.end_time);
+  });
+
+  for (const existing of filtered) {
+    const ex = getShiftIntervalMs(existing);
+    // Overlap condition: start of one is before end of other, and end of one is after start of other
+    if (proposed.startMs < ex.endMs && proposed.endMs > ex.startMs) {
+      return {
+        conflictingShift: existing,
+        message: `Shift conflict: Employee is already scheduled for an overlapping shift on ${existing.date} (${existing.start_time}-${existing.end_time}).`,
+      };
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -87,4 +140,3 @@ export function checkRestViolation(
 
   return null;
 }
-

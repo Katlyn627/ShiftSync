@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
-import { checkRestViolation } from '../utils/restWindow';
+import { checkRestViolation, checkShiftOverlap } from '../utils/restWindow';
 
 const router = Router();
 
@@ -16,7 +16,7 @@ router.put('/:id', requireManager, (req: Request, res: Response) => {
   const targetStartTime = start_time ?? existing.start_time;
   const targetEndTime = end_time ?? existing.end_time;
 
-  // If assigned to an employee, perform hour limit and rest-window checks
+  // If assigned to an employee, perform hour limit, overlap, and rest-window checks
   if (targetEmployeeId) {
     const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(targetEmployeeId) as any;
     if (!employee) return res.status(404).json({ error: 'Employee not found' });
@@ -45,6 +45,20 @@ router.put('/:id', requireManager, (req: Request, res: Response) => {
     if (currentHours + shiftHours > employee.weekly_hours_max) {
       return res.status(400).json({
         error: `${employee.name} would exceed their weekly hours limit of ${employee.weekly_hours_max}h (currently ${currentHours.toFixed(1)}h + ${shiftHours.toFixed(1)}h = ${(currentHours + shiftHours).toFixed(1)}h)`
+      });
+    }
+
+    // Check Shift Overlap / Double-Booking Conflict
+    const overlapConflict = checkShiftOverlap(
+      { date: targetDate, start_time: targetStartTime, end_time: targetEndTime },
+      otherShifts,
+      Number(req.params.id)
+    );
+    if (overlapConflict) {
+      return res.status(400).json({
+        error: overlapConflict.message,
+        code: 'SHIFT_OVERLAP_CONFLICT',
+        conflictingShift: overlapConflict.conflictingShift,
       });
     }
 
@@ -121,6 +135,19 @@ router.post('/', requireManager, (req: Request, res: Response) => {
     if (currentHours + shiftHours > employee.weekly_hours_max) {
       return res.status(400).json({
         error: `${employee.name} would exceed their weekly hours limit of ${employee.weekly_hours_max}h`
+      });
+    }
+
+    // Check Shift Overlap / Double-Booking Conflict
+    const overlapConflict = checkShiftOverlap(
+      { date, start_time, end_time },
+      existingShifts
+    );
+    if (overlapConflict) {
+      return res.status(400).json({
+        error: overlapConflict.message,
+        code: 'SHIFT_OVERLAP_CONFLICT',
+        conflictingShift: overlapConflict.conflictingShift,
       });
     }
 
