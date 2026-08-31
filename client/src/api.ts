@@ -87,6 +87,8 @@ export const getBurnoutRisks = async (id: number): Promise<BurnoutRisk[]> => {
 };
 export const updateSchedule = (id: number, data: { status: string }) =>
   request<Schedule>(`/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const duplicateSchedule = (id: number, data: { target_week_start: string; labor_budget?: number }) =>
+  request<Schedule>(`/schedules/${id}/duplicate`, { method: 'POST', body: JSON.stringify(data) });
 export const deleteSchedule = (id: number) =>
   request<{ success: boolean }>(`/schedules/${id}`, { method: 'DELETE' });
 

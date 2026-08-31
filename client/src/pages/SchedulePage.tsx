@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PencilLine, Trash2 } from 'lucide-react';
+import { Copy, PencilLine, Plus, Printer, Sparkles, Trash2 } from 'lucide-react';
 import {
   createOpenShift,
   createShift,
@@ -7,6 +7,7 @@ import {
   deleteSchedule,
   deleteShift,
   dropShift,
+  duplicateSchedule,
   Employee,
   generateSchedule,
   getEmployees,
@@ -21,7 +22,7 @@ import {
   updateShift,
 } from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Card, Input, NATIVE_SELECT_CLASS, PageHeader, useToast } from '../components/ui';
+import { Button, Card, Input, Modal, NATIVE_SELECT_CLASS, PageHeader, useToast } from '../components/ui';
 
 function getCurrentWeekStartISO() {
   const d = new Date();
@@ -29,6 +30,15 @@ function getCurrentWeekStartISO() {
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
   return d.toISOString().split('T')[0];
+}
+
+function getNextWeekStartISO(baseDate?: string) {
+  const d = baseDate ? new Date(`${baseDate}T12:00:00Z`) : new Date();
+  d.setUTCDate(d.getUTCDate() + 7);
+  const day = d.getUTCDay();
+  const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1);
+  d.setUTCDate(diff);
+  return d.toISOString().slice(0, 10);
 }
 
 function toSortableValue(shift: ShiftWithEmployee) {
@@ -100,6 +110,12 @@ export default function SchedulePage() {
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [newScheduleWeekStart, setNewScheduleWeekStart] = useState(getCurrentWeekStartISO());
   const [newScheduleLaborBudget, setNewScheduleLaborBudget] = useState(String(DEFAULT_SCHEDULE_LABOR_BUDGET));
+
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [scheduleModalTab, setScheduleModalTab] = useState<'copy' | 'generate'>('copy');
+  const [targetWeekStart, setTargetWeekStart] = useState(getCurrentWeekStartISO());
+  const [targetLaborBudget, setTargetLaborBudget] = useState(String(DEFAULT_SCHEDULE_LABOR_BUDGET));
+  const [submittingScheduleModal, setSubmittingScheduleModal] = useState(false);
 
   const [newShift, setNewShift] = useState({
     employee_id: '',
@@ -378,6 +394,63 @@ export default function SchedulePage() {
     }
   }
 
+  function openNewScheduleModal() {
+    const nextWeek = getNextWeekStartISO(selectedSchedule?.week_start);
+    setTargetWeekStart(nextWeek);
+    setTargetLaborBudget(String(selectedSchedule?.labor_budget || DEFAULT_SCHEDULE_LABOR_BUDGET));
+    setScheduleModalTab('copy');
+    setIsScheduleModalOpen(true);
+  }
+
+  async function handleDuplicateSchedule() {
+    if (!isManager || !selectedSchedule) return;
+    if (!targetWeekStart) {
+      toast('Select a destination week start date.', { variant: 'warning' });
+      return;
+    }
+    const laborBudget = Number(targetLaborBudget);
+    setSubmittingScheduleModal(true);
+    try {
+      const created = await duplicateSchedule(selectedSchedule.id, {
+        target_week_start: targetWeekStart,
+        labor_budget: Number.isInteger(laborBudget) && laborBudget >= MIN_SCHEDULE_LABOR_BUDGET ? laborBudget : undefined,
+      });
+      await loadSchedules();
+      setSelectedScheduleId(created.id);
+      setIsScheduleModalOpen(false);
+      toast(`Schedule duplicated to week of ${created.week_start}.`, { variant: 'success' });
+    } catch (err: any) {
+      toast(err.message || 'Failed to duplicate schedule.', { variant: 'error' });
+    } finally {
+      setSubmittingScheduleModal(false);
+    }
+  }
+
+  async function handleGenerateFromModal() {
+    if (!isManager) return;
+    if (!targetWeekStart) {
+      toast('Select a week start date.', { variant: 'warning' });
+      return;
+    }
+    const laborBudget = Number(targetLaborBudget);
+    if (!Number.isInteger(laborBudget) || laborBudget < MIN_SCHEDULE_LABOR_BUDGET) {
+      toast(`Enter a whole-number labor budget of at least ${MIN_SCHEDULE_LABOR_BUDGET}.`, { variant: 'warning' });
+      return;
+    }
+    setSubmittingScheduleModal(true);
+    try {
+      const created = await generateSchedule(targetWeekStart, laborBudget);
+      await loadSchedules();
+      setSelectedScheduleId(created.id);
+      setIsScheduleModalOpen(false);
+      toast(`New schedule generated for week of ${created.week_start}.`, { variant: 'success' });
+    } catch (err: any) {
+      toast(err.message || 'Failed to generate schedule.', { variant: 'error' });
+    } finally {
+      setSubmittingScheduleModal(false);
+    }
+  }
+
   async function handleCreateShift() {
     if (!isManager || !selectedScheduleId) return;
     if (!newShift.date || !newShift.start_time || !newShift.end_time || !newShift.role) {
@@ -639,6 +712,14 @@ export default function SchedulePage() {
                 </div>
                 <Button variant="outline" onClick={handleTogglePublish}>
                   {selectedSchedule.status === 'published' ? 'Unpublish' : 'Publish'}
+                </Button>
+                <Button variant="default" onClick={openNewScheduleModal} className="flex items-center gap-1.5 shadow-sm">
+                  <Plus className="h-4 w-4" />
+                  New / Copy Week
+                </Button>
+                <Button variant="outline" onClick={() => window.print()} className="flex items-center gap-1.5" title="Print Schedule">
+                  <Printer className="h-4 w-4" />
+                  Print
                 </Button>
                 <Button variant="destructive" onClick={handleDeleteSchedule}>Delete Schedule</Button>
               </>
@@ -996,6 +1077,101 @@ export default function SchedulePage() {
           </div>
         </div>
       </Card>
+
+      <Modal
+        open={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
+        title="Create or Copy Schedule Week"
+      >
+        <div className="space-y-4 pt-1">
+          <div className="flex rounded-lg border border-border bg-muted/50 p-1">
+            <button
+              type="button"
+              className={`flex-1 rounded-md py-1.5 text-xs font-medium transition ${
+                scheduleModalTab === 'copy'
+                  ? 'bg-white text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => setScheduleModalTab('copy')}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Copy className="h-3.5 w-3.5" />
+                Duplicate Active Week
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`flex-1 rounded-md py-1.5 text-xs font-medium transition ${
+                scheduleModalTab === 'generate'
+                  ? 'bg-white text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => setScheduleModalTab('generate')}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" />
+                Auto-Generate with AI
+              </span>
+            </button>
+          </div>
+
+          {scheduleModalTab === 'copy' ? (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Copy all shifts from the week of <strong className="text-foreground">{selectedSchedule?.week_start}</strong> to a new destination week. Shifts will be shifted by the exact day offset.
+              </p>
+              <Input
+                label="Destination Week Start (Monday)"
+                type="date"
+                value={targetWeekStart}
+                onChange={(e) => setTargetWeekStart(e.target.value)}
+              />
+              <Input
+                label="Labor Budget ($)"
+                type="number"
+                min={MIN_SCHEDULE_LABOR_BUDGET}
+                value={targetLaborBudget}
+                onChange={(e) => setTargetLaborBudget(e.target.value)}
+              />
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setIsScheduleModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleDuplicateSchedule} isLoading={submittingScheduleModal}>
+                  Duplicate Week
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Run the automated scheduler engine to generate optimal shifts according to staff availability and labor budget.
+              </p>
+              <Input
+                label="Week Start (Monday)"
+                type="date"
+                value={targetWeekStart}
+                onChange={(e) => setTargetWeekStart(e.target.value)}
+              />
+              <Input
+                label="Labor Budget ($)"
+                type="number"
+                min={MIN_SCHEDULE_LABOR_BUDGET}
+                value={targetLaborBudget}
+                onChange={(e) => setTargetLaborBudget(e.target.value)}
+              />
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setIsScheduleModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleGenerateFromModal} isLoading={submittingScheduleModal}>
+                  Generate Schedule
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
