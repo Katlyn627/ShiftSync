@@ -8,16 +8,20 @@ import {
   deleteShift,
   dropShift,
   duplicateSchedule,
+  Availability,
   Employee,
   generateSchedule,
+  getAllAvailability,
   getEmployees,
   getOpenShifts,
   getScheduleShifts,
   getSchedules,
+  getTimeOffRequests,
   offerForOpenShift,
   OpenShift,
   Schedule,
   ShiftWithEmployee,
+  TimeOffRequest,
   updateSchedule,
   updateShift,
 } from '../api';
@@ -133,7 +137,15 @@ const EDIT_INPUT_CLASS = 'w-full rounded-md border border-input bg-background px
 const TIME_OPTIONS = createTimeOptions();
 const DEFAULT_SCHEDULE_LABOR_BUDGET = 5000;
 const MIN_SCHEDULE_LABOR_BUDGET = 1;
-const WEEK_DAY_COLUMN_MIN_WIDTH = 170;
+const WEEK_DAY_COLUMN_MIN_WIDTH = 220;
+
+function getShiftDurationHours(startTime: string, endTime: string): number {
+  const [startHour = 0, startMinute = 0] = startTime.split(':').map(Number);
+  const [endHour = 0, endMinute = 0] = endTime.split(':').map(Number);
+  let minutes = (endHour * 60 + endMinute) - (startHour * 60 + startMinute);
+  if (minutes <= 0) minutes += 24 * 60;
+  return minutes / 60;
+}
 
 export default function SchedulePage() {
   const { user } = useAuth();
@@ -183,6 +195,9 @@ export default function SchedulePage() {
   const [swapTargetId, setSwapTargetId] = useState('');
   const [swapReason, setSwapReason] = useState('');
   const [selectedDepartmentFilter, setSelectedDepartmentFilter] = useState('all');
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all');
+  const [availability, setAvailability] = useState<Availability[]>([]);
+  const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
 
   const [draggedEmployeeId, setDraggedEmployeeId] = useState<number | null>(null);
   const [dropDate, setDropDate] = useState<string | null>(null);
@@ -207,6 +222,12 @@ export default function SchedulePage() {
   const currentEmployeeDepartment = normalizedValue(currentEmployee?.department);
   const currentEmployeeRole = normalizedValue(currentEmployee?.role ?? user?.employeeRole);
   const normalizedDepartmentFilter = normalizedValue(selectedDepartmentFilter);
+  const selectedEmployeeFilterId = selectedEmployeeFilter === 'all' ? null : Number(selectedEmployeeFilter);
+
+  const selectedEmployeeForManager = useMemo(
+    () => employees.find((employee) => employee.id === selectedEmployeeFilterId) ?? null,
+    [employees, selectedEmployeeFilterId],
+  );
 
   const departmentOptions = useMemo(() => {
     const options = new Set<string>();
@@ -232,14 +253,61 @@ export default function SchedulePage() {
   const visibleShifts = useMemo(() => {
     const base = [...shifts].sort((a, b) => toSortableValue(a).localeCompare(toSortableValue(b)));
     if (isManager) {
-      if (normalizedDepartmentFilter === 'all') return base;
-      return base.filter((shift) => {
-        const shiftDepartment = normalizedValue(shift.employee_department || shift.employee_role || shift.role);
-        return shiftDepartment === normalizedDepartmentFilter;
-      });
+      const byDepartment = normalizedDepartmentFilter === 'all'
+        ? base
+        : base.filter((shift) => {
+          const shiftDepartment = normalizedValue(shift.employee_department || shift.employee_role || shift.role);
+          return shiftDepartment === normalizedDepartmentFilter;
+        });
+      if (!selectedEmployeeFilterId) return byDepartment;
+      return byDepartment.filter((shift) => shift.employee_id === selectedEmployeeFilterId);
     }
     return base.filter((s) => s.employee_id === user?.employeeId);
-  }, [shifts, isManager, normalizedDepartmentFilter, user?.employeeId]);
+  }, [shifts, isManager, normalizedDepartmentFilter, selectedEmployeeFilterId, user?.employeeId]);
+
+  const managerSelectedEmployeeShifts = useMemo(() => {
+    if (!isManager || !selectedEmployeeFilterId) return [];
+    return shifts.filter((shift) => shift.employee_id === selectedEmployeeFilterId);
+  }, [isManager, selectedEmployeeFilterId, shifts]);
+
+  const managerSelectedEmployeeHours = useMemo(() => {
+    if (!selectedEmployeeFilterId) return 0;
+    return managerSelectedEmployeeShifts.reduce((total, shift) => {
+      return total + getShiftDurationHours(shift.start_time, shift.end_time);
+    }, 0);
+  }, [managerSelectedEmployeeShifts, selectedEmployeeFilterId]);
+
+  const managerSelectedEmployeeTimeOff = useMemo(() => {
+    if (!isManager || !selectedEmployeeFilterId) return [];
+    return timeOffRequests.filter((request) => {
+      return request.employee_id === selectedEmployeeFilterId && request.status === 'approved';
+    });
+  }, [isManager, selectedEmployeeFilterId, timeOffRequests]);
+
+  const managerSelectedEmployeeUnavailableDays = useMemo(() => {
+    if (!isManager || !selectedEmployeeFilterId) return [];
+    return availability.filter((entry) => {
+      return entry.employee_id === selectedEmployeeFilterId && entry.availability_type === 'unavailable';
+    });
+  }, [availability, isManager, selectedEmployeeFilterId]);
+
+  const managerSelectedEmployeeSummary = useMemo(() => {
+    if (!selectedEmployeeForManager) return null;
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return {
+      name: selectedEmployeeForManager.name,
+      scheduledHoursLabel: `${managerSelectedEmployeeHours.toFixed(1)}h scheduled (max ${selectedEmployeeForManager.weekly_hours_max}h)`,
+      approvedTimeOffLabels: managerSelectedEmployeeTimeOff.map((request) => {
+        return `Time-Off Approved: ${request.start_date}${request.end_date !== request.start_date ? ` to ${request.end_date}` : ''}`;
+      }),
+      unavailableLabels: managerSelectedEmployeeUnavailableDays.map((entry) => `Unavailable: ${dayNames[entry.day_of_week] || `Day ${entry.day_of_week}`}`),
+    };
+  }, [
+    managerSelectedEmployeeHours,
+    managerSelectedEmployeeTimeOff,
+    managerSelectedEmployeeUnavailableDays,
+    selectedEmployeeForManager,
+  ]);
 
   const weekMetadata = useMemo(() => {
     const anchor = selectedSchedule?.week_start
@@ -422,7 +490,18 @@ export default function SchedulePage() {
   }
 
   useEffect(() => {
-    Promise.all([loadSchedules(), getEmployees().then(setEmployees).catch(() => setEmployees([]))])
+    const availabilityPromise = typeof getAllAvailability === 'function'
+      ? getAllAvailability().then(setAvailability).catch(() => setAvailability([]))
+      : Promise.resolve(setAvailability([]));
+    const timeOffPromise = typeof getTimeOffRequests === 'function'
+      ? getTimeOffRequests().then(setTimeOffRequests).catch(() => setTimeOffRequests([]))
+      : Promise.resolve(setTimeOffRequests([]));
+    Promise.all([
+      loadSchedules(),
+      getEmployees().then(setEmployees).catch(() => setEmployees([])),
+      availabilityPromise,
+      timeOffPromise,
+    ])
       .finally(() => setLoading(false));
   }, []);
 
@@ -874,6 +953,19 @@ export default function SchedulePage() {
                     ))}
                   </select>
                 </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Employee Filter</label>
+                  <select
+                    className={NATIVE_SELECT_CLASS}
+                    value={selectedEmployeeFilter}
+                    onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
+                  >
+                    <option value="all">All employees</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>{employee.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <Button variant="outline" onClick={handleTogglePublish}>
                   {selectedSchedule.status === 'published' ? 'Unpublish' : 'Publish'}
                 </Button>
@@ -1047,6 +1139,31 @@ export default function SchedulePage() {
           )}
         </div>
 
+        {isManager && managerSelectedEmployeeSummary && (
+          <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3 py-2">
+            <div className="text-sm font-semibold text-foreground">{managerSelectedEmployeeSummary.name}</div>
+            <div className="text-xs text-muted-foreground">{managerSelectedEmployeeSummary.scheduledHoursLabel}</div>
+            {managerSelectedEmployeeSummary.approvedTimeOffLabels.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {managerSelectedEmployeeSummary.approvedTimeOffLabels.map((label) => (
+                  <span key={label} className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700">
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
+            {managerSelectedEmployeeSummary.unavailableLabels.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {managerSelectedEmployeeSummary.unavailableLabels.map((label) => (
+                  <span key={label} className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="overflow-x-auto pb-1" data-testid="schedule-week-scroll">
           <div
             className="space-y-2"
@@ -1064,7 +1181,7 @@ export default function SchedulePage() {
                 <div
                   key={day.date}
                   data-testid="schedule-day-column"
-                  className="min-w-[170px]"
+                  className="min-w-55"
                 >
                   <div className="sticky top-0 z-10 mb-2 rounded-xl bg-muted/70 px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     {day.weekday}
@@ -1087,7 +1204,7 @@ export default function SchedulePage() {
                   <div
                     key={day.date}
                     data-testid="schedule-day-column"
-                    className={`min-h-[210px] min-w-[170px] space-y-2 rounded-2xl border bg-card p-2.5 ${isDropActive ? 'border-primary border-2' : 'border-border'}`}
+                    className={`min-h-52.5 min-w-55 space-y-2 rounded-2xl border bg-card p-2.5 ${isDropActive ? 'border-primary border-2' : 'border-border'}`}
                     onDragOver={(e) => {
                       if (!isManager || draggedEmployeeId === null) return;
                       e.preventDefault();
@@ -1111,18 +1228,21 @@ export default function SchedulePage() {
                       const department = getShiftDisplayGroup(shift);
                       const employeeName = shift.employee_name || 'Unassigned';
                       return (
-                        <div key={shift.id} className={`shift-block overflow-hidden rounded-lg border p-2 shadow-sm ${departmentTone(department)}`}>
-                          <div className="flex min-w-0 items-baseline gap-1 text-xs text-foreground">
-                            <span className="shrink-0 font-bold text-sm">{formatTime12(shift.start_time)}</span>
-                            <span className="truncate text-muted-foreground">— {formatTime12(shift.end_time)}</span>
-                          </div>
-                          <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
-                            <span className="truncate text-xs text-foreground">{shift.role}</span>
-                            <span className="shrink-0 rounded-full border border-current/15 bg-white/60 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                        <div key={shift.id} className={`shift-block overflow-hidden rounded-xl border p-2.5 shadow-sm ${departmentTone(department)}`}>
+                          <div className="flex min-w-0 items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-semibold text-foreground">{shift.role}</div>
+                              <div className="mt-0.5 flex min-w-0 items-baseline gap-1 text-xs text-foreground">
+                                <span className="shrink-0 font-bold">{formatTime12(shift.start_time)}</span>
+                                <span className="truncate text-muted-foreground">- {formatTime12(shift.end_time)}</span>
+                              </div>
+                            </div>
+                            <span className="shrink-0 rounded-full border border-current/15 bg-white/70 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
                               {department}
                             </span>
                           </div>
-                          <div className="mt-1 truncate text-[11px] text-muted-foreground">{employeeName}</div>
+
+                          <div className="mt-1.5 truncate text-[11px] text-muted-foreground">{employeeName}</div>
 
                           {overlappingShiftIds.has(shift.id) && (
                             <div
@@ -1231,12 +1351,19 @@ export default function SchedulePage() {
                     })}
 
                     {dayOpenShifts.map((openShift) => (
-                      <div key={`open-${openShift.id}`} className="overflow-hidden rounded-lg border border-primary/30 bg-primary/5 p-2 shadow-sm">
-                        <div className="flex min-w-0 items-baseline gap-1 text-xs text-foreground">
-                          <span className="shrink-0 font-bold text-sm">{formatTime12(openShift.start_time)}</span>
-                          <span className="truncate text-muted-foreground">— {formatTime12(openShift.end_time)}</span>
+                      <div key={`open-${openShift.id}`} className="overflow-hidden rounded-xl border border-primary/35 bg-primary/5 p-2.5 shadow-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-foreground">{openShift.role}</div>
+                            <div className="mt-0.5 flex min-w-0 items-baseline gap-1 text-xs text-foreground">
+                              <span className="shrink-0 font-bold">{formatTime12(openShift.start_time)}</span>
+                              <span className="truncate text-muted-foreground">- {formatTime12(openShift.end_time)}</span>
+                            </div>
+                          </div>
+                          <span className="shrink-0 rounded-full border border-primary/30 bg-white/70 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide text-primary">
+                            Open
+                          </span>
                         </div>
-                        <div className="mt-1 truncate text-xs text-foreground">{openShift.role} (Open)</div>
                         {!isManager && (
                           <Button
                             size="sm"

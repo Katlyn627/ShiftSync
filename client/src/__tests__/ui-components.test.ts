@@ -35,6 +35,7 @@ vi.mock('../api', () => ({
     { id: 1, name: 'Manager User', role: 'Manager', department: 'Operations', hourly_rate: 20, weekly_hours_max: 40, created_at: '2024-01-01' },
     { id: 2, name: 'Alex Jones', role: 'Server', department: 'Front of House', hourly_rate: 18, weekly_hours_max: 35, created_at: '2024-01-01' },
   ]),
+  getAllAvailability: vi.fn().mockResolvedValue([]),
   getOpenShifts: vi.fn().mockResolvedValue([]),
   getScheduleShifts: vi.fn().mockResolvedValue([
     {
@@ -54,6 +55,7 @@ vi.mock('../api', () => ({
   getSchedules: vi.fn().mockResolvedValue([
     { id: 1, week_start: '2024-01-01', labor_budget: 5000, status: 'draft', created_at: '2024-01-01' },
   ]),
+  getTimeOffRequests: vi.fn().mockResolvedValue([]),
   offerForOpenShift: vi.fn(),
   updateSchedule: vi.fn(),
   updateShift: vi.fn(),
@@ -123,7 +125,7 @@ describe('schedule page layout and actions', () => {
     expect(scrollArea).not.toBeNull();
     expect(scrollArea?.className).toContain('overflow-x-auto');
     expect(dayColumns.length).toBeGreaterThan(0);
-    expect(Array.from(dayColumns)[0]?.className).toContain('min-w-[170px]');
+    expect(Array.from(dayColumns)[0]?.className).toContain('min-w-55');
     expect(editButton).not.toBeNull();
     expect(deleteButton).not.toBeNull();
   });

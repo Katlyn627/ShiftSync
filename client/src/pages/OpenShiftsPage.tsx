@@ -1,20 +1,96 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import {
-  getOpenShifts, createOpenShift, offerForOpenShift, cancelOpenShift,
+  getOpenShifts, createOpenShift, offerForOpenShift, cancelOpenShift, fillOpenShift,
   getSchedules,
   OpenShift, Schedule,
 } from '../api';
 import { PageHeader, useToast } from '../components/ui';
 
+type OpenShiftApplicant = {
+  employee_id: number;
+  employee_name?: string | null;
+  offer_id?: number;
+  status?: string;
+};
+
+type OpenShiftListItem = OpenShift & {
+  applicants?: OpenShiftApplicant[];
+  offers?: OpenShiftApplicant[];
+  source_employee_name?: string | null;
+};
+
+const FULL_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  weekday: 'long',
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
+
+function parseCertifications(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function formatFullDateLabel(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  if (!y || !m || !d) return date;
+  return FULL_DATE_FORMATTER.format(new Date(y, m - 1, d));
+}
+
+function formatDurationHours(date: string, startTime: string, endTime: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [endHour, endMinute] = endTime.split(':').map(Number);
+  if (
+    [y, m, d, startHour, startMinute, endHour, endMinute].some((value) => Number.isNaN(value))
+  ) {
+    return 'Unknown length';
+  }
+
+  const start = new Date(y, m - 1, d, startHour, startMinute, 0, 0);
+  const end = new Date(y, m - 1, d, endHour, endMinute, 0, 0);
+  let hours = (end.getTime() - start.getTime()) / 3600000;
+  if (hours <= 0) hours += 24;
+
+  return `${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`;
+}
+
+function getApplicants(shift: OpenShiftListItem): OpenShiftApplicant[] {
+  const candidates = shift.applicants ?? shift.offers;
+  if (!Array.isArray(candidates)) return [];
+  return candidates.filter((candidate) => {
+    const hasEmployeeId = typeof candidate?.employee_id === 'number' && Number.isFinite(candidate.employee_id);
+    const isPending = !candidate.status || candidate.status === 'pending';
+    return hasEmployeeId && isPending;
+  });
+}
+
+function getReasonBadges(shift: OpenShiftListItem): string[] {
+  const reasons = new Set<string>();
+  const normalizedReason = (shift.reason || '').toLowerCase();
+
+  if (normalizedReason.includes('callout')) reasons.add('Call-Out');
+  if (normalizedReason.includes('understaff')) reasons.add('Understaffed');
+  if (normalizedReason.includes('drop') || shift.source_employee_name) reasons.add('Dropped Shift');
+
+  return Array.from(reasons);
+}
+
 export default function OpenShiftsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [openShifts, setOpenShifts] = useState<OpenShift[]>([]);
+  const [openShifts, setOpenShifts] = useState<OpenShiftListItem[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('open');
+  const [assigningKey, setAssigningKey] = useState<string | null>(null);
 
   // Create form state (manager only)
   const [showCreate, setShowCreate] = useState(false);
@@ -36,7 +112,7 @@ export default function OpenShiftsPage() {
         getOpenShifts({ status: statusFilter || undefined }),
         getSchedules(),
       ]);
-      setOpenShifts(shifts);
+      setOpenShifts(shifts as OpenShiftListItem[]);
       setSchedules(scheds);
     } catch (err: any) {
       setError(err.message);
@@ -89,6 +165,21 @@ export default function OpenShiftsPage() {
       await loadData();
     } catch (err: any) {
       setError(err.message);
+    }
+  }
+
+  async function handleAssign(openShiftId: number, employeeId: number) {
+    const key = `${openShiftId}:${employeeId}`;
+    setAssigningKey(key);
+    setError(null);
+    try {
+      await fillOpenShift(openShiftId, { employee_id: employeeId });
+      toast('Open shift assigned successfully.', { variant: 'success' });
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to assign shift.');
+    } finally {
+      setAssigningKey(null);
     }
   }
 
@@ -241,7 +332,13 @@ export default function OpenShiftsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {openShifts.map(shift => (
+          {openShifts.map(shift => {
+            const formattedDate = formatFullDateLabel(shift.date);
+            const duration = formatDurationHours(shift.date, shift.start_time, shift.end_time);
+            const certs = parseCertifications(shift.required_certifications);
+            const applicants = getApplicants(shift);
+            const reasonBadges = getReasonBadges(shift);
+            return (
             <div key={shift.id} className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
@@ -252,10 +349,16 @@ export default function OpenShiftsPage() {
                       {REASON_LABELS[shift.reason] ?? shift.reason}
                     </span>
                   )}
+                  {reasonBadges.map((badge) => (
+                    <span key={`${shift.id}-${badge}`} className="text-xs text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                      {badge}
+                    </span>
+                  ))}
                 </div>
                 <div className="text-sm text-gray-600">
-                  {new Date(shift.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                  {' '}&bull;{' '}{shift.start_time} – {shift.end_time}
+                  {formattedDate}
+                  {' '}&bull;{' '}{shift.start_time} - {shift.end_time}
+                  {' '}&bull;{' '}{duration}
                 </div>
                 {shift.claimed_by_name && (
                   <div className="text-xs text-blue-700 mt-0.5">Claimed by: {shift.claimed_by_name}</div>
@@ -263,12 +366,39 @@ export default function OpenShiftsPage() {
                 {shift.offer_count !== undefined && shift.offer_count > 0 && (
                   <div className="text-xs text-gray-500 mt-0.5">{shift.offer_count} offer{shift.offer_count !== 1 ? 's' : ''} pending</div>
                 )}
-                {(() => {
-                  const certs = JSON.parse(shift.required_certifications || '[]') as string[];
-                  return certs.length > 0 ? (
-                    <div className="text-xs text-purple-700 mt-0.5">Requires: {certs.join(', ')}</div>
-                  ) : null;
-                })()}
+                {certs.length > 0 && (
+                  <div className="text-xs text-purple-700 mt-0.5">Requires: {certs.join(', ')}</div>
+                )}
+
+                {user?.isManager && shift.status === 'open' && (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">Applicants</div>
+                    {applicants.length === 0 ? (
+                      <div className="mt-1 text-xs text-slate-500">No pending applicants yet.</div>
+                    ) : (
+                      <div className="mt-2 space-y-1.5">
+                        {applicants.map((applicant) => {
+                          const loading = assigningKey === `${shift.id}:${applicant.employee_id}`;
+                          return (
+                            <div key={`${shift.id}-${applicant.employee_id}`} className="flex items-center justify-between gap-2 rounded border border-slate-200 bg-white px-2 py-1.5">
+                              <span className="truncate text-sm text-slate-700">
+                                {applicant.employee_name || `Employee #${applicant.employee_id}`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleAssign(shift.id, applicant.employee_id)}
+                                disabled={loading}
+                                className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {loading ? 'Assigning...' : 'Assign'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Worker Eligibility Feedback */}
                 {!user?.isManager && shift.eligibility && (
@@ -295,11 +425,11 @@ export default function OpenShiftsPage() {
                   </div>
                 )}
               </div>
-              <div className="flex gap-2 flex-shrink-0 items-center">
+              <div className="flex gap-2 shrink-0 items-center">
                 {!user?.isManager && shift.status === 'open' && (
                   <button
                     onClick={() => handleOffer(shift.id)}
-                    disabled={shift.eligibility && !shift.eligibility.eligible}
+                    disabled={Boolean(shift.eligibility && !shift.eligibility.eligible)}
                     title={shift.eligibility && !shift.eligibility.eligible ? shift.eligibility.reasons?.join('; ') : 'Submit offer to work this shift'}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       shift.eligibility && !shift.eligibility.eligible
@@ -320,7 +450,8 @@ export default function OpenShiftsPage() {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
