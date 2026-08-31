@@ -8,6 +8,8 @@ Branch: feat/schedule-open-shifts-ux-fixes
 - Dashboard staffing summary now mirrors the same status and role-level deltas.
 - Staffing suggestions API now returns the enriched daily payload with status and role deltas.
 - Added a compact guide for staffing API design and realistic seeded data modeling in [docs/staffing-api-and-seeding-guide.md](docs/staffing-api-and-seeding-guide.md).
+- Schedule cards now use neutral surfaces with role-specific text colors so staffing warnings stay visually distinct.
+- Added a structured recommendation panel that ranks best-fit employees per day/shift using availability, time-off, role match, and current weekly load.
 
 ## Validation
 - Client tests passed.
