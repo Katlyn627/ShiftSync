@@ -1,16 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getEmployees, getSites, createEmployee, updateEmployee, deleteEmployee, getPositions, importEmployees, Employee, Site, Position } from '../api';
 import { useAuth } from '../AuthContext';
 import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS, PageHeader } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
-const FALLBACK_ROLES = ['Server', 'Kitchen', 'Bar', 'Host', 'Manager', 'Front Desk', 'Housekeeping', 'F&B', 'Maintenance'];
+const FALLBACK_ROLES = ['Server', 'Kitchen', 'Bar', 'Bartender', 'Host', 'Manager', 'Front Desk', 'Housekeeping', 'F&B', 'Maintenance'];
+
+function normalizeRoleLabel(role: string): string {
+  const normalized = role.trim().toLowerCase();
+  if (normalized === 'bar') return 'Bartender';
+  return role;
+}
 
 function roleVariant(role: string): BadgeVariant {
+  const normalized = role.trim().toLowerCase();
   const map: Record<string, BadgeVariant> = {
-    Manager: 'manager', Server: 'server', Kitchen: 'kitchen', Bar: 'bar', Host: 'host',
+    manager: 'manager', server: 'server', kitchen: 'kitchen', bar: 'bar', bartender: 'bar', host: 'host',
   };
-  return map[role] ?? 'default';
+  return map[normalized] ?? 'default';
 }
 
 function initials(name: string) {
@@ -22,6 +29,7 @@ const AVATAR_BG: Record<string, string> = {
   Server:      'bg-blue-100 text-blue-700',
   Kitchen:     'bg-orange-100 text-orange-700',
   Bar:         'bg-emerald-100 text-emerald-700',
+  Bartender:   'bg-emerald-100 text-emerald-700',
   Host:        'bg-pink-100 text-pink-700',
   'Front Desk':'bg-sky-100 text-sky-700',
   Housekeeping:'bg-amber-100 text-amber-700',
@@ -46,7 +54,11 @@ export default function EmployeesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const roleOptions = positions.filter(p => p.is_active).map(p => p.name);
-  const roles = roleOptions.length > 0 ? roleOptions : FALLBACK_ROLES;
+  const roles = useMemo(() => {
+    const base = roleOptions.length > 0 ? roleOptions : FALLBACK_ROLES;
+    const normalizedRoles = base.map((role) => normalizeRoleLabel(role));
+    return Array.from(new Set(normalizedRoles));
+  }, [roleOptions]);
 
   const load = () => Promise.all([
     getEmployees(),
@@ -57,7 +69,9 @@ export default function EmployeesPage() {
     setSites(s);
     setPositions(pos);
     // Set default role from fetched positions if form role is still empty
-    const activeRoles = pos.filter((p: Position) => p.is_active).map((p: Position) => p.name);
+    const activeRoles = pos
+      .filter((p: Position) => p.is_active)
+      .map((p: Position) => normalizeRoleLabel(p.name));
     const defaultRole = (activeRoles.length > 0 ? activeRoles : FALLBACK_ROLES)[0] ?? '';
     setForm(f => f.role === '' ? { ...f, role: defaultRole } : f);
     setLoading(false);
@@ -301,7 +315,7 @@ export default function EmployeesPage() {
                     </div>
                   </td>
                   <td className="px-5 py-3">
-                    <Badge variant={roleVariant(emp.role)}>{emp.role}</Badge>
+                    <Badge variant={roleVariant(emp.role)}>{normalizeRoleLabel(emp.role)}</Badge>
                     {emp.role_title && emp.role_title.trim().toLowerCase() !== emp.role.trim().toLowerCase() && (
                       <div className="text-xs text-muted-foreground mt-0.5">{emp.role_title}</div>
                     )}

@@ -37,6 +37,7 @@ vi.mock('../api', () => ({
   ]),
   getAllAvailability: vi.fn().mockResolvedValue([]),
   getOpenShifts: vi.fn().mockResolvedValue([]),
+  getStaffingSuggestions: vi.fn().mockResolvedValue([]),
   getScheduleShifts: vi.fn().mockResolvedValue([
     {
       id: 10,
