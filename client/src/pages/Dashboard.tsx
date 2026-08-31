@@ -64,6 +64,12 @@ const ROLE_BADGE_VARIANT: Record<string, BadgeVariant> = {
   Manager: 'manager', Server: 'server', Kitchen: 'kitchen', Bar: 'bar', Host: 'host',
 };
 
+function staffingStatusLabel(status?: 'adequate' | 'understaffed' | 'overstaffed') {
+  if (status === 'understaffed') return 'Short';
+  if (status === 'overstaffed') return 'Over';
+  return 'On target';
+}
+
 /* ── Employee shift cost / hours helpers ── */
 function calculateEmployeeLaborCost(shifts: ShiftWithEmployee[]): number {
   return shifts.reduce((sum, s) => sum + shiftHours(s.start_time, s.end_time) * s.hourly_rate, 0);
@@ -1121,17 +1127,31 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold text-foreground">Demand-Based Staffing</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Recommended staff count per day based on forecast revenue</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Recommended staffing and the exact positions driving any gap</p>
             </div>
           </div>
           <div className="grid grid-cols-7 gap-2">
             {staffingSuggestions.map(day => {
-              const totalStaff = day.staffing.reduce((sum, s) => sum + s.count, 0);
+              const totalStaff = day.staffing_suggested ?? day.staffing.reduce((sum, s) => sum + s.count, 0);
+              const status = day.staffing_status ?? 'adequate';
+              const roleDeltas = (day.role_deltas ?? []).filter((entry) => status === 'understaffed' ? entry.delta < 0 : entry.delta > 0);
               const roleGroups: Record<string, number> = {};
               for (const s of day.staffing) roleGroups[s.role] = (roleGroups[s.role] || 0) + s.count;
+              const cardClass = status === 'understaffed'
+                ? 'border-yellow-500 bg-yellow-300/90'
+                : status === 'overstaffed'
+                  ? 'border-red-600 bg-red-300/90'
+                  : 'bg-muted/40';
               return (
-                <div key={day.date} className="bg-muted/40 rounded-xl p-3 text-center border border-border">
-                  <div className="text-xs font-semibold text-muted-foreground">{DAY_NAMES[day.day_of_week]}</div>
+                <div key={day.date} className={`rounded-xl border p-3 text-center ${cardClass}`}>
+                  <div className="flex items-center justify-between gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <span>{DAY_NAMES[day.day_of_week]}</span>
+                    {status !== 'adequate' && (
+                      <span className={`rounded-full px-1.5 py-0.5 ${status === 'understaffed' ? 'bg-yellow-500 text-yellow-950' : 'bg-red-600 text-red-50'}`}>
+                        {staffingStatusLabel(status)}
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground/70 mb-1">{day.date.slice(5)}</div>
                   <div className="text-xl font-bold text-primary">{totalStaff}</div>
                   <div className="text-xs text-muted-foreground">staff</div>
@@ -1143,6 +1163,19 @@ export default function Dashboard() {
                       <div key={role} className="text-[10px] text-muted-foreground">{count} {role}</div>
                     ))}
                   </div>
+                  {roleDeltas.length > 0 && (
+                    <div className="mt-2 flex flex-wrap justify-center gap-1">
+                      {roleDeltas.slice(0, 3).map((entry) => (
+                        <span
+                          key={`${day.date}-${entry.role}`}
+                          title={`${entry.role}: scheduled ${entry.actual}, suggested ${entry.suggested}`}
+                          className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${status === 'understaffed' ? 'border-yellow-600 bg-yellow-400 text-yellow-950' : 'border-red-700 bg-red-500 text-red-50'}`}
+                        >
+                          {entry.role} {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
