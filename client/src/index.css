@@ -468,3 +468,23 @@ nav::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--border) 30%,
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
+
+/* ════════════════════════════════════════════════
+   Print Stylesheet (for Schedule & Kitchen Roster)
+   ════════════════════════════════════════════════ */
+@media print {
+  aside, header, nav, button, .no-print {
+    display: none !important;
+  }
+  body, main {
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .card, .page-banner {
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}
+

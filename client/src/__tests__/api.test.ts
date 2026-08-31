@@ -14,5 +14,6 @@ describe('API module', () => {
     expect(typeof module.rejectSwap).toBe('function');
     expect(typeof module.deleteSchedule).toBe('function');
     expect(typeof module.updateSchedule).toBe('function');
+    expect(typeof module.duplicateSchedule).toBe('function');
   });
 });

@@ -15,6 +15,27 @@ router.get('/', requireAuth, (req: Request, res: Response) => {
   res.json(schedules);
 });
 
+function parseDateOnly(value: unknown): Date | null {
+  if (typeof value !== 'string') return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function addDaysToIso(baseIsoDate: string, days: number): string {
+  const [year, month, day] = baseIsoDate.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
 router.post('/generate', requireManager, (req: Request, res: Response) => {
   const { week_start, labor_budget } = req.body;
   if (!week_start) return res.status(400).json({ error: 'week_start is required' });
@@ -27,6 +48,65 @@ router.post('/generate', requireManager, (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+router.post('/:id/duplicate', requireManager, (req: Request, res: Response) => {
+  const sourceId = Number(req.params.id);
+  if (!Number.isInteger(sourceId) || sourceId <= 0) {
+    return res.status(400).json({ error: 'Invalid schedule id' });
+  }
+
+  const targetDate = parseDateOnly(req.body?.target_week_start);
+  if (!targetDate) {
+    return res.status(400).json({ error: 'target_week_start must be a valid YYYY-MM-DD date' });
+  }
+  const formattedTargetWeekStart = targetDate.toISOString().slice(0, 10);
+
+  const db = getDb();
+  const sourceSchedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(sourceId) as any;
+  if (!sourceSchedule) {
+    return res.status(404).json({ error: 'Source schedule not found' });
+  }
+
+  if (req.user?.siteId != null && sourceSchedule.site_id != null && sourceSchedule.site_id !== req.user.siteId) {
+    return res.status(403).json({ error: 'You can only manage schedules for your site' });
+  }
+
+  const sourceDate = parseDateOnly(sourceSchedule.week_start);
+  if (!sourceDate) {
+    return res.status(400).json({ error: 'Source schedule has an invalid week_start date' });
+  }
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const diffDays = Math.round((targetDate.getTime() - sourceDate.getTime()) / dayMs);
+
+  const sourceShifts = db.prepare(
+    "SELECT employee_id, date, start_time, end_time, role FROM shifts WHERE schedule_id = ? AND status != 'cancelled'"
+  ).all(sourceId) as Array<{ employee_id: number | null; date: string; start_time: string; end_time: string; role: string }>;
+
+  const laborBudget = Number(req.body?.labor_budget) || sourceSchedule.labor_budget || 5000;
+
+  const tx = db.transaction(() => {
+    const schedResult = db.prepare(
+      "INSERT INTO schedules (week_start, labor_budget, status, site_id) VALUES (?, ?, 'draft', ?)"
+    ).run(formattedTargetWeekStart, laborBudget, sourceSchedule.site_id ?? req.user?.siteId ?? null);
+    const newScheduleId = Number(schedResult.lastInsertRowid);
+
+    const insertShift = db.prepare(
+      "INSERT INTO shifts (schedule_id, employee_id, date, start_time, end_time, role, status) VALUES (?, ?, ?, ?, ?, ?, 'scheduled')"
+    );
+
+    for (const shift of sourceShifts) {
+      const newDate = addDaysToIso(shift.date, diffDays);
+      insertShift.run(newScheduleId, shift.employee_id ?? null, newDate, shift.start_time, shift.end_time, shift.role);
+    }
+
+    return newScheduleId;
+  });
+
+  const createdId = tx();
+  const newSchedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(createdId);
+  res.status(201).json(newSchedule);
 });
 
 router.get('/:id', (req: Request, res: Response) => {
