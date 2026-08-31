@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
+import { evaluateOpenShiftEligibility } from '../utils/openShiftEligibility';
 
 const router = Router();
 
@@ -40,9 +41,19 @@ router.get('/', requireAuth, (req: Request, res: Response) => {
     LEFT JOIN employees claimer ON claimer.id = os.claimed_by
     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
     ORDER BY os.date ASC, os.start_time ASC, os.id ASC
-  `).all(...params);
+  `).all(...params) as any[];
 
-  res.json(rows);
+  // If requester is an employee, compute eligibility for each open shift
+  const employeeId = req.user?.employeeId;
+  const withEligibility = rows.map((shift) => {
+    if (employeeId && shift.status === 'open') {
+      const eligibility = evaluateOpenShiftEligibility(employeeId, shift);
+      return { ...shift, eligibility };
+    }
+    return shift;
+  });
+
+  res.json(withEligibility);
 });
 
 router.get('/:id', requireAuth, (req: Request, res: Response) => {
@@ -54,6 +65,13 @@ router.get('/:id', requireAuth, (req: Request, res: Response) => {
     WHERE os.id = ?
   `).get(req.params.id) as any;
   if (!row) return res.status(404).json({ error: 'Open shift not found' });
+
+  const employeeId = req.user?.employeeId;
+  if (employeeId && row.status === 'open') {
+    const eligibility = evaluateOpenShiftEligibility(employeeId, row);
+    row.eligibility = eligibility;
+  }
+
   res.json(row);
 });
 
@@ -100,6 +118,16 @@ router.post('/:id/offer', requireAuth, (req: Request, res: Response) => {
   const openShift = db.prepare('SELECT * FROM open_shifts WHERE id = ?').get(req.params.id) as any;
   if (!openShift) return res.status(404).json({ error: 'Open shift not found' });
   if (openShift.status !== 'open') return res.status(400).json({ error: 'Open shift is not available' });
+
+  // Evaluate worker eligibility
+  const eligibility = evaluateOpenShiftEligibility(employeeId, openShift);
+  if (!eligibility.eligible) {
+    return res.status(400).json({
+      error: `You are not eligible for this shift: ${eligibility.reasons.join('; ')}`,
+      code: 'INELIGIBLE_FOR_OPEN_SHIFT',
+      reasons: eligibility.reasons,
+    });
+  }
 
   const existing = db.prepare(`
     SELECT * FROM open_shift_offers

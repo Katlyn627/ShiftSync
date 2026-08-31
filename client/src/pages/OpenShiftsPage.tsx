@@ -254,12 +254,43 @@ export default function OpenShiftsPage() {
                     <div className="text-xs text-purple-700 mt-0.5">Requires: {certs.join(', ')}</div>
                   ) : null;
                 })()}
+
+                {/* Worker Eligibility Feedback */}
+                {!user?.isManager && shift.eligibility && (
+                  <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center gap-1.5">
+                    {shift.eligibility.eligible ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        ✓ Eligible to claim
+                      </span>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                          ✕ Ineligible
+                        </span>
+                        {shift.eligibility.reasons?.map((reason, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded"
+                          >
+                            {reason}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex gap-2 flex-shrink-0 items-center">
                 {!user?.isManager && shift.status === 'open' && (
                   <button
                     onClick={() => handleOffer(shift.id)}
-                    className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700"
+                    disabled={shift.eligibility && !shift.eligibility.eligible}
+                    title={shift.eligibility && !shift.eligibility.eligible ? shift.eligibility.reasons?.join('; ') : 'Submit offer to work this shift'}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      shift.eligibility && !shift.eligibility.eligible
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
                   >
                     Offer to Work
                   </button>

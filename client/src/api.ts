@@ -566,6 +566,7 @@ export interface OpenShift {
   claimed_by: number | null;
   claimed_by_name: string | null;
   offer_count?: number;
+  eligibility?: EligibilityInfo;
   created_at: string;
 }
 
@@ -581,8 +582,9 @@ export interface OpenShiftOffer {
 
 export interface EligibilityInfo {
   eligible: boolean;
-  reason: string | null;
-  explanation: string;
+  reasons?: string[];
+  reason?: string | null;
+  explanation?: string;
 }
 
 export interface CalloutEvent {
