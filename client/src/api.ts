@@ -93,9 +93,9 @@ export const deleteSchedule = (id: number) =>
   request<{ success: boolean }>(`/schedules/${id}`, { method: 'DELETE' });
 
 // Shifts
-export const updateShift = (id: number, data: Partial<Shift> & { employee_id?: number }) =>
+export const updateShift = (id: number, data: Partial<Shift> & { employee_id?: number; allow_override?: boolean }) =>
   request<ShiftWithEmployee>(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-export const createShift = (data: { schedule_id: number; employee_id?: number; date: string; start_time: string; end_time: string; role: string }) =>
+export const createShift = (data: { schedule_id: number; employee_id?: number; date: string; start_time: string; end_time: string; role: string; allow_override?: boolean }) =>
   request<ShiftWithEmployee>('/shifts', { method: 'POST', body: JSON.stringify(data) });
 export const deleteShift = (id: number) =>
   request<{ success: boolean }>(`/shifts/${id}`, { method: 'DELETE' });

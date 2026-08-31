@@ -1,33 +1,37 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { requireAuth, requireManager } from '../middleware/auth';
+import { checkRestViolation } from '../utils/restWindow';
 
 const router = Router();
 
 router.put('/:id', requireManager, (req: Request, res: Response) => {
-  const { start_time, end_time, status, employee_id } = req.body;
+  const { start_time, end_time, status, employee_id, date, allow_override } = req.body;
   const db = getDb();
   const existing = db.prepare('SELECT * FROM shifts WHERE id = ?').get(req.params.id) as any;
   if (!existing) return res.status(404).json({ error: 'Shift not found' });
 
-  // If reassigning employee, check their weekly hours won't exceed max
-  if (employee_id !== undefined && employee_id !== existing.employee_id) {
-    const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(employee_id) as any;
+  const targetEmployeeId = employee_id !== undefined ? (employee_id ? Number(employee_id) : null) : existing.employee_id;
+  const targetDate = date ?? existing.date;
+  const targetStartTime = start_time ?? existing.start_time;
+  const targetEndTime = end_time ?? existing.end_time;
+
+  // If assigned to an employee, perform hour limit and rest-window checks
+  if (targetEmployeeId) {
+    const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(targetEmployeeId) as any;
     if (!employee) return res.status(404).json({ error: 'Employee not found' });
 
-    const newStart = start_time ?? existing.start_time;
-    const newEnd = end_time ?? existing.end_time;
-    const [sh, sm] = newStart.split(':').map(Number);
-    const [eh, em] = newEnd.split(':').map(Number);
+    // Check weekly hour limits if hours or employee changed
+    const [sh, sm] = targetStartTime.split(':').map(Number);
+    const [eh, em] = targetEndTime.split(':').map(Number);
     let startMin = sh * 60 + sm;
     let endMin = eh * 60 + em;
     if (endMin <= startMin) endMin += 24 * 60;
     const shiftHours = (endMin - startMin) / 60;
 
-    // Sum hours for this employee in the same schedule, excluding this shift
     const otherShifts = db.prepare(
-      "SELECT start_time, end_time FROM shifts WHERE schedule_id = ? AND employee_id = ? AND id != ? AND status != 'cancelled'"
-    ).all(existing.schedule_id, employee_id, req.params.id) as any[];
+      "SELECT id, date, start_time, end_time FROM shifts WHERE schedule_id = ? AND employee_id = ? AND id != ? AND status != 'cancelled'"
+    ).all(existing.schedule_id, targetEmployeeId, req.params.id) as any[];
 
     const currentHours = otherShifts.reduce((sum: number, s: any) => {
       const [s2h, s2m] = s.start_time.split(':').map(Number);
@@ -43,18 +47,36 @@ router.put('/:id', requireManager, (req: Request, res: Response) => {
         error: `${employee.name} would exceed their weekly hours limit of ${employee.weekly_hours_max}h (currently ${currentHours.toFixed(1)}h + ${shiftHours.toFixed(1)}h = ${(currentHours + shiftHours).toFixed(1)}h)`
       });
     }
+
+    // Check Rest Window / Clopening (< 11 hours turnaround)
+    if (!allow_override) {
+      const restViolation = checkRestViolation(
+        { date: targetDate, start_time: targetStartTime, end_time: targetEndTime },
+        otherShifts,
+        11,
+        Number(req.params.id)
+      );
+      if (restViolation) {
+        return res.status(400).json({
+          error: restViolation.message,
+          code: 'REST_WINDOW_VIOLATION',
+          restHours: restViolation.restHours,
+        });
+      }
+    }
   }
 
-  db.prepare('UPDATE shifts SET start_time=?, end_time=?, status=?, employee_id=? WHERE id=?').run(
-    start_time ?? existing.start_time,
-    end_time ?? existing.end_time,
+  db.prepare('UPDATE shifts SET date=?, start_time=?, end_time=?, status=?, employee_id=? WHERE id=?').run(
+    targetDate,
+    targetStartTime,
+    targetEndTime,
     status ?? existing.status,
-    employee_id ?? existing.employee_id,
+    targetEmployeeId,
     req.params.id
   );
   const updated = db.prepare(`
     SELECT s.*, e.name as employee_name, e.role as employee_role, e.department as employee_department, e.hourly_rate
-    FROM shifts s JOIN employees e ON s.employee_id = e.id
+    FROM shifts s LEFT JOIN employees e ON s.employee_id = e.id
     WHERE s.id = ?
   `).get(req.params.id);
   res.json(updated);
@@ -62,7 +84,7 @@ router.put('/:id', requireManager, (req: Request, res: Response) => {
 
 // POST /shifts — create a new shift manually (manager only)
 router.post('/', requireManager, (req: Request, res: Response) => {
-  const { schedule_id, employee_id, date, start_time, end_time, role } = req.body;
+  const { schedule_id, employee_id, date, start_time, end_time, role, allow_override } = req.body;
   if (!schedule_id || !date || !start_time || !end_time || !role) {
     return res.status(400).json({ error: 'schedule_id, date, start_time, end_time, and role are required' });
   }
@@ -71,7 +93,7 @@ router.post('/', requireManager, (req: Request, res: Response) => {
   const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(schedule_id) as any;
   if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
 
-  // If employee_id provided, check hours limit
+  // If employee_id provided, check hours limit and rest window
   if (employee_id) {
     const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(employee_id) as any;
     if (!employee) return res.status(404).json({ error: 'Employee not found' });
@@ -84,7 +106,7 @@ router.post('/', requireManager, (req: Request, res: Response) => {
     const shiftHours = (eMin - sMin) / 60;
 
     const existingShifts = db.prepare(
-      "SELECT start_time, end_time FROM shifts WHERE schedule_id = ? AND employee_id = ? AND status != 'cancelled'"
+      "SELECT id, date, start_time, end_time FROM shifts WHERE schedule_id = ? AND employee_id = ? AND status != 'cancelled'"
     ).all(schedule_id, employee_id) as any[];
 
     const currentHours = existingShifts.reduce((sum: number, s: any) => {
@@ -100,6 +122,22 @@ router.post('/', requireManager, (req: Request, res: Response) => {
       return res.status(400).json({
         error: `${employee.name} would exceed their weekly hours limit of ${employee.weekly_hours_max}h`
       });
+    }
+
+    // Check Rest Window / Clopening (< 11 hours turnaround)
+    if (!allow_override) {
+      const restViolation = checkRestViolation(
+        { date, start_time, end_time },
+        existingShifts,
+        11
+      );
+      if (restViolation) {
+        return res.status(400).json({
+          error: restViolation.message,
+          code: 'REST_WINDOW_VIOLATION',
+          restHours: restViolation.restHours,
+        });
+      }
     }
   }
 
