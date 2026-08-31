@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, PencilLine, Plus, Printer, Sparkles, Trash2 } from 'lucide-react';
+import { AlertTriangle, Copy, PencilLine, Plus, Printer, Sparkles, Trash2 } from 'lucide-react';
 import {
   createOpenShift,
   createShift,
@@ -57,6 +57,27 @@ function normalizedValue(value?: string | null) {
 
 function employeeDepartmentLabel(employee: Employee): string {
   return (employee.department || employee.role || 'General').trim();
+}
+
+function calculateRestHoursClient(
+  shiftA: { date: string; start_time: string; end_time: string },
+  shiftB: { date: string; start_time: string; end_time: string }
+): number {
+  const [y1, m1, d1] = shiftA.date.split('-').map(Number);
+  const [y2, m2, d2] = shiftB.date.split('-').map(Number);
+  const [shA, smA] = shiftA.start_time.split(':').map(Number);
+  const [ehA, emA] = shiftA.end_time.split(':').map(Number);
+  const startA = shA * 60 + smA;
+  let endA = ehA * 60 + emA;
+  const overnightA = endA <= startA;
+
+  const endDateA = new Date(Date.UTC(y1, m1 - 1, d1 + (overnightA ? 1 : 0), Math.floor(endA % (24 * 60) / 60), endA % 60));
+  const [shB, smB] = shiftB.start_time.split(':').map(Number);
+  const startB = shB * 60 + smB;
+  const startDateB = new Date(Date.UTC(y2, m2 - 1, d2, Math.floor(startB / 60), startB % 60));
+
+  const diffMs = startDateB.getTime() - endDateA.getTime();
+  return diffMs / (1000 * 60 * 60);
 }
 
 function startOfWeek(date: Date) {
@@ -249,6 +270,37 @@ export default function SchedulePage() {
     });
     return map;
   }, [visibleShifts]);
+
+  // Identify shifts with rest-window violations (< 11 hours rest from previous shift for the same employee)
+  const quickReturnShiftMap = useMemo(() => {
+    const map = new Map<number, { restHours: number; prevShiftSummary: string }>();
+    // Group all active shifts by employee
+    const byEmployee = new Map<number, ShiftWithEmployee[]>();
+    shifts.forEach((s) => {
+      if (!s.employee_id) return;
+      const list = byEmployee.get(s.employee_id) || [];
+      list.push(s);
+      byEmployee.set(s.employee_id, list);
+    });
+
+    byEmployee.forEach((empShifts) => {
+      // Sort chronologically
+      const sorted = [...empShifts].sort((a, b) => `${a.date} ${a.start_time}`.localeCompare(`${b.date} ${b.start_time}`));
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const curr = sorted[i];
+        const rest = calculateRestHoursClient(prev, curr);
+        if (rest >= 0 && rest < 11) {
+          map.set(curr.id, {
+            restHours: Math.round(rest * 10) / 10,
+            prevShiftSummary: `${prev.date} (${formatTime12(prev.start_time)}-${formatTime12(prev.end_time)})`,
+          });
+        }
+      }
+    });
+
+    return map;
+  }, [shifts]);
 
   const openShiftsByDate = useMemo(() => {
     const scopedOpenShifts = isManager
@@ -487,6 +539,28 @@ export default function SchedulePage() {
         toast('Open shift added.', { variant: 'success' });
       }
     } catch (err: any) {
+      if (err.message && err.message.includes('Rest window violation') && newShift.employee_id) {
+        const confirmOverride = window.confirm(`${err.message}\n\nDo you want to override and schedule this shift anyway?`);
+        if (confirmOverride) {
+          try {
+            await createShift({
+              schedule_id: selectedScheduleId,
+              employee_id: Number(newShift.employee_id),
+              date: newShift.date,
+              start_time: newShift.start_time,
+              end_time: newShift.end_time,
+              role: newShift.role,
+              allow_override: true,
+            });
+            await loadShifts(selectedScheduleId);
+            toast('Shift added with manager override.', { variant: 'warning' });
+            return;
+          } catch (overrideErr: any) {
+            toast(overrideErr.message || 'Failed to add shift.', { variant: 'error' });
+            return;
+          }
+        }
+      }
       toast(err.message || 'Failed to add shift.', { variant: 'error' });
     } finally {
       setCreatingShift(false);
@@ -513,6 +587,28 @@ export default function SchedulePage() {
       await loadShifts(selectedScheduleId);
       toast(`Shift created for ${employee.name}.`, { variant: 'success' });
     } catch (err: any) {
+      if (err.message && err.message.includes('Rest window violation')) {
+        const confirmOverride = window.confirm(`${err.message}\n\nDo you want to override and schedule this shift anyway?`);
+        if (confirmOverride) {
+          try {
+            await createShift({
+              schedule_id: selectedScheduleId,
+              employee_id: employeeId,
+              date,
+              start_time: newShift.start_time,
+              end_time: newShift.end_time,
+              role: employee.role || newShift.role,
+              allow_override: true,
+            });
+            await loadShifts(selectedScheduleId);
+            toast(`Shift created for ${employee.name} with manager override.`, { variant: 'warning' });
+            return;
+          } catch (overrideErr: any) {
+            toast(overrideErr.message || 'Failed to create shift by drag/drop.', { variant: 'error' });
+            return;
+          }
+        }
+      }
       toast(err.message || 'Failed to create shift by drag/drop.', { variant: 'error' });
     }
   }
@@ -550,6 +646,28 @@ export default function SchedulePage() {
       await loadShifts(selectedScheduleId);
       toast('Shift updated.', { variant: 'success' });
     } catch (err: any) {
+      if (err.message && err.message.includes('Rest window violation')) {
+        const confirmOverride = window.confirm(`${err.message}\n\nDo you want to override and schedule this shift anyway?`);
+        if (confirmOverride) {
+          try {
+            await updateShift(editingShiftId, {
+              employee_id: Number(editForm.employee_id),
+              date: editForm.date,
+              start_time: editForm.start_time,
+              end_time: editForm.end_time,
+              role: editForm.role,
+              allow_override: true,
+            });
+            setEditingShiftId(null);
+            await loadShifts(selectedScheduleId);
+            toast('Shift updated with manager override.', { variant: 'warning' });
+            return;
+          } catch (overrideErr: any) {
+            toast(overrideErr.message || 'Failed to update shift.', { variant: 'error' });
+            return;
+          }
+        }
+      }
       toast(err.message || 'Failed to update shift.', { variant: 'error' });
     }
   }
@@ -959,6 +1077,16 @@ export default function SchedulePage() {
                             </span>
                           </div>
                           <div className="mt-1 truncate text-[11px] text-muted-foreground">{employeeName}</div>
+
+                          {quickReturnShiftMap.has(shift.id) && (
+                            <div
+                              className="mt-1.5 flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 border border-amber-200"
+                              title={`Quick return / Clopening: only ${quickReturnShiftMap.get(shift.id)?.restHours}h rest after ${quickReturnShiftMap.get(shift.id)?.prevShiftSummary}`}
+                            >
+                              <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
+                              <span>{quickReturnShiftMap.get(shift.id)?.restHours}h rest (clopen)</span>
+                            </div>
+                          )}
 
                           {isManager && (
                             <div className="mt-2 flex items-center gap-1.5">
