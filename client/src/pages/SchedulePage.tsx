@@ -261,7 +261,9 @@ export default function SchedulePage() {
   });
 
   const [employeeViewMode, setEmployeeViewMode] = useState<'weekly' | 'daily'>('weekly');
+  const [managerScheduleView, setManagerScheduleView] = useState<'weekly' | 'daily'>('weekly');
   const [selectedDay, setSelectedDay] = useState(toISODate(new Date()));
+  const [selectedRecommendationDay, setSelectedRecommendationDay] = useState<string>('');
 
   const [openShifts, setOpenShifts] = useState<OpenShift[]>([]);
   const [claimingOpenShiftId, setClaimingOpenShiftId] = useState<number | null>(null);
@@ -409,15 +411,18 @@ export default function SchedulePage() {
     };
   }, [selectedSchedule?.week_start, visibleShifts]);
 
+  const activeScheduleView = isManager ? managerScheduleView : employeeViewMode;
+  const isCompactWeeklyManagerView = isManager && activeScheduleView === 'weekly';
+
   const scheduleDays = useMemo(() => {
-    if (isManager || employeeViewMode === 'weekly') return weekMetadata.days;
+    if (activeScheduleView === 'weekly') return weekMetadata.days;
     const d = new Date(`${selectedDay}T12:00:00`);
     return [{
       date: selectedDay,
       weekday: d.toLocaleDateString('en-US', { weekday: 'short' }),
       dayLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     }];
-  }, [isManager, employeeViewMode, weekMetadata.days, selectedDay]);
+  }, [activeScheduleView, selectedDay, weekMetadata.days]);
 
   const shiftsByDate = useMemo(() => {
     const map = new Map<string, ShiftWithEmployee[]>();
@@ -722,8 +727,26 @@ export default function SchedulePage() {
     return tones[Math.abs(hash) % tones.length];
   };
 
+  const departmentGroupOrder = ['Management', 'Front of House', 'Back of House'];
+
+  const getDepartmentGroupLabel = (value: string | null | undefined) => {
+    const normalized = normalizedValue(value || '');
+    if (!normalized) return 'General';
+    if (['management', 'operations', 'leadership', 'owner', 'supervisor'].some((term) => normalized.includes(term))) return 'Management';
+    if (['front of house', 'foh', 'server', 'host', 'bartender', 'bar', 'cashier', 'support', 'busser'].some((term) => normalized.includes(term))) return 'Front of House';
+    if (['back of house', 'boh', 'kitchen', 'dishwasher', 'cook', 'chef', 'expo', 'prep'].some((term) => normalized.includes(term))) return 'Back of House';
+    return 'Management';
+  };
+
   const getShiftDisplayGroup = (shift: ShiftWithEmployee) =>
     shift.employee_department || shift.employee_role || shift.role;
+
+  const sortDepartmentGroups = <T extends { department: string; items: any[] }>(groups: T[]) =>
+    [...groups].sort((a, b) => {
+      const aIndex = departmentGroupOrder.indexOf(a.department);
+      const bIndex = departmentGroupOrder.indexOf(b.department);
+      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+    });
 
   async function loadSchedules() {
     const list = await getSchedules();
@@ -787,6 +810,17 @@ export default function SchedulePage() {
     setNewShift((prev) => ({ ...prev, date: selectedSchedule.week_start }));
     setSelectedDay(selectedSchedule.week_start);
   }, [selectedSchedule]);
+
+  useEffect(() => {
+    if (staffingRecommendations.length === 0) {
+      setSelectedRecommendationDay('');
+      return;
+    }
+    setSelectedRecommendationDay((current) => {
+      if (current && staffingRecommendations.some((day) => day.date === current)) return current;
+      return staffingRecommendations[0].date;
+    });
+  }, [staffingRecommendations]);
 
   useEffect(() => {
     loadOpenShifts().catch(() => setOpenShifts([]));
@@ -1208,6 +1242,25 @@ export default function SchedulePage() {
             {isManager && selectedSchedule && (
               <>
                 <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">View</label>
+                  <div className="flex rounded-lg border border-border bg-muted/50 p-1">
+                    <button
+                      type="button"
+                      className={`rounded-md px-2 py-1 text-xs font-medium transition ${managerScheduleView === 'weekly' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                      onClick={() => setManagerScheduleView('weekly')}
+                    >
+                      Weekly
+                    </button>
+                    <button
+                      type="button"
+                      className={`rounded-md px-2 py-1 text-xs font-medium transition ${managerScheduleView === 'daily' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                      onClick={() => setManagerScheduleView('daily')}
+                    >
+                      Daily
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Department Filter</label>
                   <select
                     className={NATIVE_SELECT_CLASS}
@@ -1489,32 +1542,46 @@ export default function SchedulePage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="text-sm font-semibold text-foreground">Recommended Assignments</h3>
-                <p className="text-xs text-muted-foreground">Best-fit employees for the top staffing needs each day</p>
+                <p className="text-xs text-muted-foreground">Best-fit employees for the top staffing needs by day</p>
               </div>
-              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                Role-colored cards
-              </span>
+              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                <span>Day</span>
+                <select
+                  className={NATIVE_SELECT_CLASS + ' min-w-[140px]'}
+                  value={selectedRecommendationDay}
+                  onChange={(event) => setSelectedRecommendationDay(event.target.value)}
+                  aria-label="Select recommendation day"
+                >
+                  {staffingRecommendations.map((day) => (
+                    <option key={day.date} value={day.date}>{day.date}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="grid gap-3 xl:grid-cols-2">
-              {staffingRecommendations.map((day) => (
-                <div key={`recommendation-${day.date}`} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+
+            {(() => {
+              const selectedDayRecommendation = staffingRecommendations.find((day) => day.date === selectedRecommendationDay) ?? staffingRecommendations[0];
+              if (!selectedDayRecommendation) return null;
+
+              return (
+                <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <div className="text-sm font-semibold text-foreground">{day.day_of_week >= 0 ? day.date : day.date}</div>
-                      <div className="text-xs text-muted-foreground">{day.expected_revenue > 0 ? `$${day.expected_revenue.toLocaleString()} expected revenue` : 'Demand-based staffing'}</div>
+                      <div className="text-sm font-semibold text-foreground">{selectedDayRecommendation.date}</div>
+                      <div className="text-xs text-muted-foreground">{selectedDayRecommendation.expected_revenue > 0 ? `$${selectedDayRecommendation.expected_revenue.toLocaleString()} expected revenue` : 'Demand-based staffing'}</div>
                     </div>
-                    {day.staffing_status && day.staffing_status !== 'adequate' && (
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${day.staffing_status === 'understaffed' ? 'bg-yellow-500 text-yellow-950' : 'bg-red-600 text-red-50'}`}>
-                        {day.staffing_status === 'understaffed' ? 'Short' : 'Over'}
+                    {selectedDayRecommendation.staffing_status && selectedDayRecommendation.staffing_status !== 'adequate' && (
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${selectedDayRecommendation.staffing_status === 'understaffed' ? 'bg-yellow-500 text-yellow-950' : 'bg-red-600 text-red-50'}`}>
+                        {selectedDayRecommendation.staffing_status === 'understaffed' ? 'Short' : 'Over'}
                       </span>
                     )}
                   </div>
 
                   <div className="mt-3 space-y-2">
-                    {day.recommendedNeeds.map((need) => {
+                    {selectedDayRecommendation.recommendedNeeds.map((need) => {
                       const accent = getRoleAccent(need.role);
                       return (
-                        <div key={`${day.date}-${need.role}-${need.start}-${need.end}`} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                        <div key={`${selectedDayRecommendation.date}-${need.role}-${need.start}-${need.end}`} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="min-w-0">
                               <div className={`truncate text-sm font-semibold ${accent.text}`}>{need.roleLabel}</div>
@@ -1530,7 +1597,7 @@ export default function SchedulePage() {
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {need.candidates.length > 0 ? need.candidates.map((candidate: CandidateRecommendation) => (
                               <span
-                                key={`${day.date}-${need.role}-${candidate.employee.id}`}
+                                key={`${selectedDayRecommendation.date}-${need.role}-${candidate.employee.id}`}
                                 className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${candidate.score >= 70 ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : candidate.score >= 35 ? 'border-sky-300 bg-sky-50 text-sky-800' : 'border-slate-300 bg-slate-100 text-slate-700'}`}
                                 title={candidate.reasons.join(', ')}
                               >
@@ -1547,12 +1614,12 @@ export default function SchedulePage() {
                     })}
                   </div>
 
-                  {day.extraNeeds > 0 && (
-                    <div className="mt-2 text-[11px] text-muted-foreground">+{day.extraNeeds} more position{day.extraNeeds > 1 ? 's' : ''} available in the full demand list.</div>
+                  {selectedDayRecommendation.extraNeeds > 0 && (
+                    <div className="mt-2 text-[11px] text-muted-foreground">+{selectedDayRecommendation.extraNeeds} more position{selectedDayRecommendation.extraNeeds > 1 ? 's' : ''} available in the full demand list.</div>
                   )}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1575,7 +1642,7 @@ export default function SchedulePage() {
                   data-testid="schedule-day-column"
                   className="min-w-55"
                 >
-                  <div className="sticky top-0 z-10 mb-2 rounded-xl bg-muted/70 px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <div className={`sticky top-0 z-10 mb-2 rounded-xl bg-muted/70 text-center font-semibold uppercase tracking-wide text-muted-foreground ${isCompactWeeklyManagerView ? 'px-2 py-1.5 text-[10px]' : 'px-3 py-2 text-[11px]'}`}>
                     {day.weekday}
                   </div>
                 </div>
@@ -1602,7 +1669,7 @@ export default function SchedulePage() {
                   <div
                     key={day.date}
                     data-testid="schedule-day-column"
-                    className={`min-h-52.5 min-w-55 space-y-2 rounded-2xl border p-2.5 ${isDropActive ? 'border-primary border-2 bg-card' : staffingClass}`}
+                    className={`min-h-52.5 min-w-55 rounded-2xl border ${isCompactWeeklyManagerView ? 'space-y-1.5 p-1.5' : 'space-y-2 p-2.5'} ${isDropActive ? 'border-primary border-2 bg-card' : staffingClass}`}
                     onDragOver={(e) => {
                       if (!isManager || draggedEmployeeId === null) return;
                       e.preventDefault();
@@ -1619,11 +1686,11 @@ export default function SchedulePage() {
                       setDraggedEmployeeId(null);
                     }}
                   >
-                    <div className="sticky top-0 z-10 rounded-lg bg-white/90 px-1 py-1 text-xs font-semibold text-foreground backdrop-blur-sm">
+                    <div className={`sticky top-0 z-10 rounded-lg bg-white/90 font-semibold text-foreground backdrop-blur-sm ${isCompactWeeklyManagerView ? 'px-1 py-0.5 text-[10px]' : 'px-1 py-1 text-xs'}`}>
                       <div className="flex items-center justify-between gap-1">
                         <span>{day.dayLabel}</span>
                         {staffingSignal && staffingSignal.status !== 'adequate' && (
-                          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${staffingSignal.status === 'understaffed' ? 'bg-yellow-500 text-yellow-950' : 'bg-red-600 text-red-50'}`}>
+                          <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${staffingSignal.status === 'understaffed' ? 'bg-yellow-500 text-yellow-950' : 'bg-red-600 text-red-50'}`}>
                             {staffingSignal.status === 'understaffed' ? 'Short' : 'Over'}
                           </span>
                         )}
@@ -1636,7 +1703,7 @@ export default function SchedulePage() {
                               <span
                                 key={`${day.date}-${entry.role}`}
                                 title={`${entry.role}: scheduled ${entry.actual}, suggested ${entry.suggested}`}
-                                className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${staffingSignal.status === 'understaffed' ? 'border-yellow-600 bg-yellow-400 text-yellow-950' : 'border-red-700 bg-red-500 text-red-50'}`}
+                                className={`rounded-full border px-1 py-0.5 text-[9px] font-semibold ${staffingSignal.status === 'understaffed' ? 'border-yellow-600 bg-yellow-400 text-yellow-950' : 'border-red-700 bg-red-500 text-red-50'}`}
                               >
                                 {entry.role} {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
                               </span>
@@ -1644,145 +1711,163 @@ export default function SchedulePage() {
                         </div>
                       )}
                     </div>
-                    {dayShifts.map((shift) => {
-                      const isOwnShift = !!user?.employeeId && shift.employee_id === user.employeeId;
-                      const isSwapDraftOpen = swapDraftShiftId === shift.id;
-                      const department = getShiftDisplayGroup(shift);
-                      const employeeName = shift.employee_name || 'Unassigned';
-                      return (
-                        <div key={shift.id} className={`shift-block overflow-hidden rounded-xl border border-slate-200 border-l-4 bg-white p-2.5 shadow-sm ${getRoleAccent(shift.role).border}`}>
+                    {sortDepartmentGroups(
+                      Array.from(
+                        dayShifts.reduce((groups, shift) => {
+                          const department = getDepartmentGroupLabel(getShiftDisplayGroup(shift));
+                          const bucket = groups.get(department) || [];
+                          bucket.push(shift);
+                          groups.set(department, bucket);
+                          return groups;
+                        }, new Map<string, ShiftWithEmployee[]>())
+                      ).map(([department, items]) => ({ department, items }))
+                    ).map(({ department, items }) => (
+                      <div key={`${day.date}-${department}`} className="space-y-1.5">
+                        <div className="flex items-center justify-between rounded-md border border-border bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-700">
+                          <span>{department}</span>
+                          <span>{items.length}</span>
+                        </div>
+                        {items.map((shift) => {
+                          const isOwnShift = !!user?.employeeId && shift.employee_id === user.employeeId;
+                          const isSwapDraftOpen = swapDraftShiftId === shift.id;
+                          const departmentLabel = getShiftDisplayGroup(shift);
+                          const employeeName = shift.employee_name || 'Unassigned';
+                          return (
+<div key={shift.id} className={`shift-block overflow-hidden rounded-xl border border-slate-200 border-l-4 bg-white shadow-sm ${isCompactWeeklyManagerView ? 'p-1.5' : 'p-2.5'} ${getRoleAccent(shift.role).border}`}>
                           <div className="flex min-w-0 items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <div className={`truncate text-sm font-semibold ${getRoleAccent(shift.role).text}`}>{formatRoleLabel(shift.role)}</div>
-                              <div className="mt-0.5 flex min-w-0 items-baseline gap-1 text-xs text-slate-700">
+                              <div className={`truncate ${isCompactWeeklyManagerView ? 'text-[11px]' : 'text-sm'} font-semibold ${getRoleAccent(shift.role).text}`}>{formatRoleLabel(shift.role)}</div>
+                              <div className={`mt-0.5 flex min-w-0 items-baseline gap-1 ${isCompactWeeklyManagerView ? 'text-[10px]' : 'text-xs'} text-slate-700`}>
                                 <span className="shrink-0 font-bold">{formatTime12(shift.start_time)}</span>
                                 <span className="truncate text-slate-500">- {formatTime12(shift.end_time)}</span>
                               </div>
                             </div>
-                            <span className={`shrink-0 rounded-full border border-current/15 bg-white/80 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide ${getRoleAccent(shift.role).text}`}>
-                              {department}
+                            <span className={`shrink-0 rounded-full border border-current/15 bg-white/80 px-1.5 py-0.5 ${isCompactWeeklyManagerView ? 'text-[8px]' : 'text-[9px]'} font-medium uppercase tracking-wide ${getRoleAccent(shift.role).text}`}>
+                              {departmentLabel}
                             </span>
                           </div>
 
-                          <div className={`mt-1.5 truncate text-[11px] ${getRoleAccent(shift.role).text}`}>{employeeName}</div>
+                          <div className={`mt-1.5 truncate ${isCompactWeeklyManagerView ? 'text-[10px]' : 'text-[11px]'} ${getRoleAccent(shift.role).text}`}>{employeeName}</div>
 
-                          {overlappingShiftIds.has(shift.id) && (
-                            <div
-                              className="mt-1.5 flex items-center gap-1 rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 border border-red-200"
-                              title="Time Conflict: This employee is scheduled for overlapping shifts at the same time"
-                            >
-                              <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" />
-                              <span>Time Conflict (Overlapping)</span>
-                            </div>
-                          )}
-
-                          {quickReturnShiftMap.has(shift.id) && (
-                            <div
-                              className="mt-1.5 flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 border border-amber-200"
-                              title={`Quick return / Clopening: only ${quickReturnShiftMap.get(shift.id)?.restHours}h rest after ${quickReturnShiftMap.get(shift.id)?.prevShiftSummary}`}
-                            >
-                              <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
-                              <span>{quickReturnShiftMap.get(shift.id)?.restHours}h rest (clopen)</span>
-                            </div>
-                          )}
-
-                          {isManager && (
-                            <div className="mt-2 flex items-center gap-1.5">
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                type="button"
-                                aria-label={`Edit shift for ${employeeName}`}
-                                title={`Edit shift for ${employeeName}`}
-                                onClick={() => startEditing(shift)}
-                                className="h-7 w-7"
-                              >
-                                <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="destructive"
-                                type="button"
-                                aria-label={`Delete shift for ${employeeName}`}
-                                title={`Delete shift for ${employeeName}`}
-                                onClick={() => handleDeleteShift(shift.id)}
-                                className="h-7 w-7"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                              </Button>
-                            </div>
-                          )}
-
-                          {!isManager && isOwnShift && (
-                            <div className="space-y-2 pt-1">
-                              <div className="flex flex-wrap gap-1.5">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleDropShift(shift)}
-                                  isLoading={submittingShiftActionId === shift.id}
-                                  aria-label={`Drop shift for ${employeeName}`}
+                              {overlappingShiftIds.has(shift.id) && (
+                                <div
+                                  className="mt-1.5 flex items-center gap-1 rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 border border-red-200"
+                                  title="Time Conflict: This employee is scheduled for overlapping shifts at the same time"
                                 >
-                                  Drop
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => beginSwapRequest(shift.id)}
-                                  aria-label={`Swap shift for ${employeeName}`}
+                                  <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" />
+                                  <span>Time Conflict (Overlapping)</span>
+                                </div>
+                              )}
+
+                              {quickReturnShiftMap.has(shift.id) && (
+                                <div
+                                  className="mt-1.5 flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 border border-amber-200"
+                                  title={`Quick return / Clopening: only ${quickReturnShiftMap.get(shift.id)?.restHours}h rest after ${quickReturnShiftMap.get(shift.id)?.prevShiftSummary}`}
                                 >
-                                  Swap
-                                </Button>
-                              </div>
-                              {isSwapDraftOpen && (
-                                <div className="space-y-1.5 rounded-md border border-border bg-white/80 p-2">
-                                  <select
-                                    className={NATIVE_SELECT_CLASS}
-                                    value={swapTargetId}
-                                    onChange={(e) => setSwapTargetId(e.target.value)}
-                                    aria-label={`Choose teammate for ${employeeName} swap`}
+                                  <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
+                                  <span>{quickReturnShiftMap.get(shift.id)?.restHours}h rest (clopen)</span>
+                                </div>
+                              )}
+
+                              {isManager && (
+                                <div className="mt-2 flex items-center gap-1.5">
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    type="button"
+                                    aria-label={`Edit shift for ${employeeName}`}
+                                    title={`Edit shift for ${employeeName}`}
+                                    onClick={() => startEditing(shift)}
+                                    className="h-7 w-7"
                                   >
-                                    <option value="" disabled hidden>Select teammate</option>
-                                    {employees
-                                      .filter((e) => e.id !== user?.employeeId)
-                                      .map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-                                  </select>
-                                  <input
-                                    className={EDIT_INPUT_CLASS}
-                                    placeholder="Reason (optional)"
-                                    aria-label={`Reason for ${employeeName} shift swap`}
-                                    value={swapReason}
-                                    onChange={(e) => setSwapReason(e.target.value)}
-                                  />
-                                  <div className="flex gap-1.5">
+                                    <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="destructive"
+                                    type="button"
+                                    aria-label={`Delete shift for ${employeeName}`}
+                                    title={`Delete shift for ${employeeName}`}
+                                    onClick={() => handleDeleteShift(shift.id)}
+                                    className="h-7 w-7"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                  </Button>
+                                </div>
+                              )}
+
+                              {!isManager && isOwnShift && (
+                                <div className="space-y-2 pt-1">
+                                  <div className="flex flex-wrap gap-1.5">
                                     <Button
                                       size="sm"
-                                      onClick={() => handleRequestSwap(shift)}
+                                      variant="outline"
+                                      onClick={() => handleDropShift(shift)}
                                       isLoading={submittingShiftActionId === shift.id}
+                                      aria-label={`Drop shift for ${employeeName}`}
                                     >
-                                      Send Swap
+                                      Drop
                                     </Button>
-                                    <Button size="sm" variant="outline" onClick={() => setSwapDraftShiftId(null)}>Cancel</Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => beginSwapRequest(shift.id)}
+                                      aria-label={`Swap shift for ${employeeName}`}
+                                    >
+                                      Swap
+                                    </Button>
                                   </div>
+                                  {isSwapDraftOpen && (
+                                    <div className="space-y-1.5 rounded-md border border-border bg-white/80 p-2">
+                                      <select
+                                        className={NATIVE_SELECT_CLASS}
+                                        value={swapTargetId}
+                                        onChange={(e) => setSwapTargetId(e.target.value)}
+                                        aria-label={`Choose teammate for ${employeeName} swap`}
+                                      >
+                                        <option value="" disabled hidden>Select teammate</option>
+                                        {employees
+                                          .filter((e) => e.id !== user?.employeeId)
+                                          .map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                      </select>
+                                      <input
+                                        className={EDIT_INPUT_CLASS}
+                                        placeholder="Reason (optional)"
+                                        aria-label={`Reason for ${employeeName} shift swap`}
+                                        value={swapReason}
+                                        onChange={(e) => setSwapReason(e.target.value)}
+                                      />
+                                      <div className="flex gap-1.5">
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleRequestSwap(shift)}
+                                          isLoading={submittingShiftActionId === shift.id}
+                                        >
+                                          Send Swap
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => setSwapDraftShiftId(null)}>Cancel</Button>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                          );
+                        })}
+                      </div>
+                    ))}
 
                     {dayOpenShifts.map((openShift) => (
-                      <div key={`open-${openShift.id}`} className={`overflow-hidden rounded-xl border border-slate-200 border-l-4 bg-white p-2.5 shadow-sm ${getRoleAccent(openShift.role).border}`}>
+                      <div key={`open-${openShift.id}`} className={`overflow-hidden rounded-xl border border-slate-200 border-l-4 bg-white shadow-sm ${isCompactWeeklyManagerView ? 'p-1.5' : 'p-2.5'} ${getRoleAccent(openShift.role).border}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className={`truncate text-sm font-semibold ${getRoleAccent(openShift.role).text}`}>{formatRoleLabel(openShift.role)}</div>
-                            <div className="mt-0.5 flex min-w-0 items-baseline gap-1 text-xs text-slate-700">
+                            <div className={`truncate ${isCompactWeeklyManagerView ? 'text-[11px]' : 'text-sm'} font-semibold ${getRoleAccent(openShift.role).text}`}>{formatRoleLabel(openShift.role)}</div>
+                            <div className={`mt-0.5 flex min-w-0 items-baseline gap-1 ${isCompactWeeklyManagerView ? 'text-[10px]' : 'text-xs'} text-slate-700`}>
                               <span className="shrink-0 font-bold">{formatTime12(openShift.start_time)}</span>
                               <span className="truncate text-slate-500">- {formatTime12(openShift.end_time)}</span>
                             </div>
                           </div>
-                          <span className={`shrink-0 rounded-full border border-current/15 bg-white/80 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide ${getRoleAccent(openShift.role).text}`}>
+                          <span className={`shrink-0 rounded-full border border-current/15 bg-white/80 px-1.5 py-0.5 ${isCompactWeeklyManagerView ? 'text-[8px]' : 'text-[9px]'} font-medium uppercase tracking-wide ${getRoleAccent(openShift.role).text}`}>
                             Open
                           </span>
                         </div>
@@ -1801,7 +1886,7 @@ export default function SchedulePage() {
                     ))}
 
                     {dayShifts.length === 0 && dayOpenShifts.length === 0 && (
-                      <div className="pt-2 text-[11px] text-muted-foreground">No shifts</div>
+                      <div className={`text-muted-foreground ${isCompactWeeklyManagerView ? 'pt-1 text-[10px]' : 'pt-2 text-[11px]'}`}>No shifts</div>
                     )}
                   </div>
                 );
