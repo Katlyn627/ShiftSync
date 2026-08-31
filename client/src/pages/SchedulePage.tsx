@@ -61,6 +61,21 @@ function normalizedValue(value?: string | null) {
   return (value || '').trim().toLowerCase();
 }
 
+function normalizeStaffingRole(role: string) {
+  const normalized = normalizedValue(role);
+  if (normalized === 'bar') return 'bartender';
+  return normalized;
+}
+
+function toRoleDisplayName(roleKey: string) {
+  if (roleKey === 'bartender') return 'Bartender';
+  return roleKey
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function employeeDepartmentLabel(employee: Employee): string {
   return (employee.department || employee.role || 'General').trim();
 }
@@ -359,17 +374,65 @@ export default function SchedulePage() {
     return map;
   }, [visibleShifts]);
 
-  const staffingStatusByDate = useMemo(() => {
-    const map = new Map<string, { status: 'adequate' | 'understaffed' | 'overstaffed'; delta: number; suggested: number; actual: number }>();
-    staffingSuggestions.forEach((day) => {
-      const suggested = day.staffing.reduce((total, slot) => total + slot.count, 0);
-      const actual = (shiftsByDate.get(day.date) || []).length;
-      const delta = actual - suggested;
-      const status = delta < 0 ? 'understaffed' : delta > 0 ? 'overstaffed' : 'adequate';
-      map.set(day.date, { status, delta, suggested, actual });
+  const scheduleShiftsByDate = useMemo(() => {
+    const map = new Map<string, ShiftWithEmployee[]>();
+    shifts.forEach((shift) => {
+      const existing = map.get(shift.date);
+      if (existing) {
+        existing.push(shift);
+      } else {
+        map.set(shift.date, [shift]);
+      }
     });
     return map;
-  }, [staffingSuggestions, shiftsByDate]);
+  }, [shifts]);
+
+  const staffingStatusByDate = useMemo(() => {
+    const map = new Map<string, {
+      status: 'adequate' | 'understaffed' | 'overstaffed';
+      delta: number;
+      suggested: number;
+      actual: number;
+      roleDeltas: Array<{ role: string; delta: number; suggested: number; actual: number }>;
+    }>();
+    staffingSuggestions.forEach((day) => {
+      const suggested = day.staffing.reduce((total, slot) => total + slot.count, 0);
+      const actualDayShifts = scheduleShiftsByDate.get(day.date) || [];
+      const actual = actualDayShifts.length;
+      const delta = actual - suggested;
+      const status = delta < 0 ? 'understaffed' : delta > 0 ? 'overstaffed' : 'adequate';
+
+      const suggestedByRole = new Map<string, number>();
+      day.staffing.forEach((slot) => {
+        const key = normalizeStaffingRole(slot.role);
+        suggestedByRole.set(key, (suggestedByRole.get(key) || 0) + slot.count);
+      });
+
+      const actualByRole = new Map<string, number>();
+      actualDayShifts.forEach((shift) => {
+        const key = normalizeStaffingRole(shift.role || shift.employee_role || 'unknown');
+        actualByRole.set(key, (actualByRole.get(key) || 0) + 1);
+      });
+
+      const allRoles = new Set<string>([...suggestedByRole.keys(), ...actualByRole.keys()]);
+      const roleDeltas = Array.from(allRoles)
+        .map((roleKey) => {
+          const suggestedForRole = suggestedByRole.get(roleKey) || 0;
+          const actualForRole = actualByRole.get(roleKey) || 0;
+          return {
+            role: toRoleDisplayName(roleKey),
+            delta: actualForRole - suggestedForRole,
+            suggested: suggestedForRole,
+            actual: actualForRole,
+          };
+        })
+        .filter((entry) => entry.delta !== 0)
+        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+      map.set(day.date, { status, delta, suggested, actual, roleDeltas });
+    });
+    return map;
+  }, [staffingSuggestions, scheduleShiftsByDate]);
 
   const weeklyStaffingSignal = useMemo(() => {
     let understaffedDays = 0;
@@ -379,6 +442,24 @@ export default function SchedulePage() {
       if (signal.status === 'overstaffed') overstaffedDays += 1;
     });
     return { understaffedDays, overstaffedDays };
+  }, [staffingStatusByDate]);
+
+  const weeklyRoleContributors = useMemo(() => {
+    const totals = new Map<string, number>();
+    staffingStatusByDate.forEach((signal) => {
+      signal.roleDeltas.forEach((roleDelta) => {
+        totals.set(roleDelta.role, (totals.get(roleDelta.role) || 0) + roleDelta.delta);
+      });
+    });
+    const under = Array.from(totals.entries())
+      .map(([role, delta]) => ({ role, delta }))
+      .filter((entry) => entry.delta < 0)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    const over = Array.from(totals.entries())
+      .map(([role, delta]) => ({ role, delta }))
+      .filter((entry) => entry.delta > 0)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    return { under, over };
   }, [staffingStatusByDate]);
 
   // Identify shifts with rest-window violations (< 11 hours rest from previous shift for the same employee)
@@ -1226,6 +1307,26 @@ export default function SchedulePage() {
                 {weeklyStaffingSignal.overstaffedDays} overstaffed day{weeklyStaffingSignal.overstaffedDays !== 1 ? 's' : ''}
               </span>
             )}
+            {weeklyRoleContributors.under.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="font-medium text-yellow-900">Short by:</span>
+                {weeklyRoleContributors.under.slice(0, 4).map((entry) => (
+                  <span key={`under-${entry.role}`} className="rounded-full border border-yellow-600 bg-yellow-300 px-1.5 py-0.5 font-semibold text-yellow-950">
+                    {entry.role} {entry.delta}
+                  </span>
+                ))}
+              </div>
+            )}
+            {weeklyRoleContributors.over.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="font-medium text-red-900">Over by:</span>
+                {weeklyRoleContributors.over.slice(0, 4).map((entry) => (
+                  <span key={`over-${entry.role}`} className="rounded-full border border-red-700 bg-red-300 px-1.5 py-0.5 font-semibold text-red-950">
+                    {entry.role} +{entry.delta}
+                  </span>
+                ))}
+              </div>
+            )}
             <span className="text-muted-foreground">Based on expected demand from prior sales patterns.</span>
           </div>
         )}
@@ -1302,6 +1403,21 @@ export default function SchedulePage() {
                           </span>
                         )}
                       </div>
+                      {staffingSignal && staffingSignal.status !== 'adequate' && staffingSignal.roleDeltas.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {staffingSignal.roleDeltas
+                            .filter((entry) => staffingSignal.status === 'understaffed' ? entry.delta < 0 : entry.delta > 0)
+                            .map((entry) => (
+                              <span
+                                key={`${day.date}-${entry.role}`}
+                                title={`${entry.role}: scheduled ${entry.actual}, suggested ${entry.suggested}`}
+                                className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${staffingSignal.status === 'understaffed' ? 'border-yellow-600 bg-yellow-400 text-yellow-950' : 'border-red-700 bg-red-500 text-red-50'}`}
+                              >
+                                {entry.role} {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
+                              </span>
+                            ))}
+                        </div>
+                      )}
                     </div>
                     {dayShifts.map((shift) => {
                       const isOwnShift = !!user?.employeeId && shift.employee_id === user.employeeId;
