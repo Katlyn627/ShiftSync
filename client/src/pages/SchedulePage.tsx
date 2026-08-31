@@ -61,21 +61,6 @@ function normalizedValue(value?: string | null) {
   return (value || '').trim().toLowerCase();
 }
 
-function normalizeStaffingRole(role: string) {
-  const normalized = normalizedValue(role);
-  if (normalized === 'bar') return 'bartender';
-  return normalized;
-}
-
-function toRoleDisplayName(roleKey: string) {
-  if (roleKey === 'bartender') return 'Bartender';
-  return roleKey
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part[0].toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
 function employeeDepartmentLabel(employee: Employee): string {
   return (employee.department || employee.role || 'General').trim();
 }
@@ -374,19 +359,6 @@ export default function SchedulePage() {
     return map;
   }, [visibleShifts]);
 
-  const scheduleShiftsByDate = useMemo(() => {
-    const map = new Map<string, ShiftWithEmployee[]>();
-    shifts.forEach((shift) => {
-      const existing = map.get(shift.date);
-      if (existing) {
-        existing.push(shift);
-      } else {
-        map.set(shift.date, [shift]);
-      }
-    });
-    return map;
-  }, [shifts]);
-
   const staffingStatusByDate = useMemo(() => {
     const map = new Map<string, {
       status: 'adequate' | 'understaffed' | 'overstaffed';
@@ -396,43 +368,15 @@ export default function SchedulePage() {
       roleDeltas: Array<{ role: string; delta: number; suggested: number; actual: number }>;
     }>();
     staffingSuggestions.forEach((day) => {
-      const suggested = day.staffing.reduce((total, slot) => total + slot.count, 0);
-      const actualDayShifts = scheduleShiftsByDate.get(day.date) || [];
-      const actual = actualDayShifts.length;
-      const delta = actual - suggested;
-      const status = delta < 0 ? 'understaffed' : delta > 0 ? 'overstaffed' : 'adequate';
-
-      const suggestedByRole = new Map<string, number>();
-      day.staffing.forEach((slot) => {
-        const key = normalizeStaffingRole(slot.role);
-        suggestedByRole.set(key, (suggestedByRole.get(key) || 0) + slot.count);
-      });
-
-      const actualByRole = new Map<string, number>();
-      actualDayShifts.forEach((shift) => {
-        const key = normalizeStaffingRole(shift.role || shift.employee_role || 'unknown');
-        actualByRole.set(key, (actualByRole.get(key) || 0) + 1);
-      });
-
-      const allRoles = new Set<string>([...suggestedByRole.keys(), ...actualByRole.keys()]);
-      const roleDeltas = Array.from(allRoles)
-        .map((roleKey) => {
-          const suggestedForRole = suggestedByRole.get(roleKey) || 0;
-          const actualForRole = actualByRole.get(roleKey) || 0;
-          return {
-            role: toRoleDisplayName(roleKey),
-            delta: actualForRole - suggestedForRole,
-            suggested: suggestedForRole,
-            actual: actualForRole,
-          };
-        })
-        .filter((entry) => entry.delta !== 0)
-        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-
+      const suggested = day.staffing_suggested ?? day.staffing.reduce((total, slot) => total + slot.count, 0);
+      const actual = day.staffing_actual ?? suggested + (day.staffing_delta ?? 0);
+      const delta = day.staffing_delta ?? (actual - suggested);
+      const status = day.staffing_status ?? (delta < 0 ? 'understaffed' : delta > 0 ? 'overstaffed' : 'adequate');
+      const roleDeltas = day.role_deltas ?? [];
       map.set(day.date, { status, delta, suggested, actual, roleDeltas });
     });
     return map;
-  }, [staffingSuggestions, scheduleShiftsByDate]);
+  }, [staffingSuggestions]);
 
   const weeklyStaffingSignal = useMemo(() => {
     let understaffedDays = 0;
