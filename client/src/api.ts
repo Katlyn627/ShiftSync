@@ -73,6 +73,8 @@ export const setAvailability = (empId: number, data: { day_of_week: number; avai
   request<Availability>(`/employees/${empId}/availability`, { method: 'POST', body: JSON.stringify(data) });
 export const deleteAvailability = (empId: number, dayOfWeek: number) =>
   request<{ success: boolean }>(`/employees/${empId}/availability/${dayOfWeek}`, { method: 'DELETE' });
+export const getEmployeeConflicts = (empId: number) =>
+  request<{ employee_id: number; conflict_count: number; conflicts: Array<{ shift: Shift; reason: string }> }>(`/employees/${empId}/conflicts`);
 
 // Schedules
 export const getSchedules = () => request<Schedule[]>('/schedules');
@@ -177,7 +179,7 @@ export const deletePosition = (id: number) =>
 // Types
 export type SiteType =
   | 'restaurant' | 'hotel' | 'retail' | 'healthcare' | 'fitness'
-  | 'salon_spa' | 'warehouse' | 'education' | 'childcare' | 'security' | 'office' | 'other';
+  | 'salon_spa' | 'warehouse' | 'education' | 'childcare' | 'security' | 'office' | 'other' | 'nonprofit';
 
 export interface Position {
   id: number;
@@ -221,6 +223,12 @@ export interface Employee {
   location_lat?: number | null;
   location_lng?: number | null;
   location_label?: string | null;
+  is_volunteer?: boolean | number;
+  volunteer_max_hours?: number;
+  emergency_contact?: string;
+  skills?: string | string[];
+  certifications?: string | string[];
+  background_check_status?: string;
   created_at: string;
 }
 

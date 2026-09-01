@@ -161,6 +161,91 @@ function initSchema(db: Database.Database): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(site_id, name)
     );
+
+    CREATE TABLE IF NOT EXISTS survey_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      instrument TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      questions TEXT NOT NULL DEFAULT '[]',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS survey_campaigns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      template_id INTEGER NOT NULL REFERENCES survey_templates(id) ON DELETE CASCADE,
+      site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL,
+      title TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      anonymized INTEGER NOT NULL DEFAULT 1,
+      min_group_size INTEGER NOT NULL DEFAULT 5,
+      status TEXT NOT NULL DEFAULT 'active',
+      recurrence TEXT NOT NULL DEFAULT 'none',
+      schedule_day_of_week INTEGER,
+      target_roles TEXT NOT NULL DEFAULT '[]',
+      parent_campaign_id INTEGER REFERENCES survey_campaigns(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS survey_responses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      campaign_id INTEGER NOT NULL REFERENCES survey_campaigns(id) ON DELETE CASCADE,
+      employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+      department TEXT,
+      role_title TEXT,
+      site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS survey_answers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      response_id INTEGER NOT NULL REFERENCES survey_responses(id) ON DELETE CASCADE,
+      question_id TEXT NOT NULL,
+      score INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS change_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shift_id INTEGER NOT NULL REFERENCES shifts(id) ON DELETE CASCADE,
+      requested_by INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      change_type TEXT NOT NULL,
+      reason_code TEXT NOT NULL,
+      reason_detail TEXT,
+      original_date TEXT,
+      original_start_time TEXT,
+      original_end_time TEXT,
+      new_date TEXT,
+      new_start_time TEXT,
+      new_end_time TEXT,
+      worker_consent TEXT NOT NULL DEFAULT 'pending',
+      status TEXT NOT NULL DEFAULT 'pending',
+      manager_notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS callouts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shift_id INTEGER REFERENCES shifts(id) ON DELETE SET NULL,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      callout_time TEXT NOT NULL DEFAULT (datetime('now')),
+      reason TEXT,
+      replacement_employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+      replacement_status TEXT NOT NULL DEFAULT 'none',
+      open_shift_id INTEGER REFERENCES open_shifts(id) ON DELETE SET NULL,
+      manager_override INTEGER NOT NULL DEFAULT 0,
+      manager_notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS publish_sla (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      role TEXT,
+      advance_days INTEGER NOT NULL DEFAULT 14,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migrate existing databases: add google_id column if absent
@@ -220,6 +305,21 @@ function initSchema(db: Database.Database): void {
   }
   if (!empCols.some(c => c.name === 'location_label')) {
     db.exec("ALTER TABLE employees ADD COLUMN location_label TEXT DEFAULT NULL");
+  }
+  if (!empCols.some(c => c.name === 'is_volunteer')) {
+    db.exec("ALTER TABLE employees ADD COLUMN is_volunteer INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!empCols.some(c => c.name === 'volunteer_max_hours')) {
+    db.exec("ALTER TABLE employees ADD COLUMN volunteer_max_hours INTEGER NOT NULL DEFAULT 16");
+  }
+  if (!empCols.some(c => c.name === 'emergency_contact')) {
+    db.exec("ALTER TABLE employees ADD COLUMN emergency_contact TEXT DEFAULT ''");
+  }
+  if (!empCols.some(c => c.name === 'skills')) {
+    db.exec("ALTER TABLE employees ADD COLUMN skills TEXT NOT NULL DEFAULT '[]'");
+  }
+  if (!empCols.some(c => c.name === 'background_check_status')) {
+    db.exec("ALTER TABLE employees ADD COLUMN background_check_status TEXT NOT NULL DEFAULT 'pending'");
   }
 
   // Migrate sites table: add jurisdiction column if absent

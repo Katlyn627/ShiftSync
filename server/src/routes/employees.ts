@@ -265,13 +265,30 @@ router.put('/:id', requireAuth, (req: Request, res: Response) => {
     return res.status(403).json({ error: 'You can only update your own profile' });
   }
 
-  const { name, role, hourly_rate, weekly_hours_max, email, phone, photo_url, pay_type, certifications, is_minor, union_member, location_lat, location_lng, location_label } = req.body;
+  const {
+    name, role, hourly_rate, weekly_hours_max, email, phone, photo_url,
+    pay_type, certifications, is_minor, union_member,
+    location_lat, location_lng, location_label,
+    is_volunteer, volunteer_max_hours, emergency_contact, skills, background_check_status
+  } = req.body;
+
+  const certificationsJson = certifications !== undefined
+    ? (typeof certifications === 'string' ? certifications : JSON.stringify(certifications))
+    : (existing.certifications ?? '[]');
+
+  const skillsJson = skills !== undefined
+    ? (typeof skills === 'string' ? skills : JSON.stringify(skills))
+    : (existing.skills ?? '[]');
 
   if (isManager) {
     // Managers can update everything
-    db.prepare(
-      'UPDATE employees SET name=?, role=?, hourly_rate=?, weekly_hours_max=?, email=?, phone=?, photo_url=?, pay_type=?, certifications=?, is_minor=?, union_member=?, location_lat=?, location_lng=?, location_label=? WHERE id=?'
-    ).run(
+    db.prepare(`
+      UPDATE employees SET
+        name=?, role=?, hourly_rate=?, weekly_hours_max=?, email=?, phone=?, photo_url=?,
+        pay_type=?, certifications=?, is_minor=?, union_member=?, location_lat=?, location_lng=?, location_label=?,
+        is_volunteer=?, volunteer_max_hours=?, emergency_contact=?, skills=?, background_check_status=?
+      WHERE id=?
+    `).run(
       name ?? existing.name,
       role ?? existing.role,
       hourly_rate ?? existing.hourly_rate,
@@ -280,19 +297,28 @@ router.put('/:id', requireAuth, (req: Request, res: Response) => {
       phone !== undefined ? phone : (existing.phone ?? ''),
       photo_url !== undefined ? photo_url : (existing.photo_url ?? null),
       pay_type ?? existing.pay_type ?? 'hourly',
-      certifications !== undefined ? JSON.stringify(certifications) : (existing.certifications ?? '[]'),
+      certificationsJson,
       is_minor !== undefined ? (is_minor ? 1 : 0) : (existing.is_minor ?? 0),
       union_member !== undefined ? (union_member ? 1 : 0) : (existing.union_member ?? 0),
       location_lat !== undefined ? location_lat : (existing.location_lat ?? null),
       location_lng !== undefined ? location_lng : (existing.location_lng ?? null),
       location_label !== undefined ? location_label : (existing.location_label ?? null),
+      is_volunteer !== undefined ? (is_volunteer ? 1 : 0) : (existing.is_volunteer ?? 0),
+      volunteer_max_hours !== undefined ? Number(volunteer_max_hours) : (existing.volunteer_max_hours ?? 16),
+      emergency_contact !== undefined ? emergency_contact : (existing.emergency_contact ?? ''),
+      skillsJson,
+      background_check_status !== undefined ? background_check_status : (existing.background_check_status ?? 'pending'),
       req.params.id
     );
   } else {
-    // Employees can only update their own contact info, availability preferences, photo, and location
-    db.prepare(
-      'UPDATE employees SET weekly_hours_max=?, email=?, phone=?, photo_url=?, location_lat=?, location_lng=?, location_label=? WHERE id=?'
-    ).run(
+    // Employees can update contact info, availability preferences, certifications, skills, photo, emergency contact, and location
+    db.prepare(`
+      UPDATE employees SET
+        weekly_hours_max=?, email=?, phone=?, photo_url=?,
+        location_lat=?, location_lng=?, location_label=?,
+        certifications=?, skills=?, emergency_contact=?, volunteer_max_hours=?
+      WHERE id=?
+    `).run(
       weekly_hours_max ?? existing.weekly_hours_max,
       email !== undefined ? email : (existing.email ?? ''),
       phone !== undefined ? phone : (existing.phone ?? ''),
@@ -300,12 +326,76 @@ router.put('/:id', requireAuth, (req: Request, res: Response) => {
       location_lat !== undefined ? location_lat : (existing.location_lat ?? null),
       location_lng !== undefined ? location_lng : (existing.location_lng ?? null),
       location_label !== undefined ? location_label : (existing.location_label ?? null),
+      certificationsJson,
+      skillsJson,
+      emergency_contact !== undefined ? emergency_contact : (existing.emergency_contact ?? ''),
+      volunteer_max_hours !== undefined ? Number(volunteer_max_hours) : (existing.volunteer_max_hours ?? 16),
       req.params.id
     );
   }
 
   const updated = db.prepare('SELECT * FROM employees WHERE id = ?').get(req.params.id);
   res.json(updated);
+});
+
+// GET /api/employees/:id/conflicts - check if employee availability conflicts with upcoming shifts
+router.get('/:id/conflicts', requireAuth, (req: Request, res: Response) => {
+  const employeeId = parseInt(req.params.id);
+  const db = getDb();
+
+  const availabilityRows = db.prepare('SELECT * FROM availability WHERE employee_id = ?').all(employeeId) as any[];
+  const availByDay = new Map(availabilityRows.map(a => [a.day_of_week, a]));
+
+  const shifts = db.prepare(`
+    SELECT s.*, sched.week_start, sched.status as schedule_status
+    FROM shifts s
+    JOIN schedules sched ON s.schedule_id = sched.id
+    WHERE s.employee_id = ? AND s.status != 'cancelled' AND s.date >= date('now', '-7 days')
+    ORDER BY s.date, s.start_time
+  `).all(employeeId) as any[];
+
+  const conflicts: Array<{ shift: any; reason: string }> = [];
+
+  for (const sh of shifts) {
+    const [y, m, d] = sh.date.split('-').map(Number);
+    const dayOfWeek = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    const avail = availByDay.get(dayOfWeek);
+
+    if (!avail) continue;
+
+    if (avail.availability_type === 'unavailable') {
+      conflicts.push({
+        shift: sh,
+        reason: `Marked as unavailable on ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]}`,
+      });
+    } else if (avail.availability_type === 'specific') {
+      const [shH, shM] = sh.start_time.split(':').map(Number);
+      const [ehH, ehM] = sh.end_time.split(':').map(Number);
+      const [asH, asM] = avail.start_time.split(':').map(Number);
+      const [aeH, aeM] = avail.end_time.split(':').map(Number);
+
+      const shiftStart = shH * 60 + shM;
+      let shiftEnd = ehH * 60 + ehM;
+      if (shiftEnd <= shiftStart) shiftEnd += 24 * 60;
+
+      const availStart = asH * 60 + asM;
+      let availEnd = aeH * 60 + aeM;
+      if (availEnd <= availStart) availEnd += 24 * 60;
+
+      if (shiftStart < availStart || shiftEnd > availEnd) {
+        conflicts.push({
+          shift: sh,
+          reason: `Shift (${sh.start_time}-${sh.end_time}) is outside available window (${avail.start_time}-${avail.end_time})`,
+        });
+      }
+    }
+  }
+
+  res.json({
+    employee_id: employeeId,
+    conflict_count: conflicts.length,
+    conflicts,
+  });
 });
 
 router.delete('/:id', requireManager, (req: Request, res: Response) => {

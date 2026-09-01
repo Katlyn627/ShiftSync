@@ -1,6 +1,7 @@
 import { getDb } from './db';
 import bcrypt from 'bcryptjs';
 import type Database from 'better-sqlite3';
+import { seedSurveyTemplates, VALIDATED_SURVEY_INSTRUMENTS } from './surveys';
 
 function currentWeekMonday(): string {
   const today = new Date();
@@ -45,11 +46,21 @@ function shouldReseed(db: Database.Database): boolean {
   const schedulesWithSite = (db.prepare('SELECT COUNT(*) as c FROM schedules WHERE site_id IS NOT NULL').get() as any).c;
   if (schedulesWithSite < EXPECTED_SITES.length) return true;
 
+  const surveyTemplatesCount = (db.prepare('SELECT COUNT(*) as c FROM survey_templates').get() as any).c;
+  if (surveyTemplatesCount === 0) return true;
+
   return false;
 }
 
 function clearSeedData(db: Database.Database): void {
   db.exec(`
+    DELETE FROM survey_answers;
+    DELETE FROM survey_responses;
+    DELETE FROM survey_campaigns;
+    DELETE FROM survey_templates;
+    DELETE FROM change_requests;
+    DELETE FROM callouts;
+    DELETE FROM publish_sla;
     DELETE FROM open_shift_offers;
     DELETE FROM open_shifts;
     DELETE FROM shift_swaps;
@@ -91,6 +102,10 @@ interface RoleSeed {
   maxRate: number;
   weeklyMax: number;
   isManager?: boolean;
+  isVolunteer?: boolean;
+  certifications?: string[];
+  skills?: string[];
+  backgroundCheckStatus?: string;
   forcedUsernames?: string[];
   preferredNames?: Array<{ first: string; last: string }>;
 }
@@ -99,12 +114,12 @@ const RESTAURANT_FOH_ROLES = ['Busser', 'Host', 'Server', 'Food Runner', 'Expo']
 const RESTAURANT_BOH_ROLES = ['Line Cook', 'Head Chef', 'Sous Chef', 'Dishwasher', 'Manager'];
 
 const RESTAURANT_ROLE_PLAN: RoleSeed[] = [
-  { role: 'Manager', department: 'Management', count: 2, minRate: 22, maxRate: 26, weeklyMax: 45, isManager: true },
-  { role: 'Head Chef', department: 'Back of House', count: 1, minRate: 23, maxRate: 27, weeklyMax: 45 },
-  { role: 'Sous Chef', department: 'Back of House', count: 1, minRate: 20, maxRate: 24, weeklyMax: 42 },
-  { role: 'Line Cook', department: 'Back of House', count: 4, minRate: 16, maxRate: 20, weeklyMax: 40 },
+  { role: 'Manager', department: 'Management', count: 2, minRate: 22, maxRate: 26, weeklyMax: 45, isManager: true, certifications: ['ServSafe_Manager', 'First_Aid'] },
+  { role: 'Head Chef', department: 'Back of House', count: 1, minRate: 23, maxRate: 27, weeklyMax: 45, certifications: ['ServSafe_Manager', 'Culinary_Arts'] },
+  { role: 'Sous Chef', department: 'Back of House', count: 1, minRate: 20, maxRate: 24, weeklyMax: 42, certifications: ['ServSafe_FoodHandler'] },
+  { role: 'Line Cook', department: 'Back of House', count: 4, minRate: 16, maxRate: 20, weeklyMax: 40, certifications: ['ServSafe_FoodHandler'] },
   { role: 'Dishwasher', department: 'Back of House', count: 2, minRate: 13, maxRate: 15, weeklyMax: 36 },
-  { role: 'Server', department: 'Front of House', count: 7, minRate: 13, maxRate: 16, weeklyMax: 38 },
+  { role: 'Server', department: 'Front of House', count: 7, minRate: 13, maxRate: 16, weeklyMax: 38, certifications: ['TIPS_Alcohol'] },
   { role: 'Host', department: 'Front of House', count: 2, minRate: 13, maxRate: 15, weeklyMax: 34 },
   { role: 'Busser', department: 'Front of House', count: 2, minRate: 12, maxRate: 14, weeklyMax: 34 },
   { role: 'Food Runner', department: 'Front of House', count: 2, minRate: 13, maxRate: 15, weeklyMax: 36 },
@@ -117,6 +132,7 @@ const HUMANITARIAN_FOH_ROLES = [
   'Volunteer Coordinator',
   'Child Development Specialist',
   'Community Health Case Worker',
+  'Volunteer',
 ];
 const HUMANITARIAN_BOH_ROLES = [
   'International Program Manager',
@@ -139,6 +155,9 @@ const HUMANITARIAN_ROLE_PLAN: RoleSeed[] = [
     isManager: true,
     forcedUsernames: ['gii_ceo'],
     preferredNames: [{ first: 'Marcus', last: 'Vance' }],
+    certifications: ['FEMA_ICS_400', 'NGO_Governance_Leadership', 'FBI_DOJ_Cleared'],
+    skills: ['Strategic Planning', 'Crisis Management', 'Donor Relations'],
+    backgroundCheckStatus: 'cleared_fbi_doj',
   },
   {
     role: 'Manager',
@@ -151,6 +170,9 @@ const HUMANITARIAN_ROLE_PLAN: RoleSeed[] = [
     isManager: true,
     forcedUsernames: ['gii_ipm'],
     preferredNames: [{ first: 'Tariq', last: 'Al-Mansoor' }],
+    certifications: ['FEMA_ICS_400', 'HazMat_Handler', 'START_Triage', 'FBI_DOJ_Cleared'],
+    skills: ['Rapid Relief Logistics', 'Disaster Triage', 'Arabic Fluency'],
+    backgroundCheckStatus: 'cleared_fbi_doj',
   },
   {
     role: 'Manager',
@@ -163,8 +185,21 @@ const HUMANITARIAN_ROLE_PLAN: RoleSeed[] = [
     isManager: true,
     forcedUsernames: ['gii_programofficer'],
     preferredNames: [{ first: 'Nia', last: 'Kimani' }],
+    certifications: ['CPR_AED_Pediatric', 'Early_Childhood_Licensure', 'Trauma_Informed_Care', 'FBI_DOJ_Cleared'],
+    skills: ['Child Trauma Assessment', 'Youth Mentorship', 'Curriculum Design'],
+    backgroundCheckStatus: 'cleared_fbi_doj',
   },
-  { role: 'Program Officer', department: 'Child Development & Youth Services', count: 5, minRate: 24, maxRate: 29, weeklyMax: 42 },
+  {
+    role: 'Program Officer',
+    department: 'Child Development & Youth Services',
+    count: 5,
+    minRate: 24,
+    maxRate: 29,
+    weeklyMax: 42,
+    certifications: ['CPR_AED_Pediatric', 'Trauma_Informed_Care', 'FBI_DOJ_Cleared'],
+    skills: ['Youth Development', 'Case Management'],
+    backgroundCheckStatus: 'cleared_fbi_doj',
+  },
   {
     role: 'Field Coordinator',
     department: 'Humanitarian Aid & Emergency Relief',
@@ -174,14 +209,107 @@ const HUMANITARIAN_ROLE_PLAN: RoleSeed[] = [
     weeklyMax: 42,
     forcedUsernames: ['gii_fieldlead'],
     preferredNames: [{ first: 'Kofi', last: 'Achebe' }],
+    certifications: ['FEMA_ICS_400', 'START_Triage', 'Field_Security_Level2', 'FBI_DOJ_Cleared'],
+    skills: ['Emergency Dispatch', 'Field Logistics', 'First Aid'],
+    backgroundCheckStatus: 'cleared_fbi_doj',
   },
-  { role: 'Volunteer Coordinator', department: 'Volunteer & Community Engagement', count: 4, minRate: 20, maxRate: 24, weeklyMax: 40 },
-  { role: 'Child Development Specialist', department: 'Child Development & Youth Services', count: 5, minRate: 23, maxRate: 28, weeklyMax: 42 },
-  { role: 'Monitoring and Evaluation Officer', department: 'Development & Grant Management', count: 3, minRate: 25, maxRate: 31, weeklyMax: 42 },
-  { role: 'Safeguarding Officer', department: 'Community Health & Psycho-Social Support', count: 3, minRate: 24, maxRate: 29, weeklyMax: 40 },
-  { role: 'Logistics and Grants Coordinator', department: 'Development & Grant Management', count: 3, minRate: 21, maxRate: 25, weeklyMax: 40 },
-  { role: 'Finance and HR Coordinator', department: 'Finance, HR & Administrative Ops', count: 2, minRate: 24, maxRate: 29, weeklyMax: 40 },
-  { role: 'Community Health Case Worker', department: 'Community Health & Psycho-Social Support', count: 3, minRate: 23, maxRate: 27, weeklyMax: 40 },
+  {
+    role: 'Volunteer Coordinator',
+    department: 'Volunteer & Community Engagement',
+    count: 4,
+    minRate: 20,
+    maxRate: 24,
+    weeklyMax: 40,
+    certifications: ['Volunteer_Supervision_Cert', 'Mental_Health_First_Aid'],
+    skills: ['Volunteer Engagement', 'Onboarding', 'Spanish Fluency'],
+    backgroundCheckStatus: 'cleared_level2',
+  },
+  {
+    role: 'Child Development Specialist',
+    department: 'Child Development & Youth Services',
+    count: 5,
+    minRate: 23,
+    maxRate: 28,
+    weeklyMax: 42,
+    certifications: ['CPR_AED_Pediatric', 'Early_Childhood_Licensure', 'Trauma_Informed_Care', 'FBI_DOJ_Cleared'],
+    skills: ['Early Childhood Care', 'Trauma-Informed De-escalation'],
+    backgroundCheckStatus: 'cleared_fbi_doj',
+  },
+  {
+    role: 'Monitoring and Evaluation Officer',
+    department: 'Development & Grant Management',
+    count: 3,
+    minRate: 25,
+    maxRate: 31,
+    weeklyMax: 42,
+    certifications: ['Grant_Compliance_Audit', 'Data_Governance_Cert'],
+    skills: ['Statistical Analysis', 'M&E Frameworks', 'Grant Reporting'],
+    backgroundCheckStatus: 'cleared_level2',
+  },
+  {
+    role: 'Safeguarding Officer',
+    department: 'Community Health & Psycho-Social Support',
+    count: 3,
+    minRate: 24,
+    maxRate: 29,
+    weeklyMax: 40,
+    certifications: ['MSW_LCSW', 'Child_Protection_Advanced', 'FBI_DOJ_Cleared'],
+    skills: ['Safeguarding Audits', 'Trauma Counseling'],
+    backgroundCheckStatus: 'cleared_fbi_doj',
+  },
+  {
+    role: 'Logistics and Grants Coordinator',
+    department: 'Development & Grant Management',
+    count: 3,
+    minRate: 21,
+    maxRate: 25,
+    weeklyMax: 40,
+    certifications: ['HazMat_Handler', 'Grant_Management_Pro'],
+    skills: ['Supply Chain', 'Procurement', 'Inventory Tracking'],
+    backgroundCheckStatus: 'cleared_level2',
+  },
+  {
+    role: 'Finance and HR Coordinator',
+    department: 'Finance, HR & Administrative Ops',
+    count: 2,
+    minRate: 24,
+    maxRate: 29,
+    weeklyMax: 40,
+    certifications: ['SHRM_CP', 'Nonprofit_Accounting_Cert'],
+    skills: ['Payroll Ops', 'Compliance Reporting'],
+    backgroundCheckStatus: 'cleared_level2',
+  },
+  {
+    role: 'Community Health Case Worker',
+    department: 'Community Health & Psycho-Social Support',
+    count: 3,
+    minRate: 23,
+    maxRate: 27,
+    weeklyMax: 40,
+    certifications: ['MSW_LCSW', 'Mental_Health_First_Aid', 'CPR_AED_Pediatric'],
+    skills: ['Crisis De-escalation', 'Family Case Work', 'Mental Health Support'],
+    backgroundCheckStatus: 'cleared_fbi_doj',
+  },
+  {
+    role: 'Volunteer',
+    roleTitle: 'Volunteer - Community Relief & Youth Support',
+    department: 'Volunteer & Community Engagement',
+    count: 5,
+    minRate: 0,
+    maxRate: 0,
+    weeklyMax: 16,
+    isVolunteer: true,
+    preferredNames: [
+      { first: 'Devon', last: 'Miller' },
+      { first: 'Soraya', last: 'Haddad' },
+      { first: 'Lucas', last: 'Becker' },
+      { first: 'Fatima', last: 'Zahra' },
+      { first: 'Patrick', last: 'Gallagher' },
+    ],
+    certifications: ['Basic_First_Aid', 'Youth_Safety_Awareness'],
+    skills: ['Community Outreach', 'Food Pantry Sorting', 'Child Supervision Assistance'],
+    backgroundCheckStatus: 'cleared_standard',
+  },
 ];
 
 const SITE_SEED: SiteSeed[] = [
@@ -315,8 +443,9 @@ export function seedDemoData(): void {
     const insertEmployee = db.prepare(`
       INSERT INTO employees (
         name, first_name, last_name, role, role_title, department,
-        pay_type, hourly_rate, weekly_hours_max, email, phone, photo_url, hire_date, site_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        pay_type, hourly_rate, weekly_hours_max, email, phone, photo_url, hire_date, site_id,
+        certifications, skills, is_volunteer, volunteer_max_hours, emergency_contact, background_check_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertAvailability = db.prepare(
@@ -328,7 +457,7 @@ export function seedDemoData(): void {
     );
 
     let personCursor = 0;
-    const allEmployees: Array<{ id: number; role: string; site_id: number; roleIndex: number; roleTitle: string; isManager: boolean; forcedUsername?: string }> = [];
+    const allEmployees: Array<{ id: number; role: string; site_id: number; roleIndex: number; roleTitle: string; isManager: boolean; isVolunteer: boolean; forcedUsername?: string }> = [];
 
     for (const site of seededSites) {
       const allRolesForSite = [...new Set([...site.fohRoles, ...site.bohRoles])];
@@ -350,11 +479,17 @@ export function seedDemoData(): void {
           }
           const name = `${adjustedFirst} ${adjustedLast}`;
           const hourlyRate = Number((roleSeed.minRate + ((i % 3) / 2) * (roleSeed.maxRate - roleSeed.minRate)).toFixed(2));
-          const payType = roleSeed.isManager || roleSeed.role === 'Manager' ? 'salaried' : 'hourly';
+          const payType = roleSeed.isManager || roleSeed.role === 'Manager' ? 'salaried' : (roleSeed.isVolunteer ? 'volunteer' : 'hourly');
           const email = `${adjustedFirst.toLowerCase()}.${adjustedLast.toLowerCase()}@${site.emailDomain}`;
           const phone = `(555) ${String(1000 + personCursor).padStart(4, '0')}`;
           const roleTitle = roleSeed.roleTitle || roleSeed.role;
           const photoUrl = seededPhotoUrl(adjustedFirst, adjustedLast, roleTitle);
+          const certsJson = JSON.stringify(roleSeed.certifications || []);
+          const skillsJson = JSON.stringify(roleSeed.skills || []);
+          const isVol = roleSeed.isVolunteer ? 1 : 0;
+          const volMax = roleSeed.isVolunteer ? roleSeed.weeklyMax : 16;
+          const bgCheck = roleSeed.backgroundCheckStatus || (site.siteType === 'nonprofit' ? 'cleared_level2' : 'cleared_standard');
+          const emergencyContact = `(555) 999-${String(1000 + personCursor).padStart(4, '0')} (Primary Contact)`;
 
           const empResult = insertEmployee.run(
             name,
@@ -371,6 +506,12 @@ export function seedDemoData(): void {
             photoUrl,
             addDays('2022-01-01', personCursor),
             site.id,
+            certsJson,
+            skillsJson,
+            isVol,
+            volMax,
+            emergencyContact,
+            bgCheck
           );
 
           const employeeId = empResult.lastInsertRowid as number;
@@ -381,6 +522,7 @@ export function seedDemoData(): void {
             roleIndex: i,
             roleTitle,
             isManager: !!roleSeed.isManager || roleSeed.role === 'Manager',
+            isVolunteer: !!roleSeed.isVolunteer,
             forcedUsername: roleSeed.forcedUsernames?.[i],
           });
 
@@ -438,6 +580,7 @@ export function seedDemoData(): void {
       'Monitoring and Evaluation Officer': 0.64,
       'Safeguarding Officer': 0.66,
       'Logistics and Grants Coordinator': 0.63,
+      Volunteer: 0.55,
     };
     const dayWorkProbability = [0.62, 0.58, 0.64, 0.74, 0.84, 0.88, 0.72]; // Monday..Sunday
 
@@ -510,6 +653,94 @@ export function seedDemoData(): void {
         updateUserForEmployee.run(preferredUsername, hash, isManager, employee.id);
       } else {
         insertUser.run(preferredUsername, hash, employee.id, isManager);
+      }
+    }
+
+    // Seed Survey Templates
+    seedSurveyTemplates();
+
+    // Seed Publish SLAs (14 days advance for all sites)
+    const insertSla = db.prepare('INSERT OR IGNORE INTO publish_sla (site_id, advance_days) VALUES (?, ?)');
+    for (const site of seededSites) {
+      insertSla.run(site.id, 14);
+    }
+
+    // Seed Survey Campaigns and sample responses for realistic immediate results
+    const giiSite = seededSites.find(s => s.name === 'Global Impact Initiative');
+    const templates = db.prepare('SELECT * FROM survey_templates').all() as any[];
+    const giiTemplate = templates.find(t => t.instrument === 'GII-HUMANITARIAN') || templates[0];
+    const cbiTemplate = templates.find(t => t.instrument === 'CBI') || templates[0];
+
+    if (giiSite && giiTemplate) {
+      // 1. Active GII humanitarian campaign
+      const campResult = db.prepare(`
+        INSERT INTO survey_campaigns (
+          template_id, site_id, title, start_date, end_date, anonymized, min_group_size, status, recurrence
+        ) VALUES (?, ?, ?, ?, ?, 1, 5, 'active', 'weekly')
+      `).run(
+        giiTemplate.id,
+        giiSite.id,
+        'Q1 2026 Humanitarian Workforce & Field Pulse',
+        addDays(thisMonday, -3),
+        addDays(thisMonday, 11)
+      );
+      const campId = campResult.lastInsertRowid as number;
+
+      // Seed 8 realistic responses for GII so subscales, radars, and recommendations work
+      const giiEmployees = db.prepare('SELECT id, department, role_title FROM employees WHERE site_id = ?').all(giiSite.id) as any[];
+      const qList = JSON.parse(giiTemplate.questions || '[]');
+
+      for (let idx = 0; idx < Math.min(8, giiEmployees.length); idx++) {
+        const emp = giiEmployees[idx];
+        const respResult = db.prepare(`
+          INSERT INTO survey_responses (campaign_id, employee_id, department, role_title, site_id)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(campId, emp.id, emp.department, emp.role_title, giiSite.id);
+        const respId = respResult.lastInsertRowid as number;
+
+        const insertAnswer = db.prepare('INSERT INTO survey_answers (response_id, question_id, score) VALUES (?, ?, ?)');
+        for (const q of qList) {
+          // Give higher fatigue/trauma scores for child care and field coordinators
+          let baseScore = 2;
+          if (emp.department.includes('Child') || emp.department.includes('Emergency')) {
+            baseScore = (idx % 2 === 0) ? 4 : 3;
+          } else {
+            baseScore = (idx % 3 === 0) ? 3 : 2;
+          }
+          insertAnswer.run(respId, q.id, baseScore);
+        }
+      }
+
+      // 2. Closed CBI campaign with full historical responses
+      if (cbiTemplate) {
+        const cbiResult = db.prepare(`
+          INSERT INTO survey_campaigns (
+            template_id, site_id, title, start_date, end_date, anonymized, min_group_size, status, recurrence
+          ) VALUES (?, ?, ?, ?, ?, 1, 5, 'closed', 'none')
+        `).run(
+          cbiTemplate.id,
+          giiSite.id,
+          '2025 Annual Non-Profit Exhaustion & Recovery Benchmark',
+          addDays(thisMonday, -60),
+          addDays(thisMonday, -30)
+        );
+        const cbiCampId = cbiResult.lastInsertRowid as number;
+        const cbiQuestions = JSON.parse(cbiTemplate.questions || '[]');
+
+        for (let idx = 0; idx < Math.min(12, giiEmployees.length); idx++) {
+          const emp = giiEmployees[idx];
+          const respResult = db.prepare(`
+            INSERT INTO survey_responses (campaign_id, employee_id, department, role_title, site_id)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(cbiCampId, emp.id, emp.department, emp.role_title, giiSite.id);
+          const respId = respResult.lastInsertRowid as number;
+
+          const insertAnswer = db.prepare('INSERT INTO survey_answers (response_id, question_id, score) VALUES (?, ?, ?)');
+          for (const q of cbiQuestions) {
+            const score = ((idx * 7 + q.id.length) % 4) + 2; // 2 to 5
+            insertAnswer.run(respId, q.id, Math.min(5, score));
+          }
+        }
       }
     }
 

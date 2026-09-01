@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   getEmployees, updateEmployee, getAvailability, setAvailability, deleteAvailability,
-  getTimeOffRequests, createTimeOffRequest, cancelTimeOffRequest,
-  Employee, Availability, TimeOffRequest,
+  getTimeOffRequests, createTimeOffRequest, cancelTimeOffRequest, getEmployeeConflicts,
+  Employee, Availability, TimeOffRequest, Shift,
 } from '../api';
 import { useAuth } from '../AuthContext';
 import { Button, Card, Badge, Input, PageHeader } from '../components/ui';
@@ -68,11 +68,20 @@ export default function ProfilePage() {
   const [availability, setAvailabilityList] = useState<Availability[]>([]);
   const [colleagues, setColleagues]         = useState<Employee[]>([]);
   const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
+  const [conflicts, setConflicts]           = useState<Array<{ shift: Shift; reason: string }>>([]);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error' | 'not-found'>('loading');
 
   // Profile edit form
   const [editProfile, setEditProfile]   = useState(false);
-  const [profileForm, setProfileForm]   = useState({ email: '', phone: '', weekly_hours_max: 40 });
+  const [profileForm, setProfileForm]   = useState({
+    email: '',
+    phone: '',
+    weekly_hours_max: 40,
+    emergency_contact: '',
+    certifications: '',
+    skills: '',
+    volunteer_max_hours: 16,
+  });
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Per-day availability state
@@ -110,10 +119,22 @@ export default function ProfilePage() {
       }
 
       setMyEmployee(me);
+
+      const parsedCerts = typeof me.certifications === 'string'
+        ? (JSON.parse(me.certifications || '[]') as string[])
+        : (me.certifications || []);
+      const parsedSkills = typeof me.skills === 'string'
+        ? (JSON.parse(me.skills || '[]') as string[])
+        : (me.skills || []);
+
       setProfileForm({
         email: me.email ?? '',
         phone: me.phone ?? '',
         weekly_hours_max: me.weekly_hours_max,
+        emergency_contact: me.emergency_contact ?? '',
+        certifications: Array.isArray(parsedCerts) ? parsedCerts.join(', ') : '',
+        skills: Array.isArray(parsedSkills) ? parsedSkills.join(', ') : '',
+        volunteer_max_hours: me.volunteer_max_hours || 16,
       });
       // Same-role colleagues (excluding self)
       setColleagues(all.filter(e => e.role === me.role && e.id !== empId));
@@ -137,6 +158,15 @@ export default function ProfilePage() {
       // Load time-off requests
       const requests = await getTimeOffRequests();
       setTimeOffRequests(requests);
+
+      // Load schedule conflicts
+      try {
+        const conflictRes = await getEmployeeConflicts(empId);
+        setConflicts(conflictRes.conflicts || []);
+      } catch {
+        setConflicts([]);
+      }
+
       setLoadState('ready');
     } catch (err: any) {
       setLoadState('error');
@@ -149,13 +179,30 @@ export default function ProfilePage() {
     if (!myEmployee) return;
     setSavingProfile(true);
     try {
+      const certList = profileForm.certifications
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+      const skillList = profileForm.skills
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
       const updated = await updateEmployee(myEmployee.id, {
         email: profileForm.email,
         phone: profileForm.phone,
         weekly_hours_max: profileForm.weekly_hours_max,
+        emergency_contact: profileForm.emergency_contact,
+        certifications: certList,
+        skills: skillList,
+        volunteer_max_hours: profileForm.volunteer_max_hours,
       });
       setMyEmployee(updated);
       setEditProfile(false);
+
+      // Refresh conflicts
+      const conflictRes = await getEmployeeConflicts(myEmployee.id);
+      setConflicts(conflictRes.conflicts || []);
     } catch (err: any) {
       alert('Error saving profile: ' + err.message);
     } finally {
@@ -182,6 +229,14 @@ export default function ProfilePage() {
           const filtered = prev.filter(a => a.day_of_week !== day);
           return [...filtered, saved];
         });
+      }
+
+      // Refresh conflicts
+      try {
+        const conflictRes = await getEmployeeConflicts(myEmployee.id);
+        setConflicts(conflictRes.conflicts || []);
+      } catch {
+        // ignore
       }
     } catch (err: any) {
       alert('Error saving availability: ' + err.message);
@@ -480,8 +535,22 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-lg font-bold text-foreground">{myEmployee.name}</h2>
                   <Badge variant={roleVariant(myEmployee.role)}>{myEmployee.role}</Badge>
+                  {myEmployee.is_volunteer ? (
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300">
+                      Volunteer ({myEmployee.volunteer_max_hours || 16}h max)
+                    </Badge>
+                  ) : null}
+                  {myEmployee.background_check_status && myEmployee.background_check_status !== 'pending' && (
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300">
+                      ✓ {myEmployee.background_check_status.replace(/_/g, ' ').toUpperCase()}
+                    </Badge>
+                  )}
                 </div>
-                <p className="text-sm text-muted-foreground mt-0.5">Max {myEmployee.weekly_hours_max}h/week · ${myEmployee.hourly_rate.toFixed(2)}/hr</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {myEmployee.is_volunteer ? 'Volunteer' : `$${myEmployee.hourly_rate.toFixed(2)}/hr`} · Max {myEmployee.weekly_hours_max}h/week
+                  {myEmployee.department ? ` · ${myEmployee.department}` : ''}
+                </p>
+
                 {myEmployee.email && (
                   <p className="text-sm text-muted-foreground mt-1">
                     <span className="text-foreground font-medium">Email:</span> {myEmployee.email}
@@ -492,9 +561,55 @@ export default function ProfilePage() {
                     <span className="text-foreground font-medium">Phone:</span> {myEmployee.phone}
                   </p>
                 )}
+                {myEmployee.emergency_contact && (
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    <span className="text-foreground font-medium">Emergency Contact:</span> {myEmployee.emergency_contact}
+                  </p>
+                )}
+
+                {/* Certifications badges */}
+                {(() => {
+                  const certs = typeof myEmployee.certifications === 'string'
+                    ? JSON.parse(myEmployee.certifications || '[]')
+                    : (myEmployee.certifications || []);
+                  if (Array.isArray(certs) && certs.length > 0) {
+                    return (
+                      <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+                        <span className="text-xs font-semibold text-muted-foreground">Certs:</span>
+                        {certs.map((c: string, i: number) => (
+                          <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-950/30 dark:text-violet-300">
+                            🛡️ {c.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {/* Skills tags */}
+                {(() => {
+                  const skills = typeof myEmployee.skills === 'string'
+                    ? JSON.parse(myEmployee.skills || '[]')
+                    : (myEmployee.skills || []);
+                  if (Array.isArray(skills) && skills.length > 0) {
+                    return (
+                      <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
+                        <span className="text-xs font-semibold text-muted-foreground">Skills:</span>
+                        {skills.map((s: string, i: number) => (
+                          <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 {myEmployee.photo_url && (
                   <button
-                    className="text-xs text-red-500 hover:text-red-700 transition-colors mt-1"
+                    className="text-xs text-red-500 hover:text-red-700 transition-colors mt-2 block"
                     onClick={handleRemovePhoto}
                   >
                     Remove photo
@@ -508,7 +623,7 @@ export default function ProfilePage() {
 
             {editProfile && (
               <div className="mt-4 pt-4 border-t border-border space-y-4">
-                <h3 className="text-sm font-semibold text-foreground">Update Profile</h3>
+                <h3 className="text-sm font-semibold text-foreground">Update Profile & Credentials</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
                     label="Email"
@@ -525,6 +640,13 @@ export default function ProfilePage() {
                     onChange={e => setProfileForm(f => ({ ...f, phone: e.target.value }))}
                   />
                   <Input
+                    label="Emergency Contact"
+                    type="text"
+                    placeholder="e.g. (555) 999-1234 (Spouse / Parent)"
+                    value={profileForm.emergency_contact}
+                    onChange={e => setProfileForm(f => ({ ...f, emergency_contact: e.target.value }))}
+                  />
+                  <Input
                     label="Preferred Max Weekly Hours"
                     type="number"
                     min={8}
@@ -532,6 +654,24 @@ export default function ProfilePage() {
                     value={profileForm.weekly_hours_max}
                     onChange={e => setProfileForm(f => ({ ...f, weekly_hours_max: Number(e.target.value) }))}
                   />
+                  <div className="sm:col-span-2">
+                    <Input
+                      label="Certifications (comma-separated)"
+                      type="text"
+                      placeholder="e.g. CPR_AED_Pediatric, Trauma_Informed_Care, FEMA_ICS_400"
+                      value={profileForm.certifications}
+                      onChange={e => setProfileForm(f => ({ ...f, certifications: e.target.value }))}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Input
+                      label="Skills / Specialties (comma-separated)"
+                      type="text"
+                      placeholder="e.g. Child Trauma Assessment, Rapid Relief Logistics, Spanish Fluency"
+                      value={profileForm.skills}
+                      onChange={e => setProfileForm(f => ({ ...f, skills: e.target.value }))}
+                    />
+                  </div>
                 </div>
                 <Button
                   variant="default"
@@ -548,11 +688,35 @@ export default function ProfilePage() {
 
           {/* ── Availability ── */}
           <Card className="p-5">
-            <h2 className="text-base font-semibold text-foreground">My Availability</h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              Set your availability for each day. Check <strong>Open all day</strong> to be available any time,
-              or <strong>Unavailable</strong> to mark a day off. Otherwise, set specific hours.
-            </p>
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">My Availability</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Set your availability for each day. Check <strong>Open all day</strong> to be available any time,
+                  or <strong>Unavailable</strong> to mark a day off. Otherwise, set specific hours.
+                </p>
+              </div>
+            </div>
+
+            {/* Conflict Alert Banner */}
+            {conflicts.length > 0 && (
+              <div className="mt-4 p-3.5 rounded-lg bg-amber-50 border border-amber-300 dark:bg-amber-950/30 dark:border-amber-700">
+                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-semibold text-sm">
+                  <span>⚠️</span>
+                  <span>Scheduled Shift Conflict Alert ({conflicts.length})</span>
+                </div>
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                  You have active shift assignments that conflict with your current availability preferences. Your manager will be notified of these discrepancies.
+                </p>
+                <div className="mt-2 space-y-1.5">
+                  {conflicts.map((c, i) => (
+                    <div key={i} className="text-xs text-amber-900 dark:text-amber-200 bg-amber-100/70 dark:bg-amber-900/40 px-2.5 py-1 rounded">
+                      <span className="font-medium">{c.shift.date} ({c.shift.start_time} - {c.shift.end_time})</span>: {c.reason}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="mt-4 space-y-2">
               {DAY_NAMES.map((dayName, dayIndex) => {

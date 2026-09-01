@@ -11,8 +11,8 @@ export const BURNOUT_AGGREGATION_THRESHOLD = 5;
 const LATE_NIGHT_CUTOFF = 22 * 60; // shifts ending at or after 22:00 are late-night
 
 function parseMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number);
-  return h * 60 + m;
+  const [h, m] = (time || '00:00').split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
 }
 
 function shiftHours(start: string, end: string): number {
@@ -26,7 +26,7 @@ function isLateNight(startTime: string, endTime: string): boolean {
   const endMin = parseMinutes(endTime);
   const startMin = parseMinutes(startTime);
   // overnight shifts (end < start) always run into late night; also direct late-night end
-  return endMin < startMin || endMin >= LATE_NIGHT_CUTOFF;
+  return endMin < startMin || endMin >= LATE_NIGHT_CUTOFF || startMin >= LATE_NIGHT_CUTOFF;
 }
 
 export function calculateBurnoutRisks(scheduleId: number): BurnoutRisk[] {
@@ -62,14 +62,26 @@ export function calculateBurnoutRisks(scheduleId: number): BurnoutRisk[] {
     // Calculate weekly hours
     const weeklyHours = empShifts.reduce((sum: number, s: any) => sum + shiftHours(s.start_time, s.end_time), 0);
 
-    // Check overtime against the jurisdiction-configured weekly max
-    const effectiveMaxWeekly = Math.min(emp.weekly_hours_max, MAX_WEEKLY_HOURS);
-    if (weeklyHours > effectiveMaxWeekly) {
-      factors.push(`Overtime: ${weeklyHours.toFixed(1)}h (max ${effectiveMaxWeekly}h)`);
-      riskScore += Math.min(40, (weeklyHours - effectiveMaxWeekly) * 5);
-    } else if (weeklyHours > effectiveMaxWeekly * 0.9) {
-      factors.push(`Near max hours: ${weeklyHours.toFixed(1)}h`);
-      riskScore += 10;
+    // Volunteer limit checks
+    if (emp.is_volunteer) {
+      const volMax = emp.volunteer_max_hours || 16;
+      if (weeklyHours > volMax) {
+        factors.push(`Volunteer hour cap exceeded: ${weeklyHours.toFixed(1)}h (cap: ${volMax}h)`);
+        riskScore += Math.min(45, (weeklyHours - volMax) * 6);
+      } else if (weeklyHours > volMax * 0.85) {
+        factors.push(`Near volunteer cap: ${weeklyHours.toFixed(1)}h / ${volMax}h`);
+        riskScore += 10;
+      }
+    } else {
+      // Check overtime against the jurisdiction-configured weekly max
+      const effectiveMaxWeekly = Math.min(emp.weekly_hours_max || 40, MAX_WEEKLY_HOURS);
+      if (weeklyHours > effectiveMaxWeekly) {
+        factors.push(`Overtime: ${weeklyHours.toFixed(1)}h (max ${effectiveMaxWeekly}h)`);
+        riskScore += Math.min(40, (weeklyHours - effectiveMaxWeekly) * 5);
+      } else if (weeklyHours > effectiveMaxWeekly * 0.9) {
+        factors.push(`Near max hours: ${weeklyHours.toFixed(1)}h`);
+        riskScore += 10;
+      }
     }
 
     // Check consecutive days
@@ -96,6 +108,13 @@ export function calculateBurnoutRisks(scheduleId: number): BurnoutRisk[] {
     } else if (maxConsecutive >= 4) {
       factors.push(`${maxConsecutive} consecutive days`);
       riskScore += 5;
+    }
+
+    // Humanitarian field strain / emotional intensity check
+    const isHighStrainRole = ['Field Coordinator', 'Child Development Specialist', 'Community Health Case Worker', 'Safeguarding Officer'].includes(emp.role);
+    if (isHighStrainRole && maxConsecutive >= 4) {
+      factors.push(`High-intensity humanitarian field fatigue (${maxConsecutive} days)`);
+      riskScore += 10;
     }
 
     // Minor worker checks: flag if hours exceed standard minor limits
@@ -132,7 +151,6 @@ export function calculateBurnoutRisks(scheduleId: number): BurnoutRisk[] {
       const nextDate = new Date(next.date);
       const dayDiff = (nextDate.getTime() - currDate.getTime()) / (1000 * 60 * 60 * 24);
       if (dayDiff === 1) {
-        // Check turnaround time
         const currEndMin = parseMinutes(curr.end_time);
         const nextStartMin = parseMinutes(next.start_time) + 24 * 60; // next day
         const turnaroundHours = (nextStartMin - currEndMin) / 60;
