@@ -17,8 +17,8 @@ function addDays(base: string, days: number): string {
   return d.toISOString().split('T')[0];
 }
 
-const MAX_EMPLOYEES = 80;
-const MIN_EXPECTED_EMPLOYEES = 58;
+const MAX_EMPLOYEES = 90;
+const MIN_EXPECTED_EMPLOYEES = 68;
 const EXPECTED_SITES = [
   { name: 'Bella Napoli', siteType: 'restaurant' },
   { name: 'The Blue Door', siteType: 'restaurant' },
@@ -92,6 +92,7 @@ interface RoleSeed {
   weeklyMax: number;
   isManager?: boolean;
   forcedUsernames?: string[];
+  preferredNames?: Array<{ first: string; last: string }>;
 }
 
 const RESTAURANT_FOH_ROLES = ['Busser', 'Host', 'Server', 'Food Runner', 'Expo'];
@@ -135,6 +136,7 @@ const HUMANITARIAN_ROLE_PLAN: RoleSeed[] = [
     weeklyMax: 45,
     isManager: true,
     forcedUsernames: ['gii_ipm'],
+    preferredNames: [{ first: 'Tariq', last: 'Al-Mansoor' }],
   },
   {
     role: 'Manager',
@@ -146,17 +148,44 @@ const HUMANITARIAN_ROLE_PLAN: RoleSeed[] = [
     weeklyMax: 44,
     isManager: true,
     forcedUsernames: ['gii_programofficer'],
+    preferredNames: [{ first: 'Nia', last: 'Kimani' }],
   },
-  { role: 'Program Officer', department: 'Front of House', count: 3, minRate: 24, maxRate: 29, weeklyMax: 42 },
-  { role: 'Field Coordinator', department: 'Front of House', count: 3, minRate: 22, maxRate: 26, weeklyMax: 42, forcedUsernames: ['gii_fieldlead'] },
-  { role: 'Volunteer Coordinator', department: 'Front of House', count: 2, minRate: 20, maxRate: 24, weeklyMax: 40 },
-  { role: 'Child Development Specialist', department: 'Back of House', count: 3, minRate: 23, maxRate: 28, weeklyMax: 42 },
-  { role: 'Monitoring and Evaluation Officer', department: 'Back of House', count: 2, minRate: 25, maxRate: 31, weeklyMax: 42 },
-  { role: 'Safeguarding Officer', department: 'Back of House', count: 1, minRate: 24, maxRate: 29, weeklyMax: 40 },
-  { role: 'Logistics and Grants Coordinator', department: 'Back of House', count: 2, minRate: 21, maxRate: 25, weeklyMax: 40 },
+  { role: 'Program Officer', department: 'Front of House', count: 4, minRate: 24, maxRate: 29, weeklyMax: 42 },
+  {
+    role: 'Field Coordinator',
+    department: 'Front of House',
+    count: 4,
+    minRate: 22,
+    maxRate: 26,
+    weeklyMax: 42,
+    forcedUsernames: ['gii_fieldlead'],
+    preferredNames: [{ first: 'Kofi', last: 'Achebe' }],
+  },
+  { role: 'Volunteer Coordinator', department: 'Front of House', count: 3, minRate: 20, maxRate: 24, weeklyMax: 40 },
+  { role: 'Child Development Specialist', department: 'Back of House', count: 4, minRate: 23, maxRate: 28, weeklyMax: 42 },
+  { role: 'Monitoring and Evaluation Officer', department: 'Back of House', count: 3, minRate: 25, maxRate: 31, weeklyMax: 42 },
+  { role: 'Safeguarding Officer', department: 'Back of House', count: 2, minRate: 24, maxRate: 29, weeklyMax: 40 },
+  { role: 'Logistics and Grants Coordinator', department: 'Back of House', count: 3, minRate: 21, maxRate: 25, weeklyMax: 40 },
 ];
 
 const SITE_SEED: SiteSeed[] = [
+  {
+    name: 'Global Impact Initiative',
+    city: 'Washington',
+    state: 'DC',
+    timezone: 'America/New_York',
+    siteType: 'nonprofit',
+    jurisdiction: 'intl-program',
+    emailDomain: 'globalimpactinitiative.org',
+    address: '1800 I St NW, Washington, DC',
+    businessHours: 'Mon-Fri 08:00-19:00',
+    employeeCapacity: 34,
+    baseRevenue: 4100,
+    averageCheckSize: 52,
+    fohRoles: HUMANITARIAN_FOH_ROLES,
+    bohRoles: HUMANITARIAN_BOH_ROLES,
+    rolePlan: HUMANITARIAN_ROLE_PLAN,
+  },
   {
     name: 'Bella Napoli',
     city: 'Chicago',
@@ -190,23 +219,6 @@ const SITE_SEED: SiteSeed[] = [
     fohRoles: RESTAURANT_FOH_ROLES,
     bohRoles: RESTAURANT_BOH_ROLES,
     rolePlan: RESTAURANT_ROLE_PLAN,
-  },
-  {
-    name: 'Global Impact Initiative',
-    city: 'Washington',
-    state: 'DC',
-    timezone: 'America/New_York',
-    siteType: 'nonprofit',
-    jurisdiction: 'intl-program',
-    emailDomain: 'globalimpactinitiative.org',
-    address: '1800 I St NW, Washington, DC',
-    businessHours: 'Mon-Fri 08:00-19:00',
-    employeeCapacity: 22,
-    baseRevenue: 4100,
-    averageCheckSize: 52,
-    fohRoles: HUMANITARIAN_FOH_ROLES,
-    bohRoles: HUMANITARIAN_BOH_ROLES,
-    rolePlan: HUMANITARIAN_ROLE_PLAN,
   },
 ];
 
@@ -313,22 +325,25 @@ export function seedDemoData(): void {
           personCursor++;
 
           let adjustedFirst = first;
+          let adjustedLast = last;
           if (site.name === 'Bella Napoli' && roleSeed.role === 'Manager' && i === 0) adjustedFirst = 'Alice';
           if (site.name === 'Bella Napoli' && roleSeed.role === 'Server' && i === 0) adjustedFirst = 'Bob';
-          if (site.name === 'Global Impact Initiative' && roleSeed.roleTitle === 'International Program Manager' && i === 0) adjustedFirst = 'Amara';
-          if (site.name === 'Global Impact Initiative' && roleSeed.roleTitle?.includes('Program Officer') && i === 0) adjustedFirst = 'Nia';
-          const name = `${adjustedFirst} ${last}`;
+          if (roleSeed.preferredNames?.[i]) {
+            adjustedFirst = roleSeed.preferredNames[i].first;
+            adjustedLast = roleSeed.preferredNames[i].last;
+          }
+          const name = `${adjustedFirst} ${adjustedLast}`;
           const hourlyRate = Number((roleSeed.minRate + ((i % 3) / 2) * (roleSeed.maxRate - roleSeed.minRate)).toFixed(2));
           const payType = roleSeed.isManager || roleSeed.role === 'Manager' ? 'salaried' : 'hourly';
-          const email = `${adjustedFirst.toLowerCase()}.${last.toLowerCase()}@${site.emailDomain}`;
+          const email = `${adjustedFirst.toLowerCase()}.${adjustedLast.toLowerCase()}@${site.emailDomain}`;
           const phone = `(555) ${String(1000 + personCursor).padStart(4, '0')}`;
           const roleTitle = roleSeed.roleTitle || roleSeed.role;
-          const photoUrl = seededPhotoUrl(adjustedFirst, last, roleTitle);
+          const photoUrl = seededPhotoUrl(adjustedFirst, adjustedLast, roleTitle);
 
           const empResult = insertEmployee.run(
             name,
             adjustedFirst,
-            last,
+            adjustedLast,
             roleSeed.role,
             roleTitle,
             roleSeed.department,

@@ -5,9 +5,10 @@ The data is automatically loaded when the server starts against an **empty datab
 
 ## Dataset Version
 
-- Current seed version: **2026.08.31-humanitarian-v1**
+- Current seed version: **2026.08.31-humanitarian-primary-v2**
 - Focus: realistic day-level staffing variance and mixed-industry demo sites
 - Includes a humanitarian/nonprofit business profile centered on girls' education and empowerment programs
+- Primary humanitarian check reference: [docs/nonprofit_scheduling_seed_data.md](nonprofit_scheduling_seed_data.md)
 
 ---
 
