@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock, Copy, MousePointerClick, PencilLine, Plus, Printer, Sparkles, Trash2, Users, X, Zap } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Copy, MousePointerClick, PencilLine, Plus, Printer, Scissors, Sparkles, Trash2, UserMinus, Users, X, Zap } from 'lucide-react';
 import {
   createOpenShift,
   createShift,
@@ -386,7 +386,15 @@ export default function SchedulePage() {
   const [coverageFilterRole, setCoverageFilterRole] = useState<string>('');
   const [coverageFilterStart, setCoverageFilterStart] = useState<string>('09:00');
   const [coverageFilterEnd, setCoverageFilterEnd] = useState<string>('17:00');
+  const [showCrossDepartment, setShowCrossDepartment] = useState<boolean>(false);
   const [assigningCandidateId, setAssigningCandidateId] = useState<number | null>(null);
+
+  const [cutModal, setCutModal] = useState<{
+    isOpen: boolean;
+    date: string;
+    role?: string;
+  } | null>(null);
+  const [cuttingShiftId, setCuttingShiftId] = useState<number | null>(null);
 
   const roleOptions = useMemo(() => {
     const roles = new Set<string>(DEFAULT_ROLES);
@@ -898,6 +906,11 @@ export default function SchedulePage() {
     });
 
     const targetRoleKey = normalizeStaffingRole(targetRole);
+    // Determine the target department group for the role being covered
+    const sampleEmp = employees.find((e) => normalizeStaffingRole(e.role) === targetRoleKey);
+    const targetDeptGroup = getDepartmentGroupLabel(
+      sampleEmp ? (sampleEmp.department || sampleEmp.role) : targetRole
+    );
 
     const available: any[] = [];
     const caveats: any[] = [];
@@ -905,9 +918,14 @@ export default function SchedulePage() {
 
     for (const emp of employees) {
       const empRoleKey = normalizeStaffingRole(emp.role);
-      const empDeptKey = normalizeStaffingRole(emp.department || '');
+      const empDeptGroup = getDepartmentGroupLabel(emp.department || emp.role);
       const roleMatch = empRoleKey === targetRoleKey;
-      const deptMatch = empDeptKey === targetRoleKey;
+      const deptMatch = empDeptGroup === targetDeptGroup;
+
+      // STRICT ROLE/DEPARTMENT FILTER: unless showCrossDepartment is toggled, ONLY show employees in matching role or department
+      if (!showCrossDepartment && !roleMatch && !deptMatch) {
+        continue;
+      }
 
       const pto = timeOffRequests.find(
         (req) => req.employee_id === emp.id && req.status === 'approved' && isDateBetween(targetDate, req.start_date, req.end_date)
@@ -992,7 +1010,114 @@ export default function SchedulePage() {
       caveats: caveats.sort((a, b) => a.weeklyHours - b.weeklyHours),
       unavailable,
     };
-  }, [coverageModal, coverageFilterRole, coverageFilterStart, coverageFilterEnd, employees, shifts, availability, timeOffRequests, newShift]);
+  }, [coverageModal, coverageFilterRole, coverageFilterStart, coverageFilterEnd, showCrossDepartment, employees, shifts, availability, timeOffRequests, newShift]);
+
+  // Candidates prioritized for rapid staff reduction / shift cuts on overstaffed days
+  const cutCandidates = useMemo(() => {
+    if (!cutModal?.isOpen || !cutModal.date) return [];
+
+    const targetDate = cutModal.date;
+    const targetRole = cutModal.role;
+    const targetRoleKey = targetRole ? normalizeStaffingRole(targetRole) : null;
+
+    // Find target department
+    const sampleEmp = targetRole ? employees.find((e) => normalizeStaffingRole(e.role) === targetRoleKey) : null;
+    const targetDeptGroup = sampleEmp ? getDepartmentGroupLabel(sampleEmp.department || sampleEmp.role) : null;
+
+    // Get all active shifts on this date
+    const dayShifts = shifts.filter((s) => s.date === targetDate && s.employee_id);
+
+    // Group weekly hours by employee
+    const hoursByEmployee = new Map<number, number>();
+    shifts.forEach((s) => {
+      if (!s.employee_id) return;
+      hoursByEmployee.set(
+        s.employee_id,
+        (hoursByEmployee.get(s.employee_id) || 0) + getShiftDurationHours(s.start_time, s.end_time)
+      );
+    });
+
+    const candidateList = dayShifts
+      .map((shift) => {
+        const emp = employees.find((e) => e.id === shift.employee_id);
+        if (!emp) return null;
+
+        const empRoleKey = normalizeStaffingRole(shift.role || emp.role);
+        const empDeptGroup = getDepartmentGroupLabel(emp.department || emp.role);
+        const roleMatch = !targetRoleKey || empRoleKey === targetRoleKey;
+        const deptMatch = !targetDeptGroup || empDeptGroup === targetDeptGroup;
+
+        // If a specific role was chosen to cut, filter to that role or department
+        if (targetRoleKey && !roleMatch && !deptMatch) {
+          return null;
+        }
+
+        const weeklyHours = hoursByEmployee.get(emp.id) || 0;
+        const maxHours = emp.weekly_hours_max || (emp.is_volunteer ? (emp.volunteer_max_hours || 16) : 40);
+        const isOvertime = weeklyHours > maxHours;
+        const isNearCap = weeklyHours >= maxHours * 0.85;
+        const isClopen = quickReturnShiftMap.has(shift.id);
+        const clopenDetail = quickReturnShiftMap.get(shift.id);
+        const duration = getShiftDurationHours(shift.start_time, shift.end_time);
+
+        // Scoring algorithm for cut priority (higher = best to cut first)
+        let cutScore = 0;
+        const priorityBadges: { text: string; tone: string }[] = [];
+
+        if (isClopen) {
+          cutScore += 60;
+          priorityBadges.push({
+            text: `🛡️ Relieves Clopen (${clopenDetail?.restHours}h rest)`,
+            tone: 'bg-amber-100 text-amber-900 border-amber-300',
+          });
+        }
+
+        if (isOvertime) {
+          cutScore += 50 + (weeklyHours - maxHours) * 5;
+          priorityBadges.push({
+            text: `💵 Eliminates Overtime (${weeklyHours}h / ${maxHours}h max)`,
+            tone: 'bg-rose-100 text-rose-900 border-rose-300',
+          });
+        } else if (isNearCap) {
+          cutScore += 25;
+          priorityBadges.push({
+            text: `📊 Reduces High Weekly Load (${weeklyHours}h / ${maxHours}h max)`,
+            tone: 'bg-orange-100 text-orange-900 border-orange-300',
+          });
+        }
+
+        if (roleMatch) {
+          cutScore += 20;
+          priorityBadges.push({
+            text: `🎯 Target Surplus Match (${shift.role})`,
+            tone: 'bg-blue-100 text-blue-900 border-blue-300',
+          });
+        }
+
+        if (emp.is_volunteer) {
+          cutScore += 15;
+          priorityBadges.push({
+            text: '🤝 Flexible Volunteer Cap Protection',
+            tone: 'bg-teal-100 text-teal-900 border-teal-300',
+          });
+        }
+
+        return {
+          shift,
+          employee: emp,
+          weeklyHours,
+          maxHours,
+          duration,
+          isOvertime,
+          isClopen,
+          cutScore,
+          priorityBadges,
+        };
+      })
+      .filter((c): c is NonNullable<typeof c> => c !== null);
+
+    return candidateList.sort((a, b) => b.cutScore - a.cutScore || b.weeklyHours - a.weeklyHours);
+  }, [cutModal, shifts, employees, quickReturnShiftMap]);
 
   const departmentTone = (department: string) => {
     const tones = [
@@ -1078,12 +1203,13 @@ export default function SchedulePage() {
     };
   }, [draggedEmployeeId]);
 
-  // ESC key cancels placement mode and closes coverage modal
+  // ESC key cancels placement mode and closes coverage & cut modals
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setActiveAssignEmployeeId(null);
         setCoverageModal(null);
+        setCutModal(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1477,6 +1603,34 @@ export default function SchedulePage() {
         }
       }
       toast(err.message || 'Failed to assign shift.', { variant: 'error' });
+    }
+  }
+
+  async function handleCutShift(shiftId: number, employeeName: string, date: string, convertToOpen: boolean = false) {
+    if (!isManager || !selectedScheduleId) return;
+    setCuttingShiftId(shiftId);
+    try {
+      const shift = shifts.find((s) => s.id === shiftId);
+      if (convertToOpen && shift) {
+        await deleteShift(shiftId);
+        await createOpenShift({
+          schedule_id: selectedScheduleId,
+          date: shift.date,
+          start_time: shift.start_time,
+          end_time: shift.end_time,
+          role: shift.role,
+          reason: `Released from ${employeeName} due to overstaffing reduction`,
+        });
+        toast(`Shift for ${employeeName} released and converted to open shift.`, { variant: 'info' });
+      } else {
+        await deleteShift(shiftId);
+        toast(`Shift for ${employeeName} removed on ${date}. Staffing reduced.`, { variant: 'success' });
+      }
+      await Promise.all([loadShifts(selectedScheduleId), loadOpenShifts()]);
+    } catch (err: any) {
+      toast(err.message || 'Failed to remove shift.', { variant: 'error' });
+    } finally {
+      setCuttingShiftId(null);
     }
   }
 
@@ -2044,11 +2198,32 @@ export default function SchedulePage() {
             {weeklyRoleContributors.over.length > 0 && (
               <div className="flex flex-wrap items-center gap-1">
                 <span className="font-medium text-red-900">Over by:</span>
-                {weeklyRoleContributors.over.slice(0, 4).map((entry) => (
-                  <span key={`over-${entry.role}`} className="rounded-full border border-red-700 bg-red-300 px-1.5 py-0.5 font-semibold text-red-950">
-                    {entry.role} +{entry.delta}
-                  </span>
-                ))}
+                {weeklyRoleContributors.over.slice(0, 4).map((entry) => {
+                  const firstOverDay = scheduleDays.find((d) => {
+                    const sig = staffingStatusByDate.get(d.date);
+                    return sig?.roleDeltas.some((r) => r.role === entry.role && r.delta > 0);
+                  })?.date || selectedSchedule?.week_start;
+                  return (
+                    <button
+                      key={`over-${entry.role}`}
+                      type="button"
+                      onClick={() => {
+                        if (firstOverDay) {
+                          setCutModal({
+                            isOpen: true,
+                            date: firstOverDay,
+                            role: entry.role,
+                          });
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 rounded-full border border-red-700 bg-red-300 hover:bg-red-400 px-2 py-0.5 font-semibold text-red-950 transition cursor-pointer shadow-2xs hover:scale-105"
+                      title={`Click to open Rapid Shift Cut Assistant for ${entry.role}`}
+                    >
+                      <span>{entry.role} +{entry.delta}</span>
+                      <Scissors className="h-2.5 w-2.5" />
+                    </button>
+                  );
+                })}
               </div>
             )}
             <span className="text-muted-foreground">Based on expected demand from prior sales patterns.</span>
@@ -2264,6 +2439,23 @@ export default function SchedulePage() {
                                 <Zap className="h-2.5 w-2.5" /> Fill
                               </button>
                             )}
+                            {isManager && staffingSignal.status === 'overstaffed' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const firstOver = staffingSignal?.roleDeltas?.find(r => r.delta > 0);
+                                  setCutModal({
+                                    isOpen: true,
+                                    date: day.date,
+                                    role: firstOver?.role,
+                                  });
+                                }}
+                                className="inline-flex items-center gap-0.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold px-1.5 py-0.5 text-[8px] uppercase tracking-wider transition cursor-pointer shadow-2xs"
+                                title="Open Rapid Staff Reduction / Cut Assistant for this day"
+                              >
+                                <Scissors className="h-2.5 w-2.5" /> Cut
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2277,25 +2469,38 @@ export default function SchedulePage() {
                                 type="button"
                                 onClick={() => {
                                   if (!isManager) return;
-                                  setCoverageFilterRole(entry.role);
-                                  setCoverageFilterStart(newShift.start_time);
-                                  setCoverageFilterEnd(newShift.end_time);
-                                  setCoverageModal({
-                                    isOpen: true,
-                                    date: day.date,
-                                    role: entry.role,
-                                    start_time: newShift.start_time,
-                                    end_time: newShift.end_time,
-                                  });
+                                  if (entry.delta > 0) {
+                                    setCutModal({
+                                      isOpen: true,
+                                      date: day.date,
+                                      role: entry.role,
+                                    });
+                                  } else {
+                                    setCoverageFilterRole(entry.role);
+                                    setCoverageFilterStart(newShift.start_time);
+                                    setCoverageFilterEnd(newShift.end_time);
+                                    setCoverageModal({
+                                      isOpen: true,
+                                      date: day.date,
+                                      role: entry.role,
+                                      start_time: newShift.start_time,
+                                      end_time: newShift.end_time,
+                                    });
+                                  }
                                 }}
-                                title={`${entry.role}: scheduled ${entry.actual}, suggested ${entry.suggested} (click to find coverage)`}
-                                className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold transition hover:scale-105 cursor-pointer ${
+                                title={
+                                  entry.delta > 0
+                                    ? `${entry.role}: over by +${entry.delta} (click to cut shifts)`
+                                    : `${entry.role}: short by ${entry.delta} (click to find coverage)`
+                                }
+                                className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold transition hover:scale-105 cursor-pointer flex items-center gap-0.5 ${
                                   staffingSignal.status === 'understaffed'
                                     ? 'border-yellow-600 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 shadow-2xs'
-                                    : 'border-red-700 bg-red-500 hover:bg-red-600 text-red-50'
+                                    : 'border-red-700 bg-red-500 hover:bg-red-600 text-white shadow-2xs'
                                 }`}
                               >
-                                {entry.role} {entry.delta > 0 ? `+${entry.delta}` : entry.delta} {staffingSignal.status === 'understaffed' ? '⚡' : ''}
+                                <span>{entry.role} {entry.delta > 0 ? `+${entry.delta}` : entry.delta}</span>
+                                {entry.delta < 0 ? <Zap className="h-2 w-2" /> : <Scissors className="h-2 w-2" />}
                               </button>
                             ))}
                         </div>
@@ -2629,50 +2834,73 @@ export default function SchedulePage() {
           title="⚡ Staffing Shortage & Coverage Assistant"
         >
           <div className="space-y-4 pt-1 max-h-[75vh] overflow-y-auto pr-1">
-            {/* Target Shortage Controls */}
-            <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
-              <div>
-                <div className="text-[10px] font-bold text-amber-900 uppercase tracking-wider">
-                  Target Date &amp; Needed Shift
+            {/* Target Shortage Controls & Department Filter Toggle */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 space-y-2.5 shadow-2xs">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] font-bold text-amber-900 uppercase tracking-wider">
+                    Target Date &amp; Needed Shift
+                  </div>
+                  <div className="text-sm font-bold text-foreground mt-0.5">
+                    {coverageModal.date} · {coverageFilterRole || coverageModal.role || 'Any Role'}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Window: {coverageFilterStart} – {coverageFilterEnd} ({getShiftDurationHours(coverageFilterStart, coverageFilterEnd)} hrs)
+                  </div>
                 </div>
-                <div className="text-sm font-bold text-foreground mt-0.5">
-                  {coverageModal.date} · {coverageFilterRole || coverageModal.role || 'Any Role'}
-                </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  Window: {coverageFilterStart} – {coverageFilterEnd} ({getShiftDurationHours(coverageFilterStart, coverageFilterEnd)} hrs)
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Role Needed</label>
+                    <select
+                      className={NATIVE_SELECT_CLASS + ' text-xs py-1'}
+                      value={coverageFilterRole || coverageModal.role || ''}
+                      onChange={(e) => setCoverageFilterRole(e.target.value)}
+                    >
+                      {roleOptions.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Start</label>
+                    <select
+                      className={NATIVE_SELECT_CLASS + ' text-xs py-1'}
+                      value={coverageFilterStart}
+                      onChange={(e) => setCoverageFilterStart(e.target.value)}
+                    >
+                      {TIME_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">End</label>
+                    <select
+                      className={NATIVE_SELECT_CLASS + ' text-xs py-1'}
+                      value={coverageFilterEnd}
+                      onChange={(e) => setCoverageFilterEnd(e.target.value)}
+                    >
+                      {TIME_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </div>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase">Role Needed</label>
-                  <select
-                    className={NATIVE_SELECT_CLASS + ' text-xs py-1'}
-                    value={coverageFilterRole || coverageModal.role || ''}
-                    onChange={(e) => setCoverageFilterRole(e.target.value)}
-                  >
-                    {roleOptions.map((r) => <option key={r} value={r}>{r}</option>)}
-                  </select>
+
+              {/* Department/Role Scope Indicator and Cross-Department Toggle */}
+              <div className="pt-2 border-t border-amber-200/80 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-xs text-amber-950 font-medium">
+                  <span className="font-bold">Active Scope:</span>
+                  <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-md font-semibold text-[11px]">
+                    {showCrossDepartment
+                      ? '🌐 All Departments (Broad Search)'
+                      : `🎯 Role & Department Specific: ${coverageFilterRole || coverageModal.role || 'Target Role'}`}
+                  </span>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase">Start</label>
-                  <select
-                    className={NATIVE_SELECT_CLASS + ' text-xs py-1'}
-                    value={coverageFilterStart}
-                    onChange={(e) => setCoverageFilterStart(e.target.value)}
-                  >
-                    {TIME_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase">End</label>
-                  <select
-                    className={NATIVE_SELECT_CLASS + ' text-xs py-1'}
-                    value={coverageFilterEnd}
-                    onChange={(e) => setCoverageFilterEnd(e.target.value)}
-                  >
-                    {TIME_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                </div>
+                <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground cursor-pointer select-none bg-white/90 px-2.5 py-1 rounded-lg border border-amber-200 hover:bg-white shadow-2xs">
+                  <input
+                    type="checkbox"
+                    checked={showCrossDepartment}
+                    onChange={(e) => setShowCrossDepartment(e.target.checked)}
+                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
+                  />
+                  <span>Show other departments</span>
+                </label>
               </div>
             </div>
 
@@ -2687,7 +2915,7 @@ export default function SchedulePage() {
 
               {coverageCandidates.available.length === 0 ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center text-xs text-muted-foreground">
-                  No exact role matches available without conflicts on this day. Check below for cross-department staff or alternative options.
+                  No role-specific matches available without conflicts on this day. Check cross-department staff or examine caveats below.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
@@ -2820,6 +3048,116 @@ export default function SchedulePage() {
                   ))}
                 </div>
               </details>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Rapid Staff Reduction / Shift Cut Assistant Modal */}
+      {isManager && cutModal?.isOpen && (
+        <Modal
+          open={cutModal.isOpen}
+          onClose={() => setCutModal(null)}
+          title="✂️ Rapid Staff Reduction & Shift Cut Assistant"
+        >
+          <div className="space-y-4 pt-1 max-h-[75vh] overflow-y-auto pr-1">
+            {/* Target Overstaffing Header */}
+            <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+              <div>
+                <div className="text-[10px] font-bold text-rose-900 uppercase tracking-wider">
+                  Target Date &amp; Overstaffed Role
+                </div>
+                <div className="text-sm font-bold text-foreground mt-0.5">
+                  {cutModal.date} · {cutModal.role || 'All Scheduled Roles'}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  Ranked by highest cut priority (overtime elimination &amp; rest period protection).
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-rose-800 bg-rose-100 border border-rose-300 px-2.5 py-1 rounded-full">
+                  {cutCandidates.length} Active Shift{cutCandidates.length !== 1 ? 's' : ''} on {cutModal.date}
+                </span>
+              </div>
+            </div>
+
+            {/* Shift Candidates List */}
+            {cutCandidates.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-xs text-muted-foreground">
+                No active shifts found for {cutModal.role || 'this day'}.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {cutCandidates.map((c, index) => {
+                  const isTopPick = index === 0 && c.cutScore > 0;
+                  return (
+                    <div
+                      key={c.shift.id}
+                      className={`rounded-2xl border p-3.5 transition flex flex-col justify-between gap-3 shadow-2xs ${
+                        isTopPick
+                          ? 'border-rose-300 bg-rose-50/60 ring-2 ring-rose-400'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-foreground">{c.employee?.name}</span>
+                            <span className="text-[10px] font-semibold bg-slate-100 text-slate-800 px-2 py-0.5 rounded-full border border-slate-200">
+                              {c.shift.role}
+                            </span>
+                            {isTopPick && (
+                              <span className="text-[10px] font-extrabold bg-rose-600 text-white px-2 py-0.5 rounded-full shadow-2xs">
+                                ⭐ Recommended Cut
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-2">
+                            <span>🕒 Shift: <strong>{formatTime12(c.shift.start_time)} – {formatTime12(c.shift.end_time)}</strong> ({c.duration}h)</span>
+                            <span>•</span>
+                            <span>📊 Weekly Load: <strong>{c.weeklyHours}h / {c.maxHours}h max</strong></span>
+                          </div>
+                        </div>
+
+                        {/* Priority Badges */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {c.priorityBadges.map((b) => (
+                            <span
+                              key={b.text}
+                              className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${b.tone}`}
+                            >
+                              {b.text}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/80">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs border-slate-300 hover:bg-slate-100"
+                          isLoading={cuttingShiftId === c.shift.id}
+                          onClick={() => handleCutShift(c.shift.id, c.employee?.name || 'Staff', cutModal.date, true)}
+                          title="Unassigns employee and leaves shift open for optional pickup"
+                        >
+                          <UserMinus className="h-3.5 w-3.5 mr-1 text-slate-600" /> Convert to Open Shift
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs"
+                          isLoading={cuttingShiftId === c.shift.id}
+                          onClick={() => handleCutShift(c.shift.id, c.employee?.name || 'Staff', cutModal.date, false)}
+                          title="Deletes this shift completely to reduce surplus labor"
+                        >
+                          <Scissors className="h-3.5 w-3.5 mr-1" /> ✂️ Cut Shift (Remove)
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </Modal>
