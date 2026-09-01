@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Copy, PencilLine, Plus, Printer, Sparkles, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Copy, MousePointerClick, PencilLine, Plus, Printer, Sparkles, Trash2, Users, X, Zap } from 'lucide-react';
 import {
   createOpenShift,
   createShift,
@@ -374,6 +374,19 @@ export default function SchedulePage() {
 
   const [draggedEmployeeId, setDraggedEmployeeId] = useState<number | null>(null);
   const [dropDate, setDropDate] = useState<string | null>(null);
+  const [activeAssignEmployeeId, setActiveAssignEmployeeId] = useState<number | null>(null);
+  const [coverageModal, setCoverageModal] = useState<{
+    isOpen: boolean;
+    date: string;
+    role?: string;
+    start_time?: string;
+    end_time?: string;
+    shiftId?: number;
+  } | null>(null);
+  const [coverageFilterRole, setCoverageFilterRole] = useState<string>('');
+  const [coverageFilterStart, setCoverageFilterStart] = useState<string>('09:00');
+  const [coverageFilterEnd, setCoverageFilterEnd] = useState<string>('17:00');
+  const [assigningCandidateId, setAssigningCandidateId] = useState<number | null>(null);
 
   const roleOptions = useMemo(() => {
     const roles = new Set<string>(DEFAULT_ROLES);
@@ -844,6 +857,143 @@ export default function SchedulePage() {
     return map;
   }, [openShifts, isManager, currentEmployeeDepartment, currentEmployeeRole, normalizedDepartmentFilter]);
 
+  const activeAssignEmployee = useMemo(
+    () => employees.find((e) => e.id === activeAssignEmployeeId) ?? null,
+    [employees, activeAssignEmployeeId]
+  );
+
+  const coverageCandidates = useMemo(() => {
+    if (!coverageModal?.isOpen || !coverageModal.date) {
+      return { available: [], caveats: [], unavailable: [] };
+    }
+
+    const targetDate = coverageModal.date;
+    const targetRole = coverageFilterRole || coverageModal.role || newShift.role || 'Server';
+    const targetStart = coverageFilterStart || coverageModal.start_time || newShift.start_time || '09:00';
+    const targetEnd = coverageFilterEnd || coverageModal.end_time || newShift.end_time || '17:00';
+
+    const [y, m, d] = targetDate.split('-').map(Number);
+    const dayOfWeek = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+
+    const hoursByEmployee = new Map<number, number>();
+    const shiftsByEmployeeOnDate = new Map<number, ShiftWithEmployee[]>();
+    const shiftsByEmployeeAll = new Map<number, ShiftWithEmployee[]>();
+
+    shifts.forEach((shift) => {
+      if (!shift.employee_id) return;
+      hoursByEmployee.set(
+        shift.employee_id,
+        (hoursByEmployee.get(shift.employee_id) || 0) + getShiftDurationHours(shift.start_time, shift.end_time)
+      );
+
+      const allList = shiftsByEmployeeAll.get(shift.employee_id) || [];
+      allList.push(shift);
+      shiftsByEmployeeAll.set(shift.employee_id, allList);
+
+      if (shift.date === targetDate) {
+        const dayList = shiftsByEmployeeOnDate.get(shift.employee_id) || [];
+        dayList.push(shift);
+        shiftsByEmployeeOnDate.set(shift.employee_id, dayList);
+      }
+    });
+
+    const targetRoleKey = normalizeStaffingRole(targetRole);
+
+    const available: any[] = [];
+    const caveats: any[] = [];
+    const unavailable: any[] = [];
+
+    for (const emp of employees) {
+      const empRoleKey = normalizeStaffingRole(emp.role);
+      const empDeptKey = normalizeStaffingRole(emp.department || '');
+      const roleMatch = empRoleKey === targetRoleKey;
+      const deptMatch = empDeptKey === targetRoleKey;
+
+      const pto = timeOffRequests.find(
+        (req) => req.employee_id === emp.id && req.status === 'approved' && isDateBetween(targetDate, req.start_date, req.end_date)
+      );
+      const sameDayShifts = shiftsByEmployeeOnDate.get(emp.id) || [];
+
+      const overlap = sameDayShifts.some((s) => {
+        if (coverageModal.shiftId && s.id === coverageModal.shiftId) return false;
+        const sStart = parseShiftMinutes(s.start_time);
+        let sEnd = parseShiftMinutes(s.end_time);
+        const nStart = parseShiftMinutes(targetStart);
+        let nEnd = parseShiftMinutes(targetEnd);
+        if (sEnd <= sStart) sEnd += 24 * 60;
+        if (nEnd <= nStart) nEnd += 24 * 60;
+        return sStart < nEnd && sEnd > nStart;
+      });
+
+      const availEntries = availability.filter((a) => a.employee_id === emp.id && a.day_of_week === dayOfWeek);
+      let isAvail = true;
+      let availLabel = 'Open Availability';
+      if (availEntries.length > 0) {
+        const entry = availEntries[0];
+        if (entry.availability_type === 'unavailable') {
+          isAvail = false;
+          availLabel = 'Rest Day (Unavailable)';
+        } else if (entry.availability_type === 'specific') {
+          isAvail = availabilityCoversShift(entry, targetStart, targetEnd);
+          availLabel = `${entry.start_time} – ${entry.end_time}`;
+        }
+      }
+
+      // Calculate rest window compliance
+      const allEmpShifts = (shiftsByEmployeeAll.get(emp.id) || []).filter(
+        (s) => !coverageModal.shiftId || s.id !== coverageModal.shiftId
+      );
+      let minRestHours = 24;
+      let restConflict = false;
+      for (const s of allEmpShifts) {
+        const rest = calculateRestHoursClient(s, { date: targetDate, start_time: targetStart, end_time: targetEnd } as any);
+        if (rest >= 0 && rest < 11) {
+          minRestHours = Math.round(rest * 10) / 10;
+          restConflict = true;
+          break;
+        }
+      }
+
+      const weeklyHours = hoursByEmployee.get(emp.id) || 0;
+      const maxHours = emp.weekly_hours_max || (emp.is_volunteer ? (emp.volunteer_max_hours || 16) : 40);
+      const shiftDuration = getShiftDurationHours(targetStart, targetEnd);
+      const willExceedMax = weeklyHours + shiftDuration > maxHours;
+
+      const reasons: string[] = [];
+      if (pto) reasons.push(`Approved PTO (${pto.reason || 'Leave'})`);
+      if (overlap) reasons.push(`Already scheduled on this day (${sameDayShifts[0]?.start_time} - ${sameDayShifts[0]?.end_time})`);
+      if (!isAvail) reasons.push(`Outside availability window (${availLabel})`);
+      if (restConflict) reasons.push(`Rest window violation (${minRestHours}h rest < 11h)`);
+      if (willExceedMax) reasons.push(`Exceeds weekly max (${weeklyHours + shiftDuration}h > ${maxHours}h cap)`);
+
+      const candidate = {
+        employee: emp,
+        weeklyHours,
+        maxHours,
+        roleMatch,
+        deptMatch,
+        availLabel,
+        isAvail,
+        reasons,
+        minRestHours,
+      };
+
+      if (pto || overlap || !isAvail) {
+        unavailable.push(candidate);
+      } else if (restConflict || willExceedMax || (!roleMatch && !deptMatch)) {
+        caveats.push(candidate);
+      } else {
+        available.push(candidate);
+      }
+    }
+
+    return {
+      available: available.sort((a, b) => a.weeklyHours - b.weeklyHours),
+      caveats: caveats.sort((a, b) => a.weeklyHours - b.weeklyHours),
+      unavailable,
+    };
+  }, [coverageModal, coverageFilterRole, coverageFilterStart, coverageFilterEnd, employees, shifts, availability, timeOffRequests, newShift]);
+
   const departmentTone = (department: string) => {
     const tones = [
       'border-blue-200 bg-blue-50/70',
@@ -891,6 +1041,54 @@ export default function SchedulePage() {
       setSelectedEmployeeFilter('all');
     }
   }, [departmentFilteredEmployees, normalizedDepartmentFilter, selectedEmployeeFilter]);
+
+  // Smooth viewport auto-scrolling when dragging employee near top/bottom edges
+  useEffect(() => {
+    if (!draggedEmployeeId) return;
+
+    let animationFrameId: number | null = null;
+    let scrollDelta = 0;
+
+    const handleDragOver = (e: DragEvent) => {
+      const edgeThreshold = 110;
+      if (e.clientY < edgeThreshold) {
+        const factor = (edgeThreshold - e.clientY) / edgeThreshold;
+        scrollDelta = -Math.max(6, Math.round(factor * 22));
+      } else if (e.clientY > window.innerHeight - edgeThreshold) {
+        const factor = (e.clientY - (window.innerHeight - edgeThreshold)) / edgeThreshold;
+        scrollDelta = Math.max(6, Math.round(factor * 22));
+      } else {
+        scrollDelta = 0;
+      }
+    };
+
+    const doScroll = () => {
+      if (scrollDelta !== 0) {
+        window.scrollBy({ top: scrollDelta, behavior: 'instant' });
+      }
+      animationFrameId = requestAnimationFrame(doScroll);
+    };
+
+    window.addEventListener('dragover', handleDragOver);
+    animationFrameId = requestAnimationFrame(doScroll);
+
+    return () => {
+      window.removeEventListener('dragover', handleDragOver);
+      if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+    };
+  }, [draggedEmployeeId]);
+
+  // ESC key cancels placement mode and closes coverage modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveAssignEmployeeId(null);
+        setCoverageModal(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const sortDepartmentGroups = <T extends { department: string; items: any[] }>(groups: T[]) =>
     [...groups].sort((a, b) => {
@@ -1201,6 +1399,84 @@ export default function SchedulePage() {
         }
       }
       toast(err.message || 'Failed to create shift by drag/drop.', { variant: 'error' });
+    }
+  }
+
+  async function handleAssignCandidate(
+    date: string,
+    employeeId: number,
+    role?: string,
+    startTime?: string,
+    endTime?: string,
+    targetShiftId?: number
+  ) {
+    if (!isManager || !selectedScheduleId) return;
+    const employee = employees.find((e) => e.id === employeeId);
+    if (!employee) return;
+
+    const finalRole = role || employee.role || newShift.role;
+    const finalStart = startTime || newShift.start_time || '09:00';
+    const finalEnd = endTime || newShift.end_time || '17:00';
+
+    try {
+      if (targetShiftId) {
+        await updateShift(targetShiftId, {
+          employee_id: employeeId,
+          date,
+          start_time: finalStart,
+          end_time: finalEnd,
+          role: finalRole,
+        });
+        toast(`Assigned ${employee.name} to shift.`, { variant: 'success' });
+      } else {
+        await createShift({
+          schedule_id: selectedScheduleId,
+          employee_id: employeeId,
+          date,
+          start_time: finalStart,
+          end_time: finalEnd,
+          role: finalRole,
+        });
+        toast(`Shift assigned to ${employee.name} for ${date}.`, { variant: 'success' });
+      }
+      await loadShifts(selectedScheduleId);
+      if (coverageModal?.isOpen) setCoverageModal(null);
+    } catch (err: any) {
+      if (err.message && err.message.includes('Rest window violation')) {
+        const confirmOverride = window.confirm(`${err.message}\n\nDo you want to override and schedule this shift anyway?`);
+        if (confirmOverride) {
+          try {
+            if (targetShiftId) {
+              await updateShift(targetShiftId, {
+                employee_id: employeeId,
+                date,
+                start_time: finalStart,
+                end_time: finalEnd,
+                role: finalRole,
+                allow_override: true,
+              });
+            } else {
+              await createShift({
+                schedule_id: selectedScheduleId,
+                employee_id: employeeId,
+                date,
+                start_time: finalStart,
+                end_time: finalEnd,
+                role: finalRole,
+                allow_override: true,
+              });
+            }
+            await loadShifts(selectedScheduleId);
+            toast(`Shift assigned to ${employee.name} with manager override.`, { variant: 'warning' });
+            if (coverageModal?.isOpen) setCoverageModal(null);
+            return;
+          } catch (overrideErr: any) {
+            toast(overrideErr.message || 'Failed to assign shift.', { variant: 'error' });
+            return;
+          }
+        }
+      }
+      toast(err.message || 'Failed to assign shift.', { variant: 'error' });
     }
   }
 
@@ -1589,28 +1865,60 @@ export default function SchedulePage() {
           </div>
 
           <div className="pt-3 border-t border-border space-y-2.5">
-            <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Employee Roster (Drag into any day column)</h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-emerald-700" /> Employee Roster (Click to Quick-Place or Drag into any day column)
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Click any employee to activate 1-click placement mode on the schedule grid, or drag directly onto a day column.
+                </p>
+              </div>
+              {activeAssignEmployee && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 font-semibold"
+                  onClick={() => setActiveAssignEmployeeId(null)}
+                >
+                  <X className="h-3 w-3 mr-1" /> Clear Selection ({activeAssignEmployee.name.split(' ')[0]})
+                </Button>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2.5">
               {employees.map((employee) => {
                 const employeeDepartment = employeeDepartmentLabel(employee);
                 const palette = getDepartmentPaletteClasses(employeeDepartment);
+                const isSelected = activeAssignEmployeeId === employee.id;
                 return (
                 <button
                   key={employee.id}
                   type="button"
                   draggable
-                  aria-label={`Create shift for ${employee.name}`}
+                  aria-label={`Select or drag ${employee.name}`}
+                  onClick={() => setActiveAssignEmployeeId(isSelected ? null : employee.id)}
                   onDragStart={() => setDraggedEmployeeId(employee.id)}
                   onDragEnd={() => {
                     setDraggedEmployeeId(null);
                     setDropDate(null);
                   }}
-                  className={`rounded-xl border px-3 py-2 text-left text-xs transition-all shadow-2xs hover:shadow-xs cursor-grab active:cursor-grabbing ${palette.tone}`}
-                  title={`Drag to create a shift for ${employee.name}`}
+                  className={`rounded-xl border px-3 py-2 text-left text-xs transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 ${palette.tone} ${
+                    isSelected
+                      ? 'ring-3 ring-emerald-600 bg-emerald-100/95 font-bold scale-[1.03] shadow-md border-emerald-500'
+                      : 'hover:border-emerald-300'
+                  }`}
+                  title={isSelected ? 'Click to deselect' : `Click to place ${employee.name} or drag to schedule`}
                 >
-                  <div className={`font-bold ${palette.accent}`}>{employee.name}</div>
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className={`font-bold ${palette.accent}`}>{employee.name}</span>
+                    {isSelected && (
+                      <span className="inline-flex h-2 w-2 rounded-full bg-emerald-600 animate-ping" />
+                    )}
+                  </div>
                   <div className="text-muted-foreground text-[11px]">{employee.role}</div>
-                  <div className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${palette.accent}`}>{employeeDepartment}</div>
+                  <div className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${palette.accent}`}>
+                    {isSelected ? '🎯 Ready to place' : employeeDepartment}
+                  </div>
                 </button>
                 );
               })}
@@ -1804,20 +2112,49 @@ export default function SchedulePage() {
                             </span>
                           </div>
 
-                          <div className="mt-2 flex flex-wrap gap-1.5">
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
                             {need.candidates.length > 0 ? need.candidates.map((candidate: CandidateRecommendation) => (
-                              <span
+                              <button
                                 key={`${selectedDayRecommendation.date}-${need.role}-${candidate.employee.id}`}
-                                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${candidate.score >= 70 ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : candidate.score >= 35 ? 'border-sky-300 bg-sky-50 text-sky-800' : 'border-slate-300 bg-slate-100 text-slate-700'}`}
-                                title={candidate.reasons.join(', ')}
+                                type="button"
+                                onClick={() => handleAssignCandidate(selectedDayRecommendation.date, candidate.employee.id, need.role, need.start, need.end)}
+                                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold shadow-2xs hover:shadow-xs transition hover:scale-[1.02] cursor-pointer active:scale-95 ${
+                                  candidate.score >= 70
+                                    ? 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                                    : candidate.score >= 35
+                                      ? 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100'
+                                      : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                                }`}
+                                title={`Click to assign ${candidate.employee.name} (${candidate.reasons.join(', ')})`}
                               >
-                                {candidate.employee.name}
-                              </span>
+                                <span>{candidate.employee.name}</span>
+                                <span className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-1.5 py-0.2 text-[9px] font-bold">
+                                  + Assign
+                                </span>
+                              </button>
                             )) : (
                               <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-muted-foreground">
                                 No strong fit found
                               </span>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCoverageFilterRole(need.role);
+                                setCoverageFilterStart(need.start);
+                                setCoverageFilterEnd(need.end);
+                                setCoverageModal({
+                                  isOpen: true,
+                                  date: selectedDayRecommendation.date,
+                                  role: need.role,
+                                  start_time: need.start,
+                                  end_time: need.end,
+                                });
+                              }}
+                              className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 px-2 py-1 text-[10px] font-semibold transition cursor-pointer"
+                            >
+                              <Zap className="h-3 w-3 text-indigo-600" /> View All Staff Fits
+                            </button>
                           </div>
                         </div>
                       );
@@ -1896,13 +2233,38 @@ export default function SchedulePage() {
                       setDraggedEmployeeId(null);
                     }}
                   >
-                    <div className={`sticky top-0 z-10 rounded-lg bg-white/90 font-semibold text-foreground backdrop-blur-sm ${isCompactWeeklyManagerView ? 'px-1 py-0.5 text-[10px]' : 'px-1 py-1 text-xs'}`}>
-                      <div className="flex items-center justify-between gap-1">
-                        <span>{day.dayLabel}</span>
+                    <div className={`sticky top-0 z-10 rounded-lg bg-white/95 font-semibold text-foreground backdrop-blur-sm shadow-2xs ${isCompactWeeklyManagerView ? 'px-1 py-0.5 text-[10px]' : 'px-2 py-1.5 text-xs'}`}>
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
+                        <span className="font-bold">{day.dayLabel}</span>
                         {staffingSignal && staffingSignal.status !== 'adequate' && (
-                          <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${staffingSignal.status === 'understaffed' ? 'bg-yellow-500 text-yellow-950' : 'bg-red-600 text-red-50'}`}>
-                            {staffingSignal.status === 'understaffed' ? 'Short' : 'Over'}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${staffingSignal.status === 'understaffed' ? 'bg-yellow-500 text-yellow-950' : 'bg-red-600 text-red-50'}`}>
+                              {staffingSignal.status === 'understaffed' ? 'Short' : 'Over'}
+                            </span>
+                            {isManager && staffingSignal.status === 'understaffed' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const firstUnder = staffingSignal?.roleDeltas?.find(r => r.delta < 0);
+                                  const rName = firstUnder?.role || newShift.role;
+                                  setCoverageFilterRole(rName);
+                                  setCoverageFilterStart(newShift.start_time);
+                                  setCoverageFilterEnd(newShift.end_time);
+                                  setCoverageModal({
+                                    isOpen: true,
+                                    date: day.date,
+                                    role: rName,
+                                    start_time: newShift.start_time,
+                                    end_time: newShift.end_time,
+                                  });
+                                }}
+                                className="inline-flex items-center gap-0.5 rounded-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold px-1.5 py-0.5 text-[8px] uppercase tracking-wider transition cursor-pointer shadow-2xs"
+                                title="Open Smart Coverage Assistant for this day"
+                              >
+                                <Zap className="h-2.5 w-2.5" /> Fill
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                       {staffingSignal && staffingSignal.status !== 'adequate' && staffingSignal.roleDeltas.length > 0 && (
@@ -1910,17 +2272,45 @@ export default function SchedulePage() {
                           {staffingSignal.roleDeltas
                             .filter((entry) => staffingSignal.status === 'understaffed' ? entry.delta < 0 : entry.delta > 0)
                             .map((entry) => (
-                              <span
+                              <button
                                 key={`${day.date}-${entry.role}`}
-                                title={`${entry.role}: scheduled ${entry.actual}, suggested ${entry.suggested}`}
-                                className={`rounded-full border px-1 py-0.5 text-[9px] font-semibold ${staffingSignal.status === 'understaffed' ? 'border-yellow-600 bg-yellow-400 text-yellow-950' : 'border-red-700 bg-red-500 text-red-50'}`}
+                                type="button"
+                                onClick={() => {
+                                  if (!isManager) return;
+                                  setCoverageFilterRole(entry.role);
+                                  setCoverageFilterStart(newShift.start_time);
+                                  setCoverageFilterEnd(newShift.end_time);
+                                  setCoverageModal({
+                                    isOpen: true,
+                                    date: day.date,
+                                    role: entry.role,
+                                    start_time: newShift.start_time,
+                                    end_time: newShift.end_time,
+                                  });
+                                }}
+                                title={`${entry.role}: scheduled ${entry.actual}, suggested ${entry.suggested} (click to find coverage)`}
+                                className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold transition hover:scale-105 cursor-pointer ${
+                                  staffingSignal.status === 'understaffed'
+                                    ? 'border-yellow-600 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 shadow-2xs'
+                                    : 'border-red-700 bg-red-500 hover:bg-red-600 text-red-50'
+                                }`}
                               >
-                                {entry.role} {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
-                              </span>
+                                {entry.role} {entry.delta > 0 ? `+${entry.delta}` : entry.delta} {staffingSignal.status === 'understaffed' ? '⚡' : ''}
+                              </button>
                             ))}
                         </div>
                       )}
                     </div>
+
+                    {isManager && activeAssignEmployee && (
+                      <button
+                        type="button"
+                        onClick={() => handleCreateShiftFromDrag(day.date, activeAssignEmployee.id)}
+                        className="w-full my-1 flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-emerald-500 bg-emerald-100/90 hover:bg-emerald-200 text-emerald-950 font-bold text-[11px] py-2 transition shadow-xs cursor-pointer active:scale-95 animate-pulse"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Place {activeAssignEmployee.name.split(' ')[0]} ({formatTime12(newShift.start_time)}-{formatTime12(newShift.end_time)})
+                      </button>
+                    )}
                     {sortDepartmentGroups(
                       Array.from(
                         dayShifts.reduce((groups, shift) => {
@@ -2091,7 +2481,7 @@ export default function SchedulePage() {
                             Open
                           </span>
                         </div>
-                        {!isManager && (
+                        {!isManager ? (
                           <Button
                             size="sm"
                             onClick={() => handleOfferOpenShift(openShift.id)}
@@ -2100,6 +2490,26 @@ export default function SchedulePage() {
                             aria-label={`Pickup open shift for ${openShift.role}`}
                           >
                             Pickup
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setCoverageFilterRole(openShift.role);
+                              setCoverageFilterStart(openShift.start_time);
+                              setCoverageFilterEnd(openShift.end_time);
+                              setCoverageModal({
+                                isOpen: true,
+                                date: openShift.date,
+                                role: openShift.role,
+                                start_time: openShift.start_time,
+                                end_time: openShift.end_time,
+                              });
+                            }}
+                            className="mt-2 w-full text-xs font-bold border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 shadow-2xs"
+                          >
+                            <Zap className="h-3 w-3 mr-1" /> Find Coverage
                           </Button>
                         )}
                       </div>
@@ -2210,6 +2620,238 @@ export default function SchedulePage() {
           )}
         </div>
       </Modal>
+
+      {/* Coverage & Shortage Resolution Modal */}
+      {isManager && coverageModal?.isOpen && (
+        <Modal
+          open={coverageModal.isOpen}
+          onClose={() => setCoverageModal(null)}
+          title="⚡ Staffing Shortage & Coverage Assistant"
+        >
+          <div className="space-y-4 pt-1 max-h-[75vh] overflow-y-auto pr-1">
+            {/* Target Shortage Controls */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+              <div>
+                <div className="text-[10px] font-bold text-amber-900 uppercase tracking-wider">
+                  Target Date &amp; Needed Shift
+                </div>
+                <div className="text-sm font-bold text-foreground mt-0.5">
+                  {coverageModal.date} · {coverageFilterRole || coverageModal.role || 'Any Role'}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  Window: {coverageFilterStart} – {coverageFilterEnd} ({getShiftDurationHours(coverageFilterStart, coverageFilterEnd)} hrs)
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase">Role Needed</label>
+                  <select
+                    className={NATIVE_SELECT_CLASS + ' text-xs py-1'}
+                    value={coverageFilterRole || coverageModal.role || ''}
+                    onChange={(e) => setCoverageFilterRole(e.target.value)}
+                  >
+                    {roleOptions.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase">Start</label>
+                  <select
+                    className={NATIVE_SELECT_CLASS + ' text-xs py-1'}
+                    value={coverageFilterStart}
+                    onChange={(e) => setCoverageFilterStart(e.target.value)}
+                  >
+                    {TIME_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase">End</label>
+                  <select
+                    className={NATIVE_SELECT_CLASS + ' text-xs py-1'}
+                    value={coverageFilterEnd}
+                    onChange={(e) => setCoverageFilterEnd(e.target.value)}
+                  >
+                    {TIME_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 1: Ready to Cover (Best Matches) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Available &amp; Qualified Staff ({coverageCandidates.available.length})
+                </h4>
+                <span className="text-[11px] text-muted-foreground">Ranked by lowest weekly hours load</span>
+              </div>
+
+              {coverageCandidates.available.length === 0 ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center text-xs text-muted-foreground">
+                  No exact role matches available without conflicts on this day. Check below for cross-department staff or alternative options.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {coverageCandidates.available.map((c) => (
+                    <div
+                      key={c.employee.id}
+                      className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3 flex flex-col justify-between gap-2 shadow-2xs hover:shadow-xs transition"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="font-bold text-sm text-foreground">{c.employee.name}</span>
+                          <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-full border border-emerald-200">
+                            {c.employee.role}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          Dept: {c.employee.department || c.employee.role}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                          <span className="bg-white/90 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium">
+                            🕒 Avail: {c.availLabel}
+                          </span>
+                          <span className="bg-white/90 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium">
+                            📊 {c.weeklyHours}h / {c.maxHours}h max
+                          </span>
+                          <span className="bg-white/90 border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded-md font-medium">
+                            ✓ Rest: {c.minRestHours}h
+                          </span>
+                        </div>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        className="w-full mt-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs"
+                        isLoading={assigningCandidateId === c.employee.id}
+                        onClick={async () => {
+                          setAssigningCandidateId(c.employee.id);
+                          await handleAssignCandidate(
+                            coverageModal.date,
+                            c.employee.id,
+                            coverageFilterRole || coverageModal.role,
+                            coverageFilterStart,
+                            coverageFilterEnd,
+                            coverageModal.shiftId
+                          );
+                          setAssigningCandidateId(null);
+                        }}
+                      >
+                        <Zap className="h-3.5 w-3.5 mr-1" /> ⚡ Assign {c.employee.name.split(' ')[0]} Now
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Section 2: Available with Caveats */}
+            {coverageCandidates.caveats.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" /> Cross-Trained or Near-Hours Candidates ({coverageCandidates.caveats.length})
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {coverageCandidates.caveats.map((c) => (
+                    <div
+                      key={c.employee.id}
+                      className="rounded-xl border border-amber-200 bg-amber-50/40 p-3 flex flex-col justify-between gap-2 shadow-2xs"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="font-bold text-sm text-foreground">{c.employee.name}</span>
+                          <span className="text-[10px] font-semibold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full border border-amber-200">
+                            {c.employee.role}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          Dept: {c.employee.department || c.employee.role}
+                        </div>
+                        <div className="mt-1.5 space-y-1">
+                          {c.reasons.map((r: string) => (
+                            <div key={r} className="text-[11px] font-medium text-amber-950 bg-amber-100/80 border border-amber-200 px-2 py-0.5 rounded">
+                              ⚠️ {r}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full mt-1.5 border-amber-300 text-amber-950 hover:bg-amber-100 font-bold text-xs"
+                        isLoading={assigningCandidateId === c.employee.id}
+                        onClick={async () => {
+                          setAssigningCandidateId(c.employee.id);
+                          await handleAssignCandidate(
+                            coverageModal.date,
+                            c.employee.id,
+                            coverageFilterRole || coverageModal.role,
+                            coverageFilterStart,
+                            coverageFilterEnd,
+                            coverageModal.shiftId
+                          );
+                          setAssigningCandidateId(null);
+                        }}
+                      >
+                        ⚡ Assign Anyway
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Section 3: Unavailable Staff (Collapsible) */}
+            {coverageCandidates.unavailable.length > 0 && (
+              <details className="pt-2 border-t border-slate-200 text-xs group">
+                <summary className="font-bold text-slate-700 cursor-pointer flex items-center justify-between py-1 hover:text-slate-900">
+                  <span>⛔ Unavailable Staff &amp; Conflicts ({coverageCandidates.unavailable.length})</span>
+                  <span className="text-[11px] text-slate-400 group-open:hidden">Show details ▼</span>
+                  <span className="text-[11px] text-slate-400 hidden group-open:inline">Hide ▲</span>
+                </summary>
+                <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {coverageCandidates.unavailable.map((c) => (
+                    <div key={c.employee.id} className="p-2 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-between gap-2 text-[11px]">
+                      <div>
+                        <span className="font-bold text-slate-800">{c.employee.name}</span> ({c.employee.role}):{' '}
+                        <span className="text-rose-700 font-medium">{c.reasons.join(' · ')}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Floating Placement Mode Toolbar */}
+      {isManager && activeAssignEmployee && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-slate-900/95 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-200 max-w-[95vw]">
+          <div className="flex items-center gap-2.5">
+            <MousePointerClick className="h-5 w-5 text-emerald-400 animate-pulse shrink-0" />
+            <div>
+              <div className="text-xs font-bold flex items-center gap-1.5 flex-wrap">
+                <span>Placement Mode Active:</span>
+                <span className="text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-500/40">
+                  {activeAssignEmployee.name} ({activeAssignEmployee.role})
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-300 mt-0.5">
+                Click any day's <strong>"+ Place Shift"</strong> button on the schedule to assign ({formatTime12(newShift.start_time)} – {formatTime12(newShift.end_time)}).
+              </div>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-white border-white/20 hover:bg-white/10 text-xs ml-2 shrink-0"
+            onClick={() => setActiveAssignEmployeeId(null)}
+          >
+            <X className="h-3.5 w-3.5 mr-1" /> Done (ESC)
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
