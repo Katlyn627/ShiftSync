@@ -195,10 +195,16 @@ router.get('/staffing-suggestions', requireAuth, (req: Request, res: Response) =
       const suggested = day.staffing.reduce((total, slot) => total + slot.count, 0);
       const actual = Array.from(actualByRole.values()).reduce((total, count) => total + count, 0);
       const delta = actual - suggested;
+      const neutralBand = Math.max(1, Math.round(suggested * 0.1));
+      const staffingStatus = Math.abs(delta) <= neutralBand
+        ? 'adequate'
+        : delta < 0
+          ? 'understaffed'
+          : 'overstaffed';
 
       return {
         ...day,
-        staffing_status: delta < 0 ? 'understaffed' : delta > 0 ? 'overstaffed' : 'adequate',
+        staffing_status: staffingStatus,
         staffing_delta: delta,
         staffing_actual: actual,
         staffing_suggested: suggested,

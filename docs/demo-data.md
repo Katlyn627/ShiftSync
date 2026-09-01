@@ -3,6 +3,12 @@
 This document describes the multi-site seed dataset included with ShiftSync.
 The data is automatically loaded when the server starts against an **empty database**.
 
+## Dataset Version
+
+- Current seed version: **2026.08.31-humanitarian-v1**
+- Focus: realistic day-level staffing variance and mixed-industry demo sites
+- Includes a humanitarian/nonprofit business profile centered on girls' education and empowerment programs
+
 ---
 
 ## Quick Login Reference
@@ -65,6 +71,16 @@ Pick one of these to test general employee views (no manager features):
 | `amy` | Amy Taylor | Seaside Suites & Spa | Front Desk (Night Audit) |
 | `ben` | Ben Martinez | Seaside Suites & Spa | Housekeeping |
 | `dan` | Dan Roberts | Seaside Suites & Spa | F&B (Lead Server) |
+
+### Humanitarian / Nonprofit Demo Accounts
+
+Use these logins for a humanitarian operations scenario with program delivery, field visits, and project oversight.
+
+| Username | Site | Role Title | Access |
+|----------|------|------------|--------|
+| `gii_ipm` | Global Impact Initiative | International Program Manager | Manager |
+| `gii_programofficer` | Global Impact Initiative | Program Officer - Girls Education and Empowerment | Manager |
+| `gii_fieldlead` | Global Impact Initiative | Field Coordinator | Employee |
 
 ---
 
