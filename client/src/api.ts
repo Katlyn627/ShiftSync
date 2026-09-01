@@ -333,6 +333,13 @@ export interface LaborCostSummary {
   variance: number;
   by_day: { date: string; cost: number }[];
   by_role: { role: string; cost: number }[];
+  program_direct_cost?: number;
+  admin_indirect_cost?: number;
+  program_expense_ratio?: number;
+  fringe_benefits_cost?: number;
+  volunteer_in_kind_hours?: number;
+  volunteer_in_kind_value?: number;
+  total_labor_hours?: number;
 }
 
 export interface StaffingNeed {

@@ -55,6 +55,9 @@ function shouldReseed(db: Database.Database): boolean {
   const unsplashEmp = db.prepare("SELECT id FROM employees WHERE photo_url LIKE '%images.unsplash.com%'").get();
   if (!unsplashEmp) return true;
 
+  const giiSched = db.prepare("SELECT labor_budget FROM schedules s JOIN sites st ON s.site_id = st.id WHERE st.name = 'Global Impact Initiative' LIMIT 1").get() as any;
+  if (!giiSched || giiSched.labor_budget < 20000) return true;
+
   return false;
 }
 
@@ -381,6 +384,9 @@ function shiftWindowForRole(role: string, indexInRole: number): { start: string;
   if (role === 'Monitoring and Evaluation Officer') return { start: '09:00', end: '17:00' };
   if (role === 'Safeguarding Officer') return { start: '10:00', end: '18:00' };
   if (role === 'Logistics and Grants Coordinator') return { start: '09:30', end: '17:30' };
+  if (role === 'Finance and HR Coordinator') return { start: '09:00', end: '17:00' };
+  if (role === 'Community Health Case Worker') return indexInRole % 2 === 0 ? { start: '08:30', end: '16:30' } : { start: '11:00', end: '19:00' };
+  if (role === 'Volunteer') return indexInRole % 2 === 0 ? { start: '09:00', end: '13:00' } : { start: '13:00', end: '17:00' };
   if (role === 'Head Chef') return { start: '08:00', end: '16:00' };
   if (role === 'Sous Chef') return { start: '10:00', end: '18:00' };
   if (role === 'Line Cook') return indexInRole % 2 === 0 ? { start: '10:00', end: '18:00' } : { start: '14:00', end: '22:00' };
@@ -638,7 +644,8 @@ export function seedDemoData(): void {
 
     for (const weekStart of [lastMonday, thisMonday]) {
       for (const site of seededSites) {
-        const scheduleId = insertSchedule.run(weekStart, 14000, site.id).lastInsertRowid as number;
+        const scheduleLaborBudget = site.siteType === 'nonprofit' ? 24500 : 12500;
+        const scheduleId = insertSchedule.run(weekStart, scheduleLaborBudget, site.id).lastInsertRowid as number;
         const siteEmployees = allEmployees.filter(e => e.site_id === site.id);
 
         for (let d = 0; d < 7; d++) {

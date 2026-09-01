@@ -626,6 +626,62 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* ── Humanitarian Grant & Program Cost Allocation (2 CFR 200) ── */}
+      {isManager && laborCost && laborCost.program_direct_cost !== undefined && (
+        <Card className="p-5 border border-emerald-200/80 bg-gradient-to-br from-emerald-50/40 via-teal-50/20 to-transparent shadow-xs">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-foreground">Grant & Program Cost Allocation</h2>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  2 CFR 200 Uniform Guidance
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Humanitarian direct program expenditures, indirect overhead & in-kind volunteer matching
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                (laborCost.program_expense_ratio ?? 0) >= 75
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  : 'bg-amber-100 text-amber-800 border-amber-300'
+              }`}>
+                Program Ratio: {laborCost.program_expense_ratio?.toFixed(1)}% {(laborCost.program_expense_ratio ?? 0) >= 75 ? '✓ Compliant' : '⚠ Below 75%'}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+            <div className="p-3.5 rounded-xl bg-white/90 border border-emerald-100 shadow-2xs">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Direct Program Labor</p>
+              <p className="text-xl font-bold text-emerald-700">${laborCost.program_direct_cost.toLocaleString()}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Field Relief & Youth Services</p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white/90 border border-slate-200 shadow-2xs">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Management & Indirect</p>
+              <p className="text-xl font-bold text-slate-800">${(laborCost.admin_indirect_cost ?? 0).toLocaleString()}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Executive & HR Operations</p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white/90 border border-teal-100 shadow-2xs">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">In-Kind Volunteer Match</p>
+              <p className="text-xl font-bold text-teal-700">${(laborCost.volunteer_in_kind_value ?? 0).toLocaleString()}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {laborCost.volunteer_in_kind_hours ?? 0}h @ $33.49/h (Ind. Sector)
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white/90 border border-blue-100 shadow-2xs">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Est. Fringe Benefits (24%)</p>
+              <p className="text-xl font-bold text-blue-700">${(laborCost.fringe_benefits_cost ?? 0).toLocaleString()}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">FICA, Health & Ins. Allocation</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* ── Profitability Metrics ── */}
       {isManager && profitabilityMetrics && (
         <>
