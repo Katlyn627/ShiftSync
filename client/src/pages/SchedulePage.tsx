@@ -167,18 +167,24 @@ type DayRecommendation = DailyStaffingSuggestion & {
 };
 
 const ROLE_ACCENTS: Record<string, { text: string; border: string; chip: string }> = {
-  manager: { text: 'text-violet-700', border: 'border-l-violet-500', chip: 'bg-violet-100 text-violet-800' },
+  manager: { text: 'text-emerald-700', border: 'border-l-emerald-500', chip: 'bg-emerald-100 text-emerald-800' },
+  supervisor: { text: 'text-emerald-700', border: 'border-l-emerald-500', chip: 'bg-emerald-100 text-emerald-800' },
+  assistant: { text: 'text-emerald-600', border: 'border-l-emerald-400', chip: 'bg-emerald-50 text-emerald-700' },
   server: { text: 'text-blue-700', border: 'border-l-blue-500', chip: 'bg-blue-100 text-blue-800' },
-  bartender: { text: 'text-emerald-700', border: 'border-l-emerald-500', chip: 'bg-emerald-100 text-emerald-800' },
-  host: { text: 'text-pink-700', border: 'border-l-pink-500', chip: 'bg-pink-100 text-pink-800' },
-  kitchen: { text: 'text-orange-700', border: 'border-l-orange-500', chip: 'bg-orange-100 text-orange-800' },
-  busser: { text: 'text-cyan-700', border: 'border-l-cyan-500', chip: 'bg-cyan-100 text-cyan-800' },
-  'food runner': { text: 'text-sky-700', border: 'border-l-sky-500', chip: 'bg-sky-100 text-sky-800' },
-  expo: { text: 'text-fuchsia-700', border: 'border-l-fuchsia-500', chip: 'bg-fuchsia-100 text-fuchsia-800' },
-  'head chef': { text: 'text-red-700', border: 'border-l-red-500', chip: 'bg-red-100 text-red-800' },
-  'sous chef': { text: 'text-amber-700', border: 'border-l-amber-500', chip: 'bg-amber-100 text-amber-800' },
-  'line cook': { text: 'text-lime-700', border: 'border-l-lime-500', chip: 'bg-lime-100 text-lime-800' },
-  dishwasher: { text: 'text-slate-700', border: 'border-l-slate-500', chip: 'bg-slate-100 text-slate-800' },
+  host: { text: 'text-blue-700', border: 'border-l-blue-500', chip: 'bg-blue-100 text-blue-800' },
+  bartender: { text: 'text-blue-700', border: 'border-l-blue-500', chip: 'bg-blue-100 text-blue-800' },
+  bar: { text: 'text-blue-700', border: 'border-l-blue-500', chip: 'bg-blue-100 text-blue-800' },
+  busser: { text: 'text-blue-600', border: 'border-l-blue-400', chip: 'bg-blue-50 text-blue-700' },
+  cashier: { text: 'text-blue-600', border: 'border-l-blue-400', chip: 'bg-blue-50 text-blue-700' },
+  'food runner': { text: 'text-blue-600', border: 'border-l-blue-400', chip: 'bg-blue-50 text-blue-700' },
+  kitchen: { text: 'text-violet-700', border: 'border-l-violet-500', chip: 'bg-violet-100 text-violet-800' },
+  cook: { text: 'text-violet-700', border: 'border-l-violet-500', chip: 'bg-violet-100 text-violet-800' },
+  prep: { text: 'text-violet-600', border: 'border-l-violet-400', chip: 'bg-violet-50 text-violet-700' },
+  expo: { text: 'text-violet-700', border: 'border-l-violet-500', chip: 'bg-violet-100 text-violet-800' },
+  dishwasher: { text: 'text-violet-600', border: 'border-l-violet-400', chip: 'bg-violet-50 text-violet-700' },
+  'head chef': { text: 'text-violet-800', border: 'border-l-violet-600', chip: 'bg-violet-200 text-violet-900' },
+  'sous chef': { text: 'text-violet-700', border: 'border-l-violet-500', chip: 'bg-violet-100 text-violet-800' },
+  'line cook': { text: 'text-violet-700', border: 'border-l-violet-500', chip: 'bg-violet-100 text-violet-800' },
   default: { text: 'text-slate-700', border: 'border-l-slate-400', chip: 'bg-slate-100 text-slate-800' },
 };
 
@@ -190,6 +196,41 @@ function normalizeStaffingRole(role: string) {
 
 function getRoleAccent(role: string) {
   return ROLE_ACCENTS[normalizeStaffingRole(role)] ?? ROLE_ACCENTS.default;
+}
+
+function getDepartmentGroupLabel(value: string | null | undefined) {
+  const normalized = normalizedValue(value || '');
+  if (!normalized) return 'General';
+  if (['management', 'operations', 'leadership', 'owner', 'supervisor', 'director', 'assistant manager', 'gm', 'general manager'].some((term) => normalized.includes(term))) return 'Management';
+  if (['front of house', 'foh', 'server', 'host', 'bartender', 'bar', 'cashier', 'support', 'busser', 'food runner'].some((term) => normalized.includes(term))) return 'Front of House';
+  if (['back of house', 'boh', 'kitchen', 'dishwasher', 'cook', 'chef', 'expo', 'prep', 'line cook', 'sous chef', 'head chef'].some((term) => normalized.includes(term))) return 'Back of House';
+  return 'Management';
+}
+
+function getDepartmentPaletteClasses(department: string) {
+  const group = getDepartmentGroupLabel(department);
+  if (group === 'Management') {
+    return {
+      tone: 'border-emerald-200 bg-emerald-50/80 text-emerald-900',
+      badge: 'border-emerald-200 bg-emerald-100 text-emerald-800',
+      accent: 'text-emerald-700',
+      border: 'border-l-emerald-500',
+    };
+  }
+  if (group === 'Back of House') {
+    return {
+      tone: 'border-violet-200 bg-violet-50/80 text-violet-900',
+      badge: 'border-violet-200 bg-violet-100 text-violet-800',
+      accent: 'text-violet-700',
+      border: 'border-l-violet-500',
+    };
+  }
+  return {
+    tone: 'border-blue-200 bg-blue-50/80 text-blue-900',
+    badge: 'border-blue-200 bg-blue-100 text-blue-800',
+    accent: 'text-blue-700',
+    border: 'border-l-blue-500',
+  };
 }
 
 function formatRoleLabel(role: string) {
@@ -729,17 +770,23 @@ export default function SchedulePage() {
 
   const departmentGroupOrder = ['Management', 'Front of House', 'Back of House'];
 
-  const getDepartmentGroupLabel = (value: string | null | undefined) => {
-    const normalized = normalizedValue(value || '');
-    if (!normalized) return 'General';
-    if (['management', 'operations', 'leadership', 'owner', 'supervisor'].some((term) => normalized.includes(term))) return 'Management';
-    if (['front of house', 'foh', 'server', 'host', 'bartender', 'bar', 'cashier', 'support', 'busser'].some((term) => normalized.includes(term))) return 'Front of House';
-    if (['back of house', 'boh', 'kitchen', 'dishwasher', 'cook', 'chef', 'expo', 'prep'].some((term) => normalized.includes(term))) return 'Back of House';
-    return 'Management';
-  };
-
   const getShiftDisplayGroup = (shift: ShiftWithEmployee) =>
     shift.employee_department || shift.employee_role || shift.role;
+
+  const departmentFilteredEmployees = useMemo(() => {
+    if (normalizedDepartmentFilter === 'all') return employees;
+    return employees.filter((employee) => {
+      const employeeDepartment = getDepartmentGroupLabel(employeeDepartmentLabel(employee));
+      return employeeDepartment === getDepartmentGroupLabel(normalizedDepartmentFilter);
+    });
+  }, [employees, normalizedDepartmentFilter]);
+
+  useEffect(() => {
+    if (normalizedDepartmentFilter === 'all') return;
+    if (selectedEmployeeFilter !== 'all' && !departmentFilteredEmployees.some((employee) => String(employee.id) === selectedEmployeeFilter)) {
+      setSelectedEmployeeFilter('all');
+    }
+  }, [departmentFilteredEmployees, normalizedDepartmentFilter, selectedEmployeeFilter]);
 
   const sortDepartmentGroups = <T extends { department: string; items: any[] }>(groups: T[]) =>
     [...groups].sort((a, b) => {
@@ -1283,7 +1330,7 @@ export default function SchedulePage() {
                     onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
                   >
                     <option value="all">All employees</option>
-                    {employees.map((employee) => (
+                    {departmentFilteredEmployees.map((employee) => (
                       <option key={employee.id} value={employee.id}>{employee.name}</option>
                     ))}
                   </select>
@@ -1384,6 +1431,7 @@ export default function SchedulePage() {
             <div className="flex flex-wrap gap-2">
               {employees.map((employee) => {
                 const employeeDepartment = employeeDepartmentLabel(employee);
+                const palette = getDepartmentPaletteClasses(employeeDepartment);
                 return (
                 <button
                   key={employee.id}
@@ -1395,12 +1443,12 @@ export default function SchedulePage() {
                     setDraggedEmployeeId(null);
                     setDropDate(null);
                   }}
-                  className={`rounded-md border px-2 py-1 text-left text-xs ${departmentTone(employeeDepartment)}`}
+                  className={`rounded-md border px-2 py-1 text-left text-xs ${palette.tone}`}
                   title={`Drag to create a shift for ${employee.name}`}
                 >
-                  <div className="font-medium text-foreground">{employee.name}</div>
+                  <div className={`font-medium ${palette.accent}`}>{employee.name}</div>
                   <div className="text-muted-foreground">{employee.role}</div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">{employeeDepartment}</div>
+                  <div className={`text-[10px] font-semibold uppercase tracking-wide ${palette.accent}`}>{employeeDepartment}</div>
                 </button>
                 );
               })}

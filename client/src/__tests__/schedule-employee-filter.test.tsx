@@ -253,4 +253,47 @@ describe('Schedule Page Employee Filter and Overlays', () => {
     expect(container!.textContent).toContain('Front of House');
     expect(container!.textContent).toContain('Back of House');
   });
+
+  it('filters the employee roster by department and colors department cards with the matching palette', async () => {
+    await act(async () => {
+      root!.render(
+        <ToastProvider>
+          <SchedulePage />
+        </ToastProvider>
+      );
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    });
+
+    const allDepartmentSelects = Array.from(container!.querySelectorAll('select'));
+    const departmentFilter = allDepartmentSelects.find((select) => {
+      const label = select.previousElementSibling?.textContent ?? '';
+      return label.includes('Department Filter');
+    }) as HTMLSelectElement | null;
+    const employeeFilter = allDepartmentSelects.find((select) => {
+      const label = select.previousElementSibling?.textContent ?? '';
+      return label.includes('Employee Filter');
+    }) as HTMLSelectElement | null;
+
+    expect(departmentFilter).not.toBeNull();
+    expect(employeeFilter).not.toBeNull();
+
+    await act(async () => {
+      departmentFilter!.value = 'front of house';
+      departmentFilter!.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const employeeOptions = Array.from(employeeFilter!.options).map((option) => option.textContent);
+    expect(employeeOptions).toContain('Bob Server');
+    expect(employeeOptions).not.toContain('Alice Manager');
+    expect(employeeOptions).not.toContain('Carlos Cook');
+
+    const rosterButton = Array.from(container!.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Bob Server')
+    );
+
+    expect(rosterButton?.className).toMatch(/bg-blue-|border-blue-|text-blue-/);
+  });
 });
