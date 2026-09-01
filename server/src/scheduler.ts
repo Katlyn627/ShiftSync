@@ -417,15 +417,19 @@ export function generateSchedule(options: GenerateOptions): number {
         );
         if (!isAvailable(avail, need.start, need.end)) continue;
 
-        // ── 5. Burnout-adjusted weekly hours cap ──────────────────────────
+        // ── 5. Burnout-adjusted weekly hours cap and Volunteer Caps ─────
         // Reduce effective max hours for employees carrying high burnout risk
-        // from the previous schedule to allow recovery.
+        // from the previous schedule to allow recovery, and enforce volunteer weekly hours caps.
         const currentHours = employeeWeeklyHours[emp.id] ?? 0;
         const burnoutScore = prevBurnoutScores[emp.id] ?? 0;
+        const baseMaxHours = emp.is_volunteer
+          ? Math.min(emp.volunteer_max_hours || 16, emp.weekly_hours_max || 16)
+          : emp.weekly_hours_max;
+
         const effectiveMaxHours =
-          burnoutScore >= BURNOUT_HIGH_THRESHOLD ? Math.floor(emp.weekly_hours_max * BURNOUT_HIGH_HOURS_FACTOR) :
-          burnoutScore >= BURNOUT_MED_THRESHOLD  ? Math.floor(emp.weekly_hours_max * BURNOUT_MED_HOURS_FACTOR)  :
-          emp.weekly_hours_max;
+          burnoutScore >= BURNOUT_HIGH_THRESHOLD ? Math.floor(baseMaxHours * BURNOUT_HIGH_HOURS_FACTOR) :
+          burnoutScore >= BURNOUT_MED_THRESHOLD  ? Math.floor(baseMaxHours * BURNOUT_MED_HOURS_FACTOR)  :
+          baseMaxHours;
 
         if (currentHours + shiftHrs > effectiveMaxHours) continue;
 

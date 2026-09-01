@@ -18,6 +18,8 @@ import positionsRouter from './routes/positions';
 import openShiftsRouter from './routes/openShifts';
 import swapsRouter from './routes/swaps';
 import timeOffRouter from './routes/timeOff';
+import surveysRouter from './routes/surveys';
+import fairnessRouter from './routes/fairness';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -80,6 +82,8 @@ app.use('/api/positions', positionsRouter);
 app.use('/api/open-shifts', openShiftsRouter);
 app.use('/api/swaps', swapsRouter);
 app.use('/api/time-off', timeOffRouter);
+app.use('/api/surveys', surveysRouter);
+app.use('/api/fairness', fairnessRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

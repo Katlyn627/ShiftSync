@@ -31,7 +31,13 @@ beforeAll(async () => {
   const employeeLogin = await request(app).post('/api/auth/login').send({ username: 'bob', password: 'password123' });
   employeeToken = employeeLogin.body.token;
 
-  const sched = db.prepare('SELECT id FROM schedules ORDER BY id LIMIT 1').get() as { id: number };
+  const sched = db.prepare(`
+    SELECT s.id FROM schedules s
+    JOIN employees e ON s.site_id = e.site_id
+    JOIN users u ON u.employee_id = e.id
+    WHERE u.username = 'alice'
+    ORDER BY s.id LIMIT 1
+  `).get() as { id: number };
   sourceScheduleId = sched.id;
 });
 

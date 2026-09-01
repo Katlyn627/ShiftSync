@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db';
 import { generateSchedule, computeWeeklyStaffingNeeds } from '../scheduler';
 import { getLaborCostSummary } from '../laborCost';
+import { calculateBurnoutRisks } from '../burnout';
+import { calculateFairnessReport, calculateInstabilityReport } from '../fairness';
 import { requireManager, requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -261,6 +263,53 @@ router.get('/:id/labor-cost', requireManager, (req: Request, res: Response) => {
     res.json(summary);
   } catch (err: any) {
     res.status(404).json({ error: err.message });
+  }
+});
+
+router.get('/:id/burnout-risks', requireAuth, (req: Request, res: Response) => {
+  try {
+    const scheduleId = parseInt(req.params.id);
+    const risks = calculateBurnoutRisks(scheduleId);
+    const isManager = req.user?.isManager;
+    const employeeId = req.user?.employeeId;
+
+    if (isManager) {
+      return res.json(risks);
+    }
+
+    // For general employees, return their own record plus privacy-safe aggregate summary
+    const own = risks.find(r => r.employee_id === employeeId) || null;
+    const lowCount = risks.filter(r => r.risk_level === 'low').length;
+    const medCount = risks.filter(r => r.risk_level === 'medium').length;
+    const highCount = risks.filter(r => r.risk_level === 'high').length;
+    const avgScore = risks.length > 0 ? Math.round(risks.reduce((s, r) => s + r.risk_score, 0) / risks.length) : 0;
+
+    res.json({
+      own,
+      summary: risks.length >= 5 ? { lowCount, medCount, highCount, avgScore, total: risks.length } : null,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to calculate burnout risks' });
+  }
+});
+
+router.get('/:id/fairness', requireManager, (req: Request, res: Response) => {
+  try {
+    const scheduleId = parseInt(req.params.id);
+    const report = calculateFairnessReport({ schedule_id: scheduleId });
+    res.json(report);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to calculate fairness report' });
+  }
+});
+
+router.get('/:id/instability', requireManager, (req: Request, res: Response) => {
+  try {
+    const scheduleId = parseInt(req.params.id);
+    const report = calculateInstabilityReport(scheduleId);
+    res.json(report);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to calculate instability report' });
   }
 });
 

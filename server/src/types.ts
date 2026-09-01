@@ -44,6 +44,16 @@ export interface Employee {
   location_lng: number | null;
   /** Human-readable location label (reverse-geocoded address or custom text) */
   location_label: string | null;
+  /** 1 if volunteer, 0 otherwise */
+  is_volunteer?: number;
+  /** Max weekly hours cap for volunteers */
+  volunteer_max_hours?: number;
+  /** Emergency contact info */
+  emergency_contact?: string;
+  /** JSON-encoded array of skills */
+  skills?: string;
+  /** Background check clearance status */
+  background_check_status?: string;
   created_at: string;
 }
 
@@ -276,10 +286,191 @@ export interface DailyCoverageReport {
   coverage_status: 'good' | 'at_risk' | 'critical';
 }
 
-export interface ScheduleCoverageReport {
+export interface SurveyTemplate {
+  id: number;
+  instrument: string;
+  name: string;
+  description: string;
+  questions: string; // JSON array of SurveyQuestion
+  active: number;
+  created_at: string;
+}
+
+export interface SurveyQuestion {
+  id: string;
+  text: string;
+  scale: number;
+  subscale: string;
+  reversed?: boolean;
+  role_specific?: boolean;
+}
+
+export interface SurveyCampaign {
+  id: number;
+  template_id: number;
+  site_id: number | null;
+  title: string;
+  instrument?: string;
+  template_name?: string;
+  description?: string;
+  questions?: string;
+  start_date: string;
+  end_date: string;
+  anonymized: number;
+  min_group_size: number;
+  status: 'active' | 'closed' | 'draft';
+  response_count?: number;
+  already_responded?: boolean;
+  responded_at?: string | null;
+  recurrence: 'none' | 'weekly';
+  schedule_day_of_week?: number | null;
+  next_send_date?: string | null;
+  target_roles?: string;
+  parent_campaign_id?: number | null;
+  created_at: string;
+}
+
+export interface SurveySubscaleResult {
+  subscale: string;
+  avg_score: number | null;
+  item_count: number;
+  interpretation: string;
+  pct_high: number;
+}
+
+export interface SurveyBreakdownSegment {
+  segment: string;
+  response_count: number;
+  subscale_results: SurveySubscaleResult[];
+}
+
+export interface SurveyResults {
+  campaign_id: number;
+  instrument?: string;
+  response_count: number;
+  min_group_size: number;
+  results_available: boolean;
+  message?: string;
+  subscale_results?: SurveySubscaleResult[];
+  department_breakdowns?: SurveyBreakdownSegment[];
+  role_title_breakdowns?: SurveyBreakdownSegment[];
+  purpose_limitation: string;
+  data_governance?: string;
+}
+
+export interface SurveyRecommendation {
+  priority: 'high' | 'medium' | 'low';
+  category: string;
+  action: string;
+}
+
+export interface SurveyRecommendations {
+  campaign_id: number;
+  results_available: boolean;
+  recommendations: SurveyRecommendation[];
+  message?: string;
+  purpose_limitation?: string;
+}
+
+export interface FairnessEmployee {
+  employee_id: number;
+  employee_name: string;
+  role: string;
+  department?: string;
+  total_shifts: number;
+  total_hours: number;
+  night_shifts: number;
+  weekend_shifts: number;
+  overtime_hours: number;
+  fairness_flags: string[];
+}
+
+export interface RoleFairnessStats {
+  role: string;
+  employee_count: number;
+  avg_hours: number;
+  avg_night_shifts: number;
+  avg_weekend_shifts: number;
+  hours_std_dev: number;
+  fairness_score: 'equitable' | 'moderate' | 'inequitable';
+}
+
+export interface FairnessReport {
+  employees: FairnessEmployee[];
+  role_stats: RoleFairnessStats[];
+  summary: { total_employees: number; total_shifts: number; employees_with_flags: number } | null;
+}
+
+export interface InstabilityReport {
   schedule_id: number;
   week_start: string;
-  days: DailyCoverageReport[];
-  total_standby_count: number;
-  days_at_risk: number;
+  site_id?: number | null;
+  status?: string;
+  total_shifts: number;
+  active_shifts: number;
+  cancelled_shifts: number;
+  cancellation_rate_pct: number;
+  change_requests: number;
+  late_change_count: number;
+  quick_returns: number;
+  callout_count: number;
+  days_advance_published: number;
+  required_advance_days: number;
+  predictability_pay_exposure_count: number;
+  instability_score: number;
+  instability_level: 'stable' | 'moderate' | 'volatile';
 }
+
+export interface ChangeRequest {
+  id: number;
+  shift_id: number;
+  requested_by: number;
+  change_type: string;
+  reason_code: string;
+  reason_detail: string | null;
+  original_date: string | null;
+  original_start_time: string | null;
+  original_end_time: string | null;
+  new_date: string | null;
+  new_start_time: string | null;
+  new_end_time: string | null;
+  worker_consent: 'pending' | 'accepted' | 'rejected' | 'not_required';
+  status: 'pending' | 'approved' | 'rejected';
+  manager_notes: string | null;
+  employee_name?: string;
+  employee_role?: string;
+  shift_date?: string;
+  shift_start?: string;
+  shift_end?: string;
+  created_at: string;
+}
+
+export interface PublishSla {
+  id: number;
+  site_id: number;
+  role: string | null;
+  advance_days: number;
+  created_at: string;
+}
+
+export interface CalloutEvent {
+  id: number;
+  shift_id: number | null;
+  employee_id: number;
+  employee_name?: string;
+  employee_role?: string;
+  replacement_name?: string;
+  shift_date?: string;
+  start_time?: string;
+  end_time?: string;
+  shift_role?: string;
+  callout_time: string;
+  reason: string | null;
+  replacement_employee_id: number | null;
+  replacement_status: 'none' | 'searching' | 'found' | 'not_found';
+  open_shift_id: number | null;
+  manager_override: number;
+  manager_notes: string | null;
+  created_at: string;
+}
+

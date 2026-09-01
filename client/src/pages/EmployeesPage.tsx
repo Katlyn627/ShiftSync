@@ -45,7 +45,33 @@ export default function EmployeesPage() {
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm]           = useState({ name: '', role: '', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
+  const [form, setForm]           = useState<{
+    name: string;
+    role: string;
+    hourly_rate: number;
+    weekly_hours_max: number;
+    email: string;
+    phone: string;
+    is_volunteer?: boolean | number;
+    volunteer_max_hours?: number;
+    emergency_contact?: string;
+    certifications?: string;
+    skills?: string;
+    background_check_status?: string;
+  }>({
+    name: '',
+    role: '',
+    hourly_rate: 15,
+    weekly_hours_max: 40,
+    email: '',
+    phone: '',
+    is_volunteer: false,
+    volunteer_max_hours: 16,
+    emergency_contact: '',
+    certifications: '',
+    skills: '',
+    background_check_status: 'cleared',
+  });
   const [importData, setImportData] = useState('');
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
@@ -82,20 +108,67 @@ export default function EmployeesPage() {
     e.preventDefault();
     setError(null);
     try {
-      if (editingId) { await updateEmployee(editingId, form); }
-      else           { await createEmployee(form); }
+      const certList = typeof form.certifications === 'string'
+        ? form.certifications.split(',').map(s => s.trim()).filter(Boolean)
+        : form.certifications;
+      const skillList = typeof form.skills === 'string'
+        ? form.skills.split(',').map(s => s.trim()).filter(Boolean)
+        : form.skills;
+
+      const payload = {
+        ...form,
+        is_volunteer: form.is_volunteer ? 1 : 0,
+        certifications: certList,
+        skills: skillList,
+      };
+
+      if (editingId) { await updateEmployee(editingId, payload as any); }
+      else           { await createEmployee(payload as any); }
     } catch (err: any) {
       setError(err.message || 'Failed to save employee. Please try again.');
       return;
     }
     setShowForm(false);
     setEditingId(null);
-    setForm({ name: '', role: roles[0] ?? '', hourly_rate: 15, weekly_hours_max: 40, email: '', phone: '' });
+    setForm({
+      name: '',
+      role: roles[0] ?? '',
+      hourly_rate: 15,
+      weekly_hours_max: 40,
+      email: '',
+      phone: '',
+      is_volunteer: false,
+      volunteer_max_hours: 16,
+      emergency_contact: '',
+      certifications: '',
+      skills: '',
+      background_check_status: 'cleared',
+    });
     load();
   };
 
   const handleEdit = (emp: Employee) => {
-    setForm({ name: emp.name, role: emp.role, hourly_rate: emp.hourly_rate, weekly_hours_max: emp.weekly_hours_max, email: emp.email ?? '', phone: emp.phone ?? '' });
+    const certs = typeof emp.certifications === 'string'
+      ? (JSON.parse(emp.certifications || '[]') as string[])
+      : (emp.certifications || []);
+    const skills = typeof emp.skills === 'string'
+      ? (JSON.parse(emp.skills || '[]') as string[])
+      : (emp.skills || []);
+
+    setForm({
+      name: emp.name,
+      role: emp.role,
+      hourly_rate: emp.hourly_rate,
+      weekly_hours_max: emp.weekly_hours_max,
+      email: emp.email ?? '',
+      phone: emp.phone ?? '',
+      is_volunteer: Boolean(emp.is_volunteer),
+      volunteer_max_hours: emp.volunteer_max_hours || 16,
+      emergency_contact: emp.emergency_contact ?? '',
+      certifications: Array.isArray(certs) ? certs.join(', ') : '',
+      skills: Array.isArray(skills) ? skills.join(', ') : '',
+      background_check_status: emp.background_check_status || 'cleared',
+    });
     setEditingId(emp.id);
     setShowForm(true);
   };
@@ -235,6 +308,69 @@ export default function EmployeesPage() {
               value={form.phone}
               onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
             />
+            <Input
+              label="Emergency Contact"
+              type="text"
+              placeholder="e.g. (555) 999-1234 (Spouse)"
+              value={form.emergency_contact}
+              onChange={e => setForm(f => ({ ...f, emergency_contact: e.target.value }))}
+            />
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Background Check</label>
+              <select
+                className={`w-full ${NATIVE_SELECT_CLASS}`}
+                value={form.background_check_status}
+                onChange={e => setForm(f => ({ ...f, background_check_status: e.target.value }))}
+              >
+                <option value="cleared">Cleared</option>
+                <option value="fbi_fingerprint_cleared">FBI Fingerprint Cleared</option>
+                <option value="state_cori_cleared">State CORI Cleared</option>
+                <option value="pending">Pending Review</option>
+              </select>
+            </div>
+            <div className="col-span-2 flex items-center gap-4 pt-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.is_volunteer)}
+                  onChange={e => setForm(f => ({ ...f, is_volunteer: e.target.checked }))}
+                  className="w-4 h-4 rounded border-gray-300 accent-emerald-600"
+                />
+                <span className="text-sm font-medium text-foreground">Humanitarian Volunteer</span>
+              </label>
+              {form.is_volunteer && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Weekly Cap:</span>
+                  <input
+                    type="number"
+                    min={4}
+                    max={40}
+                    value={form.volunteer_max_hours || 16}
+                    onChange={e => setForm(f => ({ ...f, volunteer_max_hours: Number(e.target.value) }))}
+                    className="w-20 rounded border border-input px-2 py-1 text-sm"
+                  />
+                  <span className="text-xs text-muted-foreground">hrs</span>
+                </div>
+              )}
+            </div>
+            <div className="col-span-2 md:col-span-4">
+              <Input
+                label="Certifications (comma-separated)"
+                type="text"
+                placeholder="e.g. CPR_AED_Pediatric, Trauma_Informed_Care, FEMA_ICS_400"
+                value={form.certifications}
+                onChange={e => setForm(f => ({ ...f, certifications: e.target.value }))}
+              />
+            </div>
+            <div className="col-span-2 md:col-span-4">
+              <Input
+                label="Skills / Specialties (comma-separated)"
+                type="text"
+                placeholder="e.g. Child Trauma Assessment, Rapid Relief Logistics, Spanish Fluency"
+                value={form.skills}
+                onChange={e => setForm(f => ({ ...f, skills: e.target.value }))}
+              />
+            </div>
             <div className="col-span-2 md:col-span-4 flex flex-col gap-2 pt-1 border-t border-border mt-1">
               {error && (
                 <p className="text-sm text-destructive">{error}</p>
@@ -284,8 +420,8 @@ export default function EmployeesPage() {
           <thead>
             <tr className="border-b border-border text-left bg-slate-50/90">
               <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Employee</th>
-              <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Role</th>
-              <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Department</th>
+              <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Role & Dept</th>
+              <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Credentials & Badges</th>
               <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Site</th>
               <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Rate / hr</th>
               <th className="px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Max Hours</th>
@@ -295,6 +431,13 @@ export default function EmployeesPage() {
           <tbody className="divide-y divide-border">
             {visibleEmployees.map(emp => {
               const site = emp.site_id ? siteMap[emp.site_id] : null;
+              const certs = typeof emp.certifications === 'string'
+                ? JSON.parse(emp.certifications || '[]')
+                : (emp.certifications || []);
+              const skills = typeof emp.skills === 'string'
+                ? JSON.parse(emp.skills || '[]')
+                : (emp.skills || []);
+
               return (
                 <tr key={emp.id} className="transition-colors hover:bg-violet-50/40">
                   <td className="px-5 py-3">
@@ -309,8 +452,18 @@ export default function EmployeesPage() {
                         )}
                       </div>
                       <div>
-                        <div className="font-medium text-foreground">{emp.name}</div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-medium text-foreground">{emp.name}</span>
+                          {emp.is_volunteer ? (
+                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              Volunteer ({emp.volunteer_max_hours || 16}h)
+                            </span>
+                          ) : null}
+                        </div>
                         {emp.email && <div className="text-xs text-muted-foreground">{emp.email}</div>}
+                        {emp.emergency_contact && (
+                          <div className="text-[11px] text-muted-foreground">📞 {emp.emergency_contact}</div>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -319,8 +472,32 @@ export default function EmployeesPage() {
                     {emp.role_title && emp.role_title.trim().toLowerCase() !== emp.role.trim().toLowerCase() && (
                       <div className="text-xs text-muted-foreground mt-0.5">{emp.role_title}</div>
                     )}
+                    {emp.department && (
+                      <div className="text-xs text-slate-500 font-medium mt-0.5">{emp.department}</div>
+                    )}
                   </td>
-                  <td className="px-5 py-3 text-muted-foreground hidden md:table-cell">{emp.department ?? '—'}</td>
+                  <td className="px-5 py-3 hidden md:table-cell">
+                    <div className="flex flex-wrap gap-1 max-w-xs">
+                      {emp.background_check_status && emp.background_check_status !== 'pending' && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                          ✓ {emp.background_check_status.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                      {Array.isArray(certs) && certs.slice(0, 3).map((c: string, i: number) => (
+                        <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700 border border-violet-200">
+                          🛡️ {c.replace(/_/g, ' ')}
+                        </span>
+                      ))}
+                      {Array.isArray(certs) && certs.length > 3 && (
+                        <span className="text-[10px] text-muted-foreground font-medium">+{certs.length - 3} more</span>
+                      )}
+                      {Array.isArray(skills) && skills.slice(0, 2).map((s: string, i: number) => (
+                        <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
                   <td className="px-5 py-3 hidden lg:table-cell">
                     {site ? (
                       <span className="text-xs">
@@ -329,7 +506,9 @@ export default function EmployeesPage() {
                       </span>
                     ) : <span className="text-muted-foreground">—</span>}
                   </td>
-                  <td className="px-5 py-3 text-right text-foreground font-medium">${emp.hourly_rate.toFixed(2)}</td>
+                  <td className="px-5 py-3 text-right text-foreground font-medium">
+                    {emp.is_volunteer ? <span className="text-emerald-600 text-xs font-semibold">Volunteer</span> : `$${emp.hourly_rate.toFixed(2)}`}
+                  </td>
                   <td className="px-5 py-3 text-right text-muted-foreground">{emp.weekly_hours_max}h</td>
                   <td className="px-5 py-3 text-right">
                     <Button variant="ghost" size="sm" onClick={() => handleEdit(emp)} className="mr-1">
