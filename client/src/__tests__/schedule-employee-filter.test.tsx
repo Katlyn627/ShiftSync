@@ -39,6 +39,7 @@ const mockSchedules = [
 const mockEmployees = [
   { id: 1, name: 'Alice Manager', role: 'Manager', department: 'Management', hourly_rate: 30, weekly_hours_max: 40, created_at: '2024-01-01' },
   { id: 2, name: 'Bob Server', role: 'Server', department: 'Front of House', hourly_rate: 15, weekly_hours_max: 30, created_at: '2024-01-01' },
+  { id: 3, name: 'Carlos Cook', role: 'Cook', department: 'Back of House', hourly_rate: 17, weekly_hours_max: 32, created_at: '2024-01-01' },
 ];
 
 const mockShifts = [
@@ -65,6 +66,18 @@ const mockShifts = [
     status: 'scheduled',
     employee_name: 'Bob Server',
     employee_role: 'Server',
+  },
+  {
+    id: 403,
+    schedule_id: 40,
+    employee_id: 3,
+    date: '2026-11-09', // Monday
+    start_time: '10:00',
+    end_time: '18:00',
+    role: 'Cook',
+    status: 'scheduled',
+    employee_name: 'Carlos Cook',
+    employee_role: 'Cook',
   },
 ];
 
@@ -109,6 +122,44 @@ describe('Schedule Page Employee Filter and Overlays', () => {
     vi.spyOn(api, 'getOpenShifts').mockResolvedValue([]);
     vi.spyOn(api, 'getTimeOffRequests').mockResolvedValue(mockTimeOff);
     vi.spyOn(api, 'getAllAvailability').mockResolvedValue(mockAvailability);
+    vi.spyOn(api, 'getStaffingSuggestions').mockResolvedValue([
+      {
+        date: '2026-11-09',
+        day_of_week: 1,
+        staffing: [
+          { role: 'Manager', start: '09:00', end: '17:00', count: 1 },
+          { role: 'Server', start: '12:00', end: '20:00', count: 1 },
+        ],
+        staffing_suggested: 2,
+        staffing_actual: 2,
+        staffing_delta: 0,
+        staffing_status: 'adequate',
+        expected_revenue: 1200,
+        role_deltas: [
+          { role: 'Manager', delta: 0, suggested: 1, actual: 1 },
+          { role: 'Server', delta: 0, suggested: 1, actual: 1 },
+        ],
+      },
+      {
+        date: '2026-11-10',
+        day_of_week: 2,
+        staffing: [
+          { role: 'Manager', start: '09:00', end: '17:00', count: 1 },
+          { role: 'Server', start: '11:00', end: '18:00', count: 2 },
+          { role: 'Kitchen', start: '11:00', end: '18:00', count: 1 },
+        ],
+        staffing_suggested: 4,
+        staffing_actual: 3,
+        staffing_delta: -1,
+        staffing_status: 'understaffed',
+        expected_revenue: 1800,
+        role_deltas: [
+          { role: 'Manager', delta: 0, suggested: 1, actual: 1 },
+          { role: 'Server', delta: -1, suggested: 2, actual: 1 },
+          { role: 'Kitchen', delta: 0, suggested: 1, actual: 1 },
+        ],
+      },
+    ]);
   });
 
   afterEach(() => {
@@ -169,5 +220,37 @@ describe('Schedule Page Employee Filter and Overlays', () => {
     
     // Thursday (2026-11-12) has Unavailable preference
     expect(container!.innerHTML).toContain('Unavailable');
+  });
+
+  it('lets managers switch the schedule between week and day views and keeps recommendations in a day accordion', async () => {
+    await act(async () => {
+      root!.render(
+        <ToastProvider>
+          <SchedulePage />
+        </ToastProvider>
+      );
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    });
+
+    const buttons = Array.from(container!.querySelectorAll('button'));
+    const weekButton = buttons.find((button) => button.textContent?.includes('Weekly'));
+    const dayButton = buttons.find((button) => button.textContent?.includes('Daily'));
+
+    expect(weekButton).not.toBeNull();
+    expect(dayButton).not.toBeNull();
+
+    await act(async () => {
+      (dayButton as HTMLButtonElement).click();
+    });
+
+    const recommendationSelect = container!.querySelector('select[aria-label="Select recommendation day"]') as HTMLSelectElement | null;
+    expect(recommendationSelect).not.toBeNull();
+    expect(recommendationSelect?.options.length).toBeGreaterThan(0);
+    expect(container!.textContent).toContain('Management');
+    expect(container!.textContent).toContain('Front of House');
+    expect(container!.textContent).toContain('Back of House');
   });
 });
