@@ -5,7 +5,7 @@ The data is automatically loaded when the server starts against an **empty datab
 
 ## Dataset Version
 
-- Current seed version: **2026.08.31-humanitarian-primary-v2**
+- Current seed version: **2026.08.31-humanitarian-primary-v3**
 - Focus: realistic day-level staffing variance and mixed-industry demo sites
 - Includes a humanitarian/nonprofit business profile centered on girls' education and empowerment programs
 - Primary humanitarian check reference: [docs/nonprofit_scheduling_seed_data.md](nonprofit_scheduling_seed_data.md)
@@ -79,6 +79,7 @@ Use these logins for a humanitarian operations scenario with program delivery, f
 
 | Username | Site | Role Title | Access |
 |----------|------|------------|--------|
+| `gii_ceo` | Global Impact Initiative | Chief Executive Officer | Manager |
 | `gii_ipm` | Global Impact Initiative | International Program Manager | Manager |
 | `gii_programofficer` | Global Impact Initiative | Program Officer - Girls Education and Empowerment | Manager |
 | `gii_fieldlead` | Global Impact Initiative | Field Coordinator | Employee |

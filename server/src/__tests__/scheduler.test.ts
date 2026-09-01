@@ -81,6 +81,37 @@ test('staffing suggestions include Manager role every day', () => {
   }
 });
 
+test('nonprofit site staffing suggestions use humanitarian roles', () => {
+  const db = getDb();
+  const siteRes = db.prepare(
+    "INSERT INTO sites (name, city, state, timezone, site_type, jurisdiction, address, business_hours, employee_capacity, foh_roles, boh_roles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(
+    'Test Nonprofit Site',
+    'Washington',
+    'DC',
+    'America/New_York',
+    'nonprofit',
+    'intl-program',
+    '100 Main St',
+    'Mon-Fri 08:00-18:00',
+    30,
+    JSON.stringify(['Program Officer', 'Field Coordinator', 'Volunteer Coordinator']),
+    JSON.stringify(['Monitoring and Evaluation Officer', 'Safeguarding Officer'])
+  );
+  const siteId = siteRes.lastInsertRowid as number;
+
+  db.prepare('INSERT OR REPLACE INTO forecasts (date, site_id, expected_revenue, expected_covers) VALUES (?, ?, ?, ?)')
+    .run('2025-01-06', siteId, 4200, 110);
+
+  const suggestions = computeWeeklyStaffingNeeds('2025-01-06', siteId);
+  const monday = suggestions.find((day) => day.date === '2025-01-06');
+
+  expect(monday).toBeDefined();
+  expect(monday!.staffing.some((need) => need.role === 'Program Officer')).toBe(true);
+  expect(monday!.staffing.some((need) => need.role === 'Field Coordinator')).toBe(true);
+  expect(monday!.staffing.some((need) => need.role === 'Server')).toBe(false);
+});
+
 // ── Enhanced algorithm tests ───────────────────────────────────────────────
 
 describe('generateSchedule - enhanced algorithm', () => {
