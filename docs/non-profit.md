@@ -4,7 +4,7 @@ This seed dataset is structured for seeding a non-profit / humanitarian operatio
 
 ## Seed Version & Primary QA Path
 
-- Seed version: 2026.08.31-humanitarian-primary-v2
+- Seed version: 2026.08.31-humanitarian-primary-v3
 - This file is the source of truth for the humanitarian seed scenario.
 - Primary test business: Global Impact Initiative (nonprofit/humanitarian).
 - All seeded accounts use password: password123
@@ -13,6 +13,7 @@ This seed dataset is structured for seeding a non-profit / humanitarian operatio
 
 | Username | Access | Site | Role Title |
 |---|---|---|---|
+| gii_ceo | Manager | Global Impact Initiative | Chief Executive Officer |
 | gii_ipm | Manager | Global Impact Initiative | International Program Manager |
 | gii_programofficer | Manager | Global Impact Initiative | Program Officer - Girls Education and Empowerment |
 | gii_fieldlead | Employee | Global Impact Initiative | Field Coordinator |

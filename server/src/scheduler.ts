@@ -23,6 +23,8 @@ interface DayNeed {
   shiftsNeeded: { role: string; start: string; end: string; count: number }[];
 }
 
+type SiteSchedulingModel = 'restaurant' | 'nonprofit';
+
 // Typical covers a single server handles across a full day (two service shifts).
 // Adjusted for service intensity: high avg-check venues need more attentive staff.
 const BASE_COVERS_PER_SERVER_DAY = 35;
@@ -119,6 +121,48 @@ function computeDayNeeds(
   };
 }
 
+function computeNonprofitDayNeeds(
+  forecast: Forecast | undefined,
+  date: string,
+  dayOfWeek: number,
+): DayNeed {
+  const revenue = forecast?.expected_revenue ?? 3000;
+  const covers = forecast?.expected_covers ?? Math.floor(revenue / 40);
+  const demandSignal = Math.max(covers, Math.floor(revenue / 120));
+
+  const weekdayProgramBoost = dayOfWeek >= 1 && dayOfWeek <= 5 ? 1.1 : 0.8;
+  const weekendFieldBoost = dayOfWeek === 0 || dayOfWeek === 6 ? 1.2 : 1.0;
+
+  const programOfficerCount = Math.max(2, Math.min(6, Math.ceil((demandSignal / 30) * weekdayProgramBoost)));
+  const fieldCoordinatorCount = Math.max(1, Math.min(5, Math.ceil((demandSignal / 34) * weekendFieldBoost)));
+  const volunteerCoordinatorCount = Math.max(1, Math.min(4, Math.ceil((demandSignal / 48) * (dayOfWeek >= 5 ? 1.25 : 1))));
+  const childDevelopmentCount = Math.max(2, Math.min(6, Math.ceil((demandSignal / 28) * weekdayProgramBoost)));
+  const logisticsAndGrantCount = Math.max(1, Math.min(3, Math.ceil(demandSignal / 60)));
+  const safeguardingCount = Math.max(1, Math.min(3, Math.ceil(demandSignal / 70)));
+  const monitoringCount = dayOfWeek === 0 ? 0 : Math.max(1, Math.min(2, Math.ceil(demandSignal / 75)));
+  const healthCaseWorkerCount = Math.max(1, Math.min(3, Math.ceil(demandSignal / 55)));
+  const financeHrCount = dayOfWeek === 0 || dayOfWeek === 6 ? 0 : 1;
+
+  return {
+    date,
+    dayOfWeek,
+    shiftsNeeded: [
+      { role: 'Program Officer', start: '08:30', end: '16:30', count: Math.ceil(programOfficerCount / 2) },
+      { role: 'Program Officer', start: '10:00', end: '18:00', count: Math.floor(programOfficerCount / 2) },
+      { role: 'Field Coordinator', start: '07:30', end: '15:30', count: fieldCoordinatorCount },
+      { role: 'Volunteer Coordinator', start: '09:00', end: '17:00', count: volunteerCoordinatorCount },
+      { role: 'Child Development Specialist', start: '07:30', end: '12:30', count: Math.ceil(childDevelopmentCount / 2) },
+      { role: 'Child Development Specialist', start: '13:30', end: '18:30', count: Math.floor(childDevelopmentCount / 2) },
+      { role: 'Community Health Case Worker', start: '09:00', end: '17:00', count: healthCaseWorkerCount },
+      { role: 'Monitoring and Evaluation Officer', start: '09:00', end: '17:00', count: monitoringCount },
+      { role: 'Safeguarding Officer', start: '09:00', end: '17:00', count: safeguardingCount },
+      { role: 'Logistics and Grants Coordinator', start: '08:00', end: '16:00', count: logisticsAndGrantCount },
+      { role: 'Finance and HR Coordinator', start: '09:00', end: '17:00', count: financeHrCount },
+      { role: 'Manager', start: '08:30', end: '17:00', count: 1 },
+    ].filter((need) => need.count > 0),
+  };
+}
+
 function parseMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
@@ -138,6 +182,11 @@ function isAvailable(avail: Availability | undefined, shiftStart: string, shiftE
 export function generateSchedule(options: GenerateOptions): number {
   const db = getDb();
   const { weekStart, laborBudget } = options;
+  const siteType: SiteSchedulingModel = options.siteId
+    ? ((db.prepare('SELECT site_type FROM sites WHERE id = ?').get(options.siteId) as { site_type?: string } | undefined)?.site_type === 'nonprofit'
+      ? 'nonprofit'
+      : 'restaurant')
+    : 'restaurant';
 
   // Load restaurant settings to drive prime-cost-aware scheduling
   const settings = getRestaurantSettings();
@@ -330,7 +379,9 @@ export function generateSchedule(options: GenerateOptions): number {
     const dayOfWeek = dateObj.getDay();
 
     const forecast = getScheduleForecast(date);
-    const dayNeeds = computeDayNeeds(forecast, date, dayOfWeek, settings.target_labor_pct, avgCheckPerHead, tableTurnoverRate);
+    const dayNeeds = siteType === 'nonprofit'
+      ? computeNonprofitDayNeeds(forecast, date, dayOfWeek)
+      : computeDayNeeds(forecast, date, dayOfWeek, settings.target_labor_pct, avgCheckPerHead, tableTurnoverRate);
 
     // Track employees assigned a regular shift today
     const scheduledTodayIds = new Set<number>();
@@ -427,6 +478,11 @@ export function computeWeeklyStaffingNeeds(weekStart: string, siteId?: number | 
   const db = getDb();
   const settings = getRestaurantSettings();
   const suggestions: DailyStaffingSuggestion[] = [];
+  const siteType: SiteSchedulingModel = siteId
+    ? ((db.prepare('SELECT site_type FROM sites WHERE id = ?').get(siteId) as { site_type?: string } | undefined)?.site_type === 'nonprofit'
+      ? 'nonprofit'
+      : 'restaurant')
+    : 'restaurant';
 
   const startDate = new Date(weekStart);
 
@@ -456,7 +512,9 @@ export function computeWeeklyStaffingNeeds(weekStart: string, siteId?: number | 
     const date      = weekDates[i];
     const dayOfWeek = new Date(date).getDay();
     const forecast  = weekForecasts[i];
-    const dayNeed   = computeDayNeeds(forecast, date, dayOfWeek, settings.target_labor_pct, avgCheckPerHead, tableTurnoverRate);
+    const dayNeed = siteType === 'nonprofit'
+      ? computeNonprofitDayNeeds(forecast, date, dayOfWeek)
+      : computeDayNeeds(forecast, date, dayOfWeek, settings.target_labor_pct, avgCheckPerHead, tableTurnoverRate);
 
     suggestions.push({
       date,

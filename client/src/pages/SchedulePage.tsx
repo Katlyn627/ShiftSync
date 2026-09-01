@@ -185,6 +185,17 @@ const ROLE_ACCENTS: Record<string, { text: string; border: string; chip: string 
   'head chef': { text: 'text-violet-800', border: 'border-l-violet-600', chip: 'bg-violet-200 text-violet-900' },
   'sous chef': { text: 'text-violet-700', border: 'border-l-violet-500', chip: 'bg-violet-100 text-violet-800' },
   'line cook': { text: 'text-violet-700', border: 'border-l-violet-500', chip: 'bg-violet-100 text-violet-800' },
+  'program officer': { text: 'text-blue-700', border: 'border-l-blue-500', chip: 'bg-blue-100 text-blue-800' },
+  'field coordinator': { text: 'text-indigo-700', border: 'border-l-indigo-500', chip: 'bg-indigo-100 text-indigo-800' },
+  'volunteer coordinator': { text: 'text-cyan-700', border: 'border-l-cyan-500', chip: 'bg-cyan-100 text-cyan-800' },
+  'child development specialist': { text: 'text-violet-700', border: 'border-l-violet-500', chip: 'bg-violet-100 text-violet-800' },
+  'community health case worker': { text: 'text-rose-700', border: 'border-l-rose-500', chip: 'bg-rose-100 text-rose-800' },
+  'monitoring and evaluation officer': { text: 'text-sky-700', border: 'border-l-sky-500', chip: 'bg-sky-100 text-sky-800' },
+  'safeguarding officer': { text: 'text-red-700', border: 'border-l-red-500', chip: 'bg-red-100 text-red-800' },
+  'logistics and grants coordinator': { text: 'text-amber-700', border: 'border-l-amber-500', chip: 'bg-amber-100 text-amber-800' },
+  'finance and hr coordinator': { text: 'text-emerald-700', border: 'border-l-emerald-500', chip: 'bg-emerald-100 text-emerald-800' },
+  'chief executive officer': { text: 'text-emerald-800', border: 'border-l-emerald-600', chip: 'bg-emerald-200 text-emerald-900' },
+  'international program manager': { text: 'text-emerald-800', border: 'border-l-emerald-600', chip: 'bg-emerald-200 text-emerald-900' },
   default: { text: 'text-slate-700', border: 'border-l-slate-400', chip: 'bg-slate-100 text-slate-800' },
 };
 
@@ -199,16 +210,56 @@ function getRoleAccent(role: string) {
 }
 
 function getDepartmentGroupLabel(value: string | null | undefined) {
-  const normalized = normalizedValue(value || '');
+  const raw = (value || '').trim();
+  const normalized = normalizedValue(raw);
   if (!normalized) return 'General';
+  if (['executive leadership', 'exec'].some((term) => normalized.includes(term))) return 'Executive Leadership';
+  if (['child development', 'prog-cd', 'youth services', 'girls education', 'girls empowerment'].some((term) => normalized.includes(term))) return 'Child Development & Youth Services';
+  if (['humanitarian aid', 'emergency relief', 'hum-ops', 'field operations'].some((term) => normalized.includes(term))) return 'Humanitarian Aid & Emergency Relief';
+  if (['development', 'grant', 'dev-grant', 'institutional giving', 'monitoring and evaluation'].some((term) => normalized.includes(term))) return 'Development & Grant Management';
+  if (['volunteer', 'community engagement', 'comm-vol'].some((term) => normalized.includes(term))) return 'Volunteer & Community Engagement';
+  if (['clinical', 'community health', 'psycho-social', 'clin-care', 'safeguarding'].some((term) => normalized.includes(term))) return 'Community Health & Psycho-Social Support';
+  if (['finance', 'hr', 'admin', 'fin-admin', 'people ops'].some((term) => normalized.includes(term))) return 'Finance, HR & Administrative Ops';
   if (['management', 'operations', 'leadership', 'owner', 'supervisor', 'director', 'assistant manager', 'gm', 'general manager'].some((term) => normalized.includes(term))) return 'Management';
   if (['front of house', 'foh', 'server', 'host', 'bartender', 'bar', 'cashier', 'support', 'busser', 'food runner'].some((term) => normalized.includes(term))) return 'Front of House';
   if (['back of house', 'boh', 'kitchen', 'dishwasher', 'cook', 'chef', 'expo', 'prep', 'line cook', 'sous chef', 'head chef'].some((term) => normalized.includes(term))) return 'Back of House';
-  return 'Management';
+  return raw;
 }
 
 function getDepartmentPaletteClasses(department: string) {
   const group = getDepartmentGroupLabel(department);
+  if (group === 'Executive Leadership' || group === 'Finance, HR & Administrative Ops' || group === 'Management') {
+    return {
+      tone: 'border-emerald-200 bg-emerald-50/80 text-emerald-900',
+      badge: 'border-emerald-200 bg-emerald-100 text-emerald-800',
+      accent: 'text-emerald-700',
+      border: 'border-l-emerald-500',
+    };
+  }
+  if (group === 'Humanitarian Aid & Emergency Relief' || group === 'Community Health & Psycho-Social Support') {
+    return {
+      tone: 'border-violet-200 bg-violet-50/80 text-violet-900',
+      badge: 'border-violet-200 bg-violet-100 text-violet-800',
+      accent: 'text-violet-700',
+      border: 'border-l-violet-500',
+    };
+  }
+  if (group === 'Development & Grant Management') {
+    return {
+      tone: 'border-blue-200 bg-blue-50/80 text-blue-900',
+      badge: 'border-blue-200 bg-blue-100 text-blue-800',
+      accent: 'text-blue-700',
+      border: 'border-l-blue-500',
+    };
+  }
+  if (group === 'Volunteer & Community Engagement' || group === 'Child Development & Youth Services') {
+    return {
+      tone: 'border-cyan-200 bg-cyan-50/80 text-cyan-900',
+      badge: 'border-cyan-200 bg-cyan-100 text-cyan-800',
+      accent: 'text-cyan-700',
+      border: 'border-l-cyan-500',
+    };
+  }
   if (group === 'Management') {
     return {
       tone: 'border-emerald-200 bg-emerald-50/80 text-emerald-900',
@@ -372,11 +423,12 @@ export default function SchedulePage() {
   const visibleShifts = useMemo(() => {
     const base = [...shifts].sort((a, b) => toSortableValue(a).localeCompare(toSortableValue(b)));
     if (isManager) {
+      const selectedDepartmentGroup = getDepartmentGroupLabel(normalizedDepartmentFilter);
       const byDepartment = normalizedDepartmentFilter === 'all'
         ? base
         : base.filter((shift) => {
-          const shiftDepartment = normalizedValue(shift.employee_department || shift.employee_role || shift.role);
-          return shiftDepartment === normalizedDepartmentFilter;
+          const shiftDepartmentGroup = getDepartmentGroupLabel(shift.employee_department || shift.employee_role || shift.role);
+          return shiftDepartmentGroup === selectedDepartmentGroup;
         });
       if (!selectedEmployeeFilterId) return byDepartment;
       return byDepartment.filter((shift) => shift.employee_id === selectedEmployeeFilterId);
@@ -722,12 +774,13 @@ export default function SchedulePage() {
   }, [shifts]);
 
   const openShiftsByDate = useMemo(() => {
+    const selectedDepartmentGroup = getDepartmentGroupLabel(normalizedDepartmentFilter);
     const scopedOpenShifts = isManager
       ? (normalizedDepartmentFilter === 'all'
         ? openShifts
         : openShifts.filter((shift) => {
-          const shiftDepartment = normalizedValue((shift as OpenShift & { department?: string | null }).department || shift.role);
-          return shiftDepartment === normalizedDepartmentFilter;
+          const shiftDepartmentGroup = getDepartmentGroupLabel((shift as OpenShift & { department?: string | null }).department || shift.role);
+          return shiftDepartmentGroup === selectedDepartmentGroup;
         }))
       : openShifts.filter((shift) => {
         const shiftDepartment = normalizedValue((shift as OpenShift & { department?: string | null }).department);
@@ -768,7 +821,18 @@ export default function SchedulePage() {
     return tones[Math.abs(hash) % tones.length];
   };
 
-  const departmentGroupOrder = ['Management', 'Front of House', 'Back of House'];
+  const departmentGroupOrder = [
+    'Executive Leadership',
+    'Finance, HR & Administrative Ops',
+    'Development & Grant Management',
+    'Volunteer & Community Engagement',
+    'Child Development & Youth Services',
+    'Community Health & Psycho-Social Support',
+    'Humanitarian Aid & Emergency Relief',
+    'Management',
+    'Front of House',
+    'Back of House',
+  ];
 
   const getShiftDisplayGroup = (shift: ShiftWithEmployee) =>
     shift.employee_department || shift.employee_role || shift.role;
@@ -792,7 +856,9 @@ export default function SchedulePage() {
     [...groups].sort((a, b) => {
       const aIndex = departmentGroupOrder.indexOf(a.department);
       const bIndex = departmentGroupOrder.indexOf(b.department);
-      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+      const orderDelta = (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+      if (orderDelta !== 0) return orderDelta;
+      return a.department.localeCompare(b.department);
     });
 
   async function loadSchedules() {

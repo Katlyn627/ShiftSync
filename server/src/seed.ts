@@ -116,10 +116,12 @@ const HUMANITARIAN_FOH_ROLES = [
   'Field Coordinator',
   'Volunteer Coordinator',
   'Child Development Specialist',
-  'Community Liaison',
+  'Community Health Case Worker',
 ];
 const HUMANITARIAN_BOH_ROLES = [
   'International Program Manager',
+  'Chief Executive Officer',
+  'Finance and HR Coordinator',
   'Monitoring and Evaluation Officer',
   'Safeguarding Officer',
   'Logistics and Grants Coordinator',
@@ -128,8 +130,20 @@ const HUMANITARIAN_BOH_ROLES = [
 const HUMANITARIAN_ROLE_PLAN: RoleSeed[] = [
   {
     role: 'Manager',
+    roleTitle: 'Chief Executive Officer',
+    department: 'Executive Leadership',
+    count: 1,
+    minRate: 38,
+    maxRate: 43,
+    weeklyMax: 45,
+    isManager: true,
+    forcedUsernames: ['gii_ceo'],
+    preferredNames: [{ first: 'Marcus', last: 'Vance' }],
+  },
+  {
+    role: 'Manager',
     roleTitle: 'International Program Manager',
-    department: 'Management',
+    department: 'Humanitarian Aid & Emergency Relief',
     count: 1,
     minRate: 34,
     maxRate: 38,
@@ -141,7 +155,7 @@ const HUMANITARIAN_ROLE_PLAN: RoleSeed[] = [
   {
     role: 'Manager',
     roleTitle: 'Program Officer - Girls Education and Empowerment',
-    department: 'Management',
+    department: 'Child Development & Youth Services',
     count: 1,
     minRate: 30,
     maxRate: 34,
@@ -150,10 +164,10 @@ const HUMANITARIAN_ROLE_PLAN: RoleSeed[] = [
     forcedUsernames: ['gii_programofficer'],
     preferredNames: [{ first: 'Nia', last: 'Kimani' }],
   },
-  { role: 'Program Officer', department: 'Front of House', count: 4, minRate: 24, maxRate: 29, weeklyMax: 42 },
+  { role: 'Program Officer', department: 'Child Development & Youth Services', count: 5, minRate: 24, maxRate: 29, weeklyMax: 42 },
   {
     role: 'Field Coordinator',
-    department: 'Front of House',
+    department: 'Humanitarian Aid & Emergency Relief',
     count: 4,
     minRate: 22,
     maxRate: 26,
@@ -161,11 +175,13 @@ const HUMANITARIAN_ROLE_PLAN: RoleSeed[] = [
     forcedUsernames: ['gii_fieldlead'],
     preferredNames: [{ first: 'Kofi', last: 'Achebe' }],
   },
-  { role: 'Volunteer Coordinator', department: 'Front of House', count: 3, minRate: 20, maxRate: 24, weeklyMax: 40 },
-  { role: 'Child Development Specialist', department: 'Back of House', count: 4, minRate: 23, maxRate: 28, weeklyMax: 42 },
-  { role: 'Monitoring and Evaluation Officer', department: 'Back of House', count: 3, minRate: 25, maxRate: 31, weeklyMax: 42 },
-  { role: 'Safeguarding Officer', department: 'Back of House', count: 2, minRate: 24, maxRate: 29, weeklyMax: 40 },
-  { role: 'Logistics and Grants Coordinator', department: 'Back of House', count: 3, minRate: 21, maxRate: 25, weeklyMax: 40 },
+  { role: 'Volunteer Coordinator', department: 'Volunteer & Community Engagement', count: 4, minRate: 20, maxRate: 24, weeklyMax: 40 },
+  { role: 'Child Development Specialist', department: 'Child Development & Youth Services', count: 5, minRate: 23, maxRate: 28, weeklyMax: 42 },
+  { role: 'Monitoring and Evaluation Officer', department: 'Development & Grant Management', count: 3, minRate: 25, maxRate: 31, weeklyMax: 42 },
+  { role: 'Safeguarding Officer', department: 'Community Health & Psycho-Social Support', count: 3, minRate: 24, maxRate: 29, weeklyMax: 40 },
+  { role: 'Logistics and Grants Coordinator', department: 'Development & Grant Management', count: 3, minRate: 21, maxRate: 25, weeklyMax: 40 },
+  { role: 'Finance and HR Coordinator', department: 'Finance, HR & Administrative Ops', count: 2, minRate: 24, maxRate: 29, weeklyMax: 40 },
+  { role: 'Community Health Case Worker', department: 'Community Health & Psycho-Social Support', count: 3, minRate: 23, maxRate: 27, weeklyMax: 40 },
 ];
 
 const SITE_SEED: SiteSeed[] = [
