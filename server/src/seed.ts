@@ -67,6 +67,9 @@ function shouldReseed(db: Database.Database): boolean {
   const swapCount = (db.prepare('SELECT COUNT(*) as c FROM shift_swaps').get() as any).c;
   if (swapCount < 4) return true;
 
+  const availCount = (db.prepare('SELECT COUNT(*) as c FROM availability').get() as any).c;
+  if (availCount < empCount * 7) return true;
+
   return false;
 }
 
@@ -995,8 +998,107 @@ export function seedDemoData(): void {
       }
     }
 
+    // Seed comprehensive 7-day logical availability for every employee
+    seedLogicalAvailability(db, allEmployees);
+
     validateSeedData();
   })();
+}
+
+function seedLogicalAvailability(db: Database.Database, allEmployees: any[]): void {
+  const insertAvail = db.prepare(`
+    INSERT OR REPLACE INTO availability (
+      employee_id, day_of_week, start_time, end_time, availability_type
+    ) VALUES (?, ?, ?, ?, ?)
+  `);
+
+  // Query all active shifts to know exact scheduled windows
+  const allShifts = db.prepare(`
+    SELECT employee_id, date, start_time, end_time FROM shifts WHERE status != 'cancelled'
+  `).all() as { employee_id: number; date: string; start_time: string; end_time: string }[];
+
+  // Group shifts by employee and day_of_week (0=Sun, 1=Mon, ..., 6=Sat)
+  const shiftMap = new Map<string, { start: string; end: string }[]>();
+  for (const s of allShifts) {
+    if (!s.employee_id) continue;
+    const [y, m, d] = s.date.split('-').map(Number);
+    const dayOfWeek = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    const key = `${s.employee_id}_${dayOfWeek}`;
+    const list = shiftMap.get(key) || [];
+    list.push({ start: s.start_time, end: s.end_time });
+    shiftMap.set(key, list);
+  }
+
+  for (const emp of allEmployees) {
+    const role = emp.role || 'Staff';
+    const isVolunteer = emp.is_volunteer || role === 'Volunteer';
+    const isOffice = ['Manager', 'Finance and HR Coordinator', 'Monitoring and Evaluation Officer', 'Logistics and Grants Coordinator'].includes(role);
+
+    for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+      const key = `${emp.id}_${dayOfWeek}`;
+      const scheduledShifts = shiftMap.get(key);
+
+      if (scheduledShifts && scheduledShifts.length > 0) {
+        // Find earliest start and latest end among scheduled shifts
+        let earliestMin = 24 * 60;
+        let latestMin = 0;
+        for (const sh of scheduledShifts) {
+          const [shH, shM] = sh.start.split(':').map(Number);
+          const [ehH, ehM] = sh.end.split(':').map(Number);
+          const startMin = shH * 60 + shM;
+          let endMin = ehH * 60 + ehM;
+          if (endMin <= startMin) endMin += 24 * 60;
+          if (startMin < earliestMin) earliestMin = startMin;
+          if (endMin > latestMin) latestMin = endMin;
+        }
+
+        // Expand available window by 60 mins on both sides for realistic buffer
+        const availStartMin = Math.max(0, earliestMin - 60);
+        const availEndMin = Math.min(23 * 60 + 59, latestMin + 60);
+
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const startStr = `${pad(Math.floor(availStartMin / 60))}:${pad(availStartMin % 60)}`;
+        const endStr = `${pad(Math.min(23, Math.floor(availEndMin / 60)))}:${pad(availEndMin % 60)}`;
+
+        insertAvail.run(emp.id, dayOfWeek, startStr, endStr, 'specific');
+      } else {
+        // Employee has no shift scheduled on this day
+        if (isVolunteer) {
+          // Volunteers are unavailable on unscheduled days except on alternating open relief days
+          if (dayOfWeek === 0 || dayOfWeek === 6 || (emp.id + dayOfWeek) % 2 === 0) {
+            insertAvail.run(emp.id, dayOfWeek, '00:00', '00:00', 'unavailable');
+          } else {
+            insertAvail.run(emp.id, dayOfWeek, '08:30', '17:30', 'specific');
+          }
+        } else if (isOffice) {
+          // Office staff: Saturday (6) and Sunday (0) are unavailable rest days
+          if (dayOfWeek === 0 || dayOfWeek === 6) {
+            insertAvail.run(emp.id, dayOfWeek, '00:00', '00:00', 'unavailable');
+          } else {
+            insertAvail.run(emp.id, dayOfWeek, '08:30', '17:30', 'specific');
+          }
+        } else {
+          // Field coordinators, clinicians, servers, line cooks:
+          // Designate 1-2 realistic rest days per week
+          const restDay1 = (emp.id * 3) % 7;
+          const restDay2 = (emp.id * 3 + 1) % 7;
+          if (dayOfWeek === restDay1 || dayOfWeek === restDay2) {
+            insertAvail.run(emp.id, dayOfWeek, '00:00', '00:00', 'unavailable');
+          } else {
+            const roleTimes = shiftWindowForRole(emp.role, emp.roleIndex || 0);
+            const [shH, shM] = roleTimes.start.split(':').map(Number);
+            const [ehH, ehM] = roleTimes.end.split(':').map(Number);
+            const availStart = Math.max(0, shH * 60 + shM - 60);
+            const availEnd = Math.min(23 * 60 + 59, (ehH * 60 + ehM) + 60);
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const startStr = `${pad(Math.floor(availStart / 60))}:${pad(availStart % 60)}`;
+            const endStr = `${pad(Math.min(23, Math.floor(availEnd / 60)))}:${pad(availEnd % 60)}`;
+            insertAvail.run(emp.id, dayOfWeek, startStr, endStr, 'specific');
+          }
+        }
+      }
+    }
+  }
 }
 
 export function validateSeedData(): void {
@@ -1036,7 +1138,12 @@ export function validateSeedData(): void {
     throw new Error(`Seed validation: managers with no shifts: ${managersWithNoShifts.map((m: any) => m.name).join(', ')}`);
   }
 
+  const availCount = (db.prepare('SELECT COUNT(*) as c FROM availability').get() as any).c;
+  if (availCount < empCount * 7) {
+    throw new Error(`Seed validation: expected at least ${empCount * 7} availability entries, found ${availCount}`);
+  }
+
   console.log(
-    `✓ Seed validation passed — ${siteCount} sites, ${empCount} employees, all schedules have shifts, all managers have shifts`
+    `✓ Seed validation passed — ${siteCount} sites, ${empCount} employees, ${availCount} availability entries, all schedules have shifts, all managers have shifts`
   );
 }
