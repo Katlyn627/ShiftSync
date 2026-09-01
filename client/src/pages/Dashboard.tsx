@@ -589,350 +589,479 @@ export default function Dashboard() {
       {/* ── KPI Cards & schedule-dependent content ── */}
       {!noSchedules && (
       <>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {isManager && (
-          <KpiCard
-            label="Projected Cost"
-            value={laborCost ? `$${laborCost.projected_cost.toLocaleString()}` : '—'}
-            sub={laborCost ? `Budget $${laborCost.labor_budget.toLocaleString()}` : ''}
-            trend={overBudget ? 'down' : 'up'}
-            icon={<DollarIcon />}
-          />
-        )}
-        {isManager && (
-          <KpiCard
-            label="Budget Usage"
-            value={laborCost ? `${budgetPct.toFixed(1)}%` : '—'}
-            sub={overBudget
-              ? `$${Math.abs(laborCost!.variance).toFixed(0)} over budget`
-              : laborCost ? `$${Math.abs(laborCost.variance).toFixed(0)} under budget` : ''}
-            trend={budgetPct > 100 ? 'down' : budgetPct > 90 ? 'neutral' : 'up'}
-            icon={<ChartIcon />}
-          />
-        )}
-        <KpiCard
-          label="High Burnout Risk"
-          value={highRisk.length.toString()}
-          sub={highRisk.length > 0 ? highRisk.map(b => b.employee_name.split(' ')[0]).join(', ') : 'All clear'}
-          trend={highRisk.length > 0 ? 'down' : 'up'}
-          icon={<AlertIcon />}
-        />
-        <KpiCard
-          label="Medium Risk"
-          value={mediumRisk.length.toString()}
-          sub="employees need attention"
-          trend={mediumRisk.length > 2 ? 'down' : 'neutral'}
-          icon={<UsersIcon />}
-        />
-      </div>
-
-      {/* ── Humanitarian Grant & Program Cost Allocation (2 CFR 200) ── */}
-      {isManager && laborCost && laborCost.program_direct_cost !== undefined && (
-        <Card className="p-5 border border-emerald-200/80 bg-gradient-to-br from-emerald-50/40 via-teal-50/20 to-transparent shadow-xs">
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-foreground">Grant & Program Cost Allocation</h2>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  2 CFR 200 Uniform Guidance
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Humanitarian direct program expenditures, indirect overhead & in-kind volunteer matching
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
-                (laborCost.program_expense_ratio ?? 0) >= 75
-                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                  : 'bg-amber-100 text-amber-800 border-amber-300'
-              }`}>
-                Program Ratio: {laborCost.program_expense_ratio?.toFixed(1)}% {(laborCost.program_expense_ratio ?? 0) >= 75 ? '✓ Compliant' : '⚠ Below 75%'}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div className="p-3.5 rounded-xl bg-white/90 border border-emerald-100 shadow-2xs">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Direct Program Labor</p>
-              <p className="text-xl font-bold text-emerald-700">${laborCost.program_direct_cost.toLocaleString()}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Field Relief & Youth Services</p>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-white/90 border border-slate-200 shadow-2xs">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Management & Indirect</p>
-              <p className="text-xl font-bold text-slate-800">${(laborCost.admin_indirect_cost ?? 0).toLocaleString()}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Executive & HR Operations</p>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-white/90 border border-teal-100 shadow-2xs">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">In-Kind Volunteer Match</p>
-              <p className="text-xl font-bold text-teal-700">${(laborCost.volunteer_in_kind_value ?? 0).toLocaleString()}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                {laborCost.volunteer_in_kind_hours ?? 0}h @ $33.49/h (Ind. Sector)
-              </p>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-white/90 border border-blue-100 shadow-2xs">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Est. Fringe Benefits (24%)</p>
-              <p className="text-xl font-bold text-blue-700">${(laborCost.fringe_benefits_cost ?? 0).toLocaleString()}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">FICA, Health & Ins. Allocation</p>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* ── Profitability Metrics ── */}
-      {isManager && profitabilityMetrics && (
-        <>
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <div>
-                <h2 className="text-sm font-semibold text-foreground">Profitability Metrics</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Key metrics for profitable scheduling (target: Prime Cost ≤ 65%)</p>
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {profitabilityMetrics.pos_last_synced ? (
-                  (() => {
-                    const ps = POS_PLATFORM_STYLES[profitabilityMetrics.pos_last_synced.platform] ?? POS_PLATFORM_STYLES.other;
-                    return (
-                      <span
-                        className="text-xs font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
-                        style={{ color: ps.color, backgroundColor: ps.bg, borderColor: ps.color + '40' }}
-                      >
-                        <span>{ps.icon}</span>
-                        {profitabilityMetrics.pos_last_synced.display_name}
-                      </span>
-                    );
-                  })()
-                ) : posIntegrations.length > 0 ? (
-                  (() => {
-                    const pi = posIntegrations[0];
-                    const ps = POS_PLATFORM_STYLES[pi.platform_name] ?? POS_PLATFORM_STYLES.other;
-                    return (
-                      <span
-                        className="text-xs font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
-                        style={{ color: ps.color, backgroundColor: ps.bg, borderColor: ps.color + '40' }}
-                      >
-                        <span>{ps.icon}</span>
-                        {pi.display_name}
-                      </span>
-                    );
-                  })()
-                ) : null}
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                  profitabilityMetrics.prime_cost_status === 'good'    ? 'bg-emerald-100 text-emerald-700' :
-                  profitabilityMetrics.prime_cost_status === 'warning' ? 'bg-amber-100 text-amber-700'    :
-                  'bg-red-100 text-red-700'
-                }`}>
-                  Prime Cost {profitabilityMetrics.prime_cost_pct.toFixed(1)}%
-                  {profitabilityMetrics.prime_cost_status === 'good' ? ' ✓' : profitabilityMetrics.prime_cost_status === 'over' ? ' !' : ''}
-                </span>
-              </div>
-            </div>
-
-            {/* Metrics Grid */}
-            {(() => {
-              const isHotel = currentSite?.site_type === 'hotel';
-              return (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {/* Prime Cost */}
-                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Prime Cost %</p>
-                    <p className={`text-xl font-bold ${primeCostColor}`}>{profitabilityMetrics.prime_cost_pct.toFixed(1)}%</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Target ≤ {profitabilityMetrics.prime_cost_target_pct}% · ${profitabilityMetrics.prime_cost.toLocaleString()}
-                    </p>
-                    <div className="mt-1.5 bg-muted/50 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className="h-1.5 rounded-full transition-all"
-                        style={{
-                          width: `${Math.min(100, (profitabilityMetrics.prime_cost_pct / 80) * 100)}%`,
-                          backgroundColor:
-                            profitabilityMetrics.prime_cost_status === 'good' ? '#10b981' :
-                            profitabilityMetrics.prime_cost_status === 'warning' ? '#f59e0b' : '#ef4444',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Labor Cost % */}
-                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Labor Cost %</p>
-                    <p className={`text-xl font-bold ${profitabilityMetrics.labor_cost_pct > profitabilityMetrics.labor_cost_target_pct ? 'text-red-500' : 'text-foreground'}`}>
-                      {profitabilityMetrics.labor_cost_pct.toFixed(1)}%
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Target ≤ {profitabilityMetrics.labor_cost_target_pct}% · ${profitabilityMetrics.total_labor_cost.toLocaleString()}
-                    </p>
-                  </div>
-
-                  {/* RevPASH / RevPAR */}
-                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                      {isHotel ? 'Rev / Room-Night' : 'RevPASH'}
-                    </p>
-                    <p className="text-xl font-bold text-foreground">
-                      {isHotel
-                        ? `$${profitabilityMetrics.total_expected_covers > 0 ? (profitabilityMetrics.total_expected_revenue / profitabilityMetrics.total_expected_covers).toFixed(2) : '0.00'}`
-                        : `$${profitabilityMetrics.revpash.toFixed(2)}`}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {isHotel ? 'Revenue per occupied room' : 'Revenue per seat per hour'}
-                    </p>
-                  </div>
-
-                  {/* Table Turnover / Occupancy */}
-                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                      {isHotel ? 'Room-Nights / Week' : 'Table Turnover'}
-                    </p>
-                    <p className="text-xl font-bold text-foreground">
-                      {isHotel
-                        ? profitabilityMetrics.total_expected_covers.toLocaleString()
-                        : `${profitabilityMetrics.table_turnover_rate.toFixed(1)}x`}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {isHotel ? 'Occupied room-nights' : 'Covers per service period'}
-                    </p>
-                  </div>
-
-                  {/* Avg Check per Head / ADR */}
-                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                      {isHotel ? 'Avg Daily Rate (ADR)' : 'Avg Check / Head'}
-                    </p>
-                    <p className="text-xl font-bold text-foreground">${profitabilityMetrics.avg_check_per_head.toFixed(2)}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {isHotel
-                        ? `${profitabilityMetrics.total_expected_covers.toLocaleString()} room-nights`
-                        : `${profitabilityMetrics.total_expected_covers.toLocaleString()} covers`}
-                    </p>
-                  </div>
-
-                  {/* COGS */}
-                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Est. COGS</p>
-                    <p className="text-xl font-bold text-foreground">${profitabilityMetrics.estimated_cogs.toLocaleString()}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{profitabilityMetrics.cogs_pct}% of revenue</p>
-                  </div>
-
-                  {/* Revenue */}
-                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Expected Revenue</p>
-                    <p className="text-xl font-bold text-foreground">${profitabilityMetrics.total_expected_revenue.toLocaleString()}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Projected for the week</p>
-                  </div>
-
-                  {/* Employee Turnover Risk */}
-                  <div className="p-3 rounded-xl bg-muted/30 border border-border">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Turnover Risk</p>
-                    <p className={`text-xl font-bold ${profitabilityMetrics.turnover_risk_pct > 30 ? 'text-red-500' : profitabilityMetrics.turnover_risk_pct > 10 ? 'text-amber-500' : 'text-foreground'}`}>
-                      {profitabilityMetrics.turnover_risk_pct.toFixed(0)}%
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {profitabilityMetrics.high_turnover_risk_count} high-risk employee{profitabilityMetrics.high_turnover_risk_count !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                </div>
-              );
-            })()}
-          </Card>
-
-          {/* ── Sales by Day ── */}
-          {profitabilityMetrics.sales_by_day.length > 0 && (
-            <div className="grid md:grid-cols-2 gap-4">
-              <Card className="p-5">
-                <h2 className="text-sm font-semibold text-foreground mb-4">Sales by Day</h2>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={profitabilityMetrics.sales_by_day} barSize={28}>
-                    <XAxis dataKey="day_name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: '#94a3b8' }}
-                      tickFormatter={v => v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`}
-                      axisLine={false}
-                      tickLine={false}
-                      width={52}
+      {(() => {
+        const isNonprofit = currentSite?.site_type === 'nonprofit' || (laborCost?.program_direct_cost !== undefined && (laborCost.program_direct_cost > 0 || (laborCost.volunteer_in_kind_hours ?? 0) > 0));
+        
+        return (
+          <>
+            {/* Top KPI Cards Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {isNonprofit ? (
+                <>
+                  <KpiCard
+                    label="Grant Labor Drawdown"
+                    value={laborCost ? `$${laborCost.projected_cost.toLocaleString()}` : '—'}
+                    sub={laborCost ? `Grant Cap $${laborCost.labor_budget.toLocaleString()}` : ''}
+                    trend={overBudget ? 'down' : 'up'}
+                    icon={<DollarIcon />}
+                  />
+                  <KpiCard
+                    label="2 CFR 200 Program Ratio"
+                    value={laborCost ? `${laborCost.program_expense_ratio?.toFixed(1)}%` : '—'}
+                    sub={laborCost ? ((laborCost.program_expense_ratio ?? 0) >= 75 ? 'Direct Service Compliant (≥75%)' : 'Below 75% Target') : ''}
+                    trend={(laborCost?.program_expense_ratio ?? 0) >= 75 ? 'up' : 'down'}
+                    icon={<ChartIcon />}
+                  />
+                  <KpiCard
+                    label="In-Kind Volunteer Match"
+                    value={laborCost ? `$${(laborCost.volunteer_in_kind_value ?? 0).toLocaleString()}` : '—'}
+                    sub={laborCost ? `${laborCost.volunteer_in_kind_hours ?? 0}h @ $33.49/h match` : ''}
+                    trend="up"
+                    icon={<UsersIcon />}
+                  />
+                  <KpiCard
+                    label="Duty-of-Care Risk"
+                    value={`${highRisk.length} High / ${mediumRisk.length} Med`}
+                    sub={highRisk.length > 0 ? 'Rest decompression required' : 'Workforce fatigue optimal'}
+                    trend={highRisk.length > 0 ? 'down' : 'up'}
+                    icon={<AlertIcon />}
+                  />
+                </>
+              ) : (
+                <>
+                  {isManager && (
+                    <KpiCard
+                      label="Projected Cost"
+                      value={laborCost ? `$${laborCost.projected_cost.toLocaleString()}` : '—'}
+                      sub={laborCost ? `Budget $${laborCost.labor_budget.toLocaleString()}` : ''}
+                      trend={overBudget ? 'down' : 'up'}
+                      icon={<DollarIcon />}
                     />
-                    <Tooltip
-                      formatter={(v: number) => [`$${v.toLocaleString()}`, 'Revenue']}
-                      labelFormatter={(label: string) => `Day: ${label}`}
-                      contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 12 }}
+                  )}
+                  {isManager && (
+                    <KpiCard
+                      label="Budget Usage"
+                      value={laborCost ? `${budgetPct.toFixed(1)}%` : '—'}
+                      sub={overBudget
+                        ? `$${Math.abs(laborCost!.variance).toFixed(0)} over budget`
+                        : laborCost ? `$${Math.abs(laborCost.variance).toFixed(0)} under budget` : ''}
+                      trend={budgetPct > 100 ? 'down' : budgetPct > 90 ? 'neutral' : 'up'}
+                      icon={<ChartIcon />}
                     />
-                    <Bar dataKey="expected_revenue" radius={[6, 6, 0, 0]}>
-                      {profitabilityMetrics.sales_by_day.map((_: DayRevenue, i: number) => (
-                        <Cell key={i} fill={['#6366f1','#8b5cf6','#ec4899','#f97316','#06b6d4','#10b981','#f59e0b'][i % 7]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-                <div className="mt-3 grid grid-cols-7 gap-1">
-                  {profitabilityMetrics.sales_by_day.map((day: DayRevenue) => (
-                    <div key={day.date} className="text-center">
-                      <p className="text-[10px] font-semibold text-muted-foreground">{day.day_name}</p>
-                      <p className="text-[10px] font-bold text-foreground">
-                        {day.expected_revenue >= 1000
-                          ? `$${(day.expected_revenue / 1000).toFixed(1)}k`
-                          : `$${day.expected_revenue}`}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {day.expected_covers}{currentSite?.site_type === 'hotel' ? 'rm' : 'cvr'}
+                  )}
+                  <KpiCard
+                    label="High Burnout Risk"
+                    value={highRisk.length.toString()}
+                    sub={highRisk.length > 0 ? highRisk.map(b => b.employee_name.split(' ')[0]).join(', ') : 'All clear'}
+                    trend={highRisk.length > 0 ? 'down' : 'up'}
+                    icon={<AlertIcon />}
+                  />
+                  <KpiCard
+                    label="Medium Risk"
+                    value={mediumRisk.length.toString()}
+                    sub="employees need attention"
+                    trend={mediumRisk.length > 2 ? 'down' : 'neutral'}
+                    icon={<UsersIcon />}
+                  />
+                </>
+              )}
+            </div>
+
+            {/* ── Humanitarian Grant & Workforce Allocation Console ── */}
+            {isManager && isNonprofit && laborCost && (
+              <div className="space-y-4">
+                {/* 1. Grant Financial Balance & Obligations */}
+                <Card className="p-5 border border-emerald-200/80 bg-gradient-to-br from-emerald-50/40 via-teal-50/20 to-transparent shadow-xs">
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-sm font-bold text-foreground">Grant Financial Allocation & Program Health</h2>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          2 CFR 200 Uniform Guidance
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Direct relief expenditures, indirect administrative overhead & volunteer grant matching
                       </p>
                     </div>
-                  ))}
-                </div>
-              </Card>
-
-              <Card className="p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-sm font-semibold text-foreground">Revenue Distribution</h2>
-                  <span className="text-[10px] text-muted-foreground capitalize">
-                    {profitabilityMetrics.site_type === 'hotel' ? 'by shift window' : 'by daypart'}
-                  </span>
-                </div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie
-                      data={profitabilityMetrics.sales_by_daypart}
-                      dataKey="revenue_pct"
-                      nameKey="daypart"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={75}
-                      label={({ daypart, revenue_pct }: any) => `${daypart} ${(revenue_pct * 100).toFixed(0)}%`}
-                      labelLine={false}
-                    >
-                      {profitabilityMetrics.sales_by_daypart.map((_: DaypartRevenue, i: number) => (
-                        <Cell key={i} fill={['#6366f1','#8b5cf6','#ec4899','#f97316','#06b6d4','#10b981','#f59e0b'][i % 7]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(v: number, _name: string, props: any) =>
-                        [`$${props.payload?.revenue?.toLocaleString() ?? 0} (${(v * 100).toFixed(1)}%)`, 'Revenue']
-                      }
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="mt-3 grid grid-cols-2 gap-1.5">
-                  {profitabilityMetrics.sales_by_daypart.map((dp: DaypartRevenue) => (
-                    <div key={dp.daypart} className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-muted/20 border border-border/50 text-[10px]">
-                      <span className="font-semibold text-foreground">{dp.daypart}</span>
-                      <span className="text-muted-foreground">{dp.start}–{dp.end}</span>
-                      <span className="font-bold text-foreground">
-                        {dp.revenue >= 1000 ? `$${(dp.revenue / 1000).toFixed(1)}k` : `$${dp.revenue}`}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {dp.covers} {profitabilityMetrics.site_type === 'hotel' ? 'rm' : 'cvr'}
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                        (laborCost.program_expense_ratio ?? 0) >= 75
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-100 text-amber-800 border-amber-300'
+                      }`}>
+                        Program Ratio: {laborCost.program_expense_ratio?.toFixed(1)}% {(laborCost.program_expense_ratio ?? 0) >= 75 ? '✓ Compliant' : '⚠ Below 75%'}
                       </span>
                     </div>
-                  ))}
-                </div>
-              </Card>
-            </div>
-          )}
-        </>
-      )}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div className="p-3 rounded-xl bg-white/90 border border-emerald-100 shadow-2xs">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Direct Program</p>
+                      <p className="text-lg font-bold text-emerald-700">${(laborCost.program_direct_cost ?? 0).toLocaleString()}</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Field Relief & Youth</p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white/90 border border-slate-200 shadow-2xs">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Indirect / Admin</p>
+                      <p className="text-lg font-bold text-slate-800">${(laborCost.admin_indirect_cost ?? 0).toLocaleString()}</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Executive & HR</p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white/90 border border-blue-100 shadow-2xs">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Fringe Benefits (24%)</p>
+                      <p className="text-lg font-bold text-blue-700">${(laborCost.fringe_benefits_cost ?? 0).toLocaleString()}</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">FICA, Health & Ins.</p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white/90 border border-indigo-100 shadow-2xs">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Total Payroll Obligation</p>
+                      <p className="text-lg font-bold text-indigo-700">${(laborCost.total_payroll_obligation ?? laborCost.projected_cost).toLocaleString()}</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Wages + Benefits</p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white/90 border border-teal-100 shadow-2xs">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Volunteer Match</p>
+                      <p className="text-lg font-bold text-teal-700">${(laborCost.volunteer_in_kind_value ?? 0).toLocaleString()}</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">{laborCost.volunteer_in_kind_hours ?? 0}h @ $33.49/h</p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white/90 border border-emerald-200 shadow-2xs">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Remaining Grant</p>
+                      <p className={`text-lg font-bold ${(laborCost.remaining_grant_balance ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        ${(laborCost.remaining_grant_balance ?? (laborCost.labor_budget - laborCost.projected_cost)).toLocaleString()}
+                      </p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Surplus for Week</p>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* 2. Departmental Resource Allocation vs. Staff Fatigue Breakdown */}
+                {laborCost.by_department && laborCost.by_department.length > 0 && (
+                  <Card className="p-5">
+                    <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                      <div>
+                        <h2 className="text-sm font-bold text-foreground">Departmental Resource & Burnout Fatigue Allocation</h2>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Cross-referencing grant expenditure, staffing hours, and psychological fatigue across departments
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> &lt;30 Low Risk</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> 30–59 Moderate</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> ≥60 High Burnout</span>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="border-b border-border text-muted-foreground uppercase text-[10px] tracking-wider bg-muted/20">
+                          <tr>
+                            <th className="py-2.5 px-3 rounded-l-lg">Department / Program Area</th>
+                            <th className="py-2.5 px-3">Grant Cost Category</th>
+                            <th className="py-2.5 px-3">Labor Allocated</th>
+                            <th className="py-2.5 px-3">Scheduled Hours</th>
+                            <th className="py-2.5 px-3">Active Staff</th>
+                            <th className="py-2.5 px-3 rounded-r-lg">Duty-of-Care Fatigue Score</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/60">
+                          {laborCost.by_department.map((dept) => {
+                            const burnoutTone =
+                              dept.avg_burnout_score >= 60 ? 'bg-red-100 text-red-800 border-red-200' :
+                              dept.avg_burnout_score >= 30 ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                              'bg-emerald-100 text-emerald-800 border-emerald-200';
+                            return (
+                              <tr key={dept.department} className="hover:bg-muted/30 transition-colors">
+                                <td className="py-3 px-3 font-semibold text-foreground">{dept.department}</td>
+                                <td className="py-3 px-3">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                    dept.is_direct ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                  }`}>
+                                    {dept.is_direct ? '2 CFR 200 Direct' : 'Indirect Admin'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 font-bold text-foreground">${dept.cost.toLocaleString()}</td>
+                                <td className="py-3 px-3 text-muted-foreground">{dept.hours}h</td>
+                                <td className="py-3 px-3 text-muted-foreground">{dept.employee_count} personnel</td>
+                                <td className="py-3 px-3">
+                                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border inline-flex items-center gap-1 ${burnoutTone}`}>
+                                    {dept.avg_burnout_score} / 100 {dept.avg_burnout_score >= 60 ? '⚠ High Risk' : dept.avg_burnout_score >= 30 ? '⚡ Moderate' : '✓ Optimal'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                )}
+
+                {/* 3. Daily Resource Drawdown & Volunteer Engagement Charts */}
+                {laborCost.by_day && laborCost.by_day.length > 0 && (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <Card className="p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h2 className="text-sm font-bold text-foreground">Daily Humanitarian Labor Drawdown</h2>
+                          <p className="text-xs text-muted-foreground mt-0.5">Direct relief operations vs administrative overhead</p>
+                        </div>
+                      </div>
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={laborCost.by_day} barSize={24}>
+                          <XAxis dataKey="date" tickFormatter={(d) => d.slice(5)} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                          <YAxis tickFormatter={(v) => `$${v}`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={45} />
+                          <Tooltip
+                            formatter={(v: number, name: string) => [`$${v.toLocaleString()}`, name === 'program_cost' ? 'Direct Relief' : 'Admin & Support']}
+                            labelFormatter={(d: string) => `Date: ${d}`}
+                            contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 12 }}
+                          />
+                          <Legend />
+                          <Bar dataKey="program_cost" name="Direct Program Labor" fill="#059669" stackId="a" radius={[0, 0, 0, 0]} />
+                          <Bar dataKey="admin_cost" name="Indirect Admin Overhead" fill="#64748b" stackId="a" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Card>
+
+                    <Card className="p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h2 className="text-sm font-bold text-foreground">Volunteer Community Relief Engagement</h2>
+                          <p className="text-xs text-muted-foreground mt-0.5">Daily volunteer support hours & in-kind service</p>
+                        </div>
+                        <span className="text-xs font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">
+                          ${(laborCost.volunteer_in_kind_value ?? 0).toLocaleString()} Match Value
+                        </span>
+                      </div>
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={laborCost.by_day} barSize={24}>
+                          <XAxis dataKey="date" tickFormatter={(d) => d.slice(5)} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                          <YAxis tickFormatter={(v) => `${v}h`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={35} />
+                          <Tooltip
+                            formatter={(v: number) => [`${v} hours ($${Math.round(v * 33.49)} in-kind value)`, 'Volunteer Hours']}
+                            labelFormatter={(d: string) => `Date: ${d}`}
+                            contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 12 }}
+                          />
+                          <Bar dataKey="volunteer_hours" name="Volunteer Hours" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Card>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Commercial Profitability Metrics (Restaurants / Hospitality) ── */}
+            {isManager && !isNonprofit && profitabilityMetrics && (
+              <>
+                <Card className="p-5">
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <div>
+                      <h2 className="text-sm font-semibold text-foreground">Profitability Metrics</h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">Key metrics for profitable scheduling (target: Prime Cost ≤ 65%)</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {profitabilityMetrics.pos_last_synced ? (
+                        (() => {
+                          const ps = POS_PLATFORM_STYLES[profitabilityMetrics.pos_last_synced.platform] ?? POS_PLATFORM_STYLES.other;
+                          return (
+                            <span
+                              className="text-xs font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
+                              style={{ color: ps.color, backgroundColor: ps.bg, borderColor: ps.color + '40' }}
+                            >
+                              <span>{ps.icon}</span>
+                              {profitabilityMetrics.pos_last_synced.display_name}
+                            </span>
+                          );
+                        })()
+                      ) : posIntegrations.length > 0 ? (
+                        (() => {
+                          const pi = posIntegrations[0];
+                          const ps = POS_PLATFORM_STYLES[pi.platform_name] ?? POS_PLATFORM_STYLES.other;
+                          return (
+                            <span
+                              className="text-xs font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
+                              style={{ color: ps.color, backgroundColor: ps.bg, borderColor: ps.color + '40' }}
+                            >
+                              <span>{ps.icon}</span>
+                              {pi.display_name}
+                            </span>
+                          );
+                        })()
+                      ) : null}
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        profitabilityMetrics.prime_cost_status === 'good'    ? 'bg-emerald-100 text-emerald-700' :
+                        profitabilityMetrics.prime_cost_status === 'warning' ? 'bg-amber-100 text-amber-700'    :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        Prime Cost {profitabilityMetrics.prime_cost_pct.toFixed(1)}%
+                        {profitabilityMetrics.prime_cost_status === 'good' ? ' ✓' : profitabilityMetrics.prime_cost_status === 'over' ? ' !' : ''}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Metrics Grid */}
+                  {(() => {
+                    const isHotel = currentSite?.site_type === 'hotel';
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                        <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Prime Cost %</p>
+                          <p className={`text-xl font-bold ${primeCostColor}`}>{profitabilityMetrics.prime_cost_pct.toFixed(1)}%</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Target ≤ {profitabilityMetrics.prime_cost_target_pct}% · ${profitabilityMetrics.prime_cost.toLocaleString()}
+                          </p>
+                          <div className="mt-1.5 bg-muted/50 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className="h-1.5 rounded-full transition-all"
+                              style={{
+                                width: `${Math.min(100, (profitabilityMetrics.prime_cost_pct / 80) * 100)}%`,
+                                backgroundColor:
+                                  profitabilityMetrics.prime_cost_status === 'good' ? '#10b981' :
+                                  profitabilityMetrics.prime_cost_status === 'warning' ? '#f59e0b' : '#ef4444',
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                            {isHotel ? 'Rev / Room-Night' : 'RevPASH'}
+                          </p>
+                          <p className="text-xl font-bold text-foreground">
+                            ${(isHotel
+                              ? profitabilityMetrics.total_expected_covers > 0
+                                ? profitabilityMetrics.total_expected_revenue / profitabilityMetrics.total_expected_covers
+                                : 0
+                              : profitabilityMetrics.revpash
+                            ).toFixed(2)}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {isHotel ? 'Revenue per occupied room' : 'Revenue per seat per hour'}
+                          </p>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                            {isHotel ? 'Room-Nights / Week' : 'Table Turnover'}
+                          </p>
+                          <p className="text-xl font-bold text-foreground">
+                            {isHotel
+                              ? profitabilityMetrics.total_expected_covers.toLocaleString()
+                              : `${profitabilityMetrics.table_turnover_rate.toFixed(1)}x`}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {isHotel ? 'Occupied room-nights' : 'Covers per service period'}
+                          </p>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                            {isHotel ? 'Avg Daily Rate (ADR)' : 'Avg Check / Head'}
+                          </p>
+                          <p className="text-xl font-bold text-foreground">${profitabilityMetrics.avg_check_per_head.toFixed(2)}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {isHotel
+                              ? `${profitabilityMetrics.total_expected_covers.toLocaleString()} room-nights`
+                              : `${profitabilityMetrics.total_expected_covers.toLocaleString()} covers`}
+                          </p>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Est. COGS</p>
+                          <p className="text-xl font-bold text-foreground">${profitabilityMetrics.estimated_cogs.toLocaleString()}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{profitabilityMetrics.cogs_pct}% of revenue</p>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Expected Revenue</p>
+                          <p className="text-xl font-bold text-foreground">${profitabilityMetrics.total_expected_revenue.toLocaleString()}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">Projected for the week</p>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-muted/30 border border-border">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Turnover Risk</p>
+                          <p className={`text-xl font-bold ${profitabilityMetrics.turnover_risk_pct > 30 ? 'text-red-500' : profitabilityMetrics.turnover_risk_pct > 10 ? 'text-amber-500' : 'text-foreground'}`}>
+                            {profitabilityMetrics.turnover_risk_pct.toFixed(0)}%
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {profitabilityMetrics.high_turnover_risk_count} high-risk employee{profitabilityMetrics.high_turnover_risk_count !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </Card>
+
+                {/* ── Sales by Day ── */}
+                {profitabilityMetrics.sales_by_day.length > 0 && (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <Card className="p-5">
+                      <h2 className="text-sm font-semibold text-foreground mb-4">Sales by Day</h2>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={profitabilityMetrics.sales_by_day} barSize={28}>
+                          <XAxis dataKey="day_name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                          <YAxis
+                            tick={{ fontSize: 11, fill: '#94a3b8' }}
+                            tickFormatter={v => v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`}
+                            axisLine={false}
+                            tickLine={false}
+                            width={52}
+                          />
+                          <Tooltip
+                            formatter={(v: number) => [`$${v.toLocaleString()}`, 'Revenue']}
+                            labelFormatter={(label: string) => `Day: ${label}`}
+                            contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 12 }}
+                          />
+                          <Bar dataKey="expected_revenue" radius={[6, 6, 0, 0]}>
+                            {profitabilityMetrics.sales_by_day.map((_: DayRevenue, i: number) => (
+                              <Cell key={i} fill={['#6366f1','#8b5cf6','#ec4899','#f97316','#06b6d4','#10b981','#f59e0b'][i % 7]} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Card>
+
+                    <Card className="p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-sm font-semibold text-foreground">Revenue Distribution</h2>
+                        <span className="text-[10px] text-muted-foreground capitalize">
+                          {profitabilityMetrics.site_type === 'hotel' ? 'by shift window' : 'by daypart'}
+                        </span>
+                      </div>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <PieChart>
+                          <Pie
+                            data={profitabilityMetrics.sales_by_daypart}
+                            dataKey="revenue_pct"
+                            nameKey="daypart"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={75}
+                            label={({ daypart, revenue_pct }: any) => `${daypart} ${(revenue_pct * 100).toFixed(0)}%`}
+                            labelLine={false}
+                          >
+                            {profitabilityMetrics.sales_by_daypart.map((_: DaypartRevenue, i: number) => (
+                              <Cell key={i} fill={['#6366f1','#8b5cf6','#ec4899','#f97316','#06b6d4','#10b981','#f59e0b'][i % 7]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(v: number, _name: string, props: any) =>
+                              [`$${props.payload?.revenue?.toLocaleString() ?? 0} (${(v * 100).toFixed(1)}%)`, 'Revenue']
+                            }
+                          />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </Card>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        );
+      })()}
 
       {/* ── Employee Overview ── */}
       {isManager && employees.length > 0 && (

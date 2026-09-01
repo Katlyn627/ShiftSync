@@ -13,12 +13,14 @@ import {
   generateSchedule,
   getAllAvailability,
   getEmployees,
+  getLaborCost,
   getOpenShifts,
   getScheduleShifts,
   getSchedules,
   getStaffingSuggestions,
   getTimeOffRequests,
   offerForOpenShift,
+  LaborCostSummary,
   OpenShift,
   Schedule,
   ShiftWithEmployee,
@@ -368,6 +370,7 @@ export default function SchedulePage() {
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
   const [staffingSuggestions, setStaffingSuggestions] = useState<DailyStaffingSuggestion[]>([]);
+  const [scheduleLaborCost, setScheduleLaborCost] = useState<LaborCostSummary | null>(null);
 
   const [draggedEmployeeId, setDraggedEmployeeId] = useState<number | null>(null);
   const [dropDate, setDropDate] = useState<string | null>(null);
@@ -976,6 +979,16 @@ export default function SchedulePage() {
     loadOpenShifts().catch(() => setOpenShifts([]));
   }, [weekMetadata.weekStartISO, weekMetadata.weekEndISO, selectedScheduleId]);
 
+  useEffect(() => {
+    if (!selectedScheduleId || !isManager) {
+      setScheduleLaborCost(null);
+      return;
+    }
+    getLaborCost(selectedScheduleId)
+      .then(setScheduleLaborCost)
+      .catch(() => setScheduleLaborCost(null));
+  }, [selectedScheduleId, shifts, isManager]);
+
   async function handleTogglePublish() {
     if (!isManager || !selectedSchedule) return;
     const newStatus = selectedSchedule.status === 'published' ? 'draft' : 'published';
@@ -1483,6 +1496,44 @@ export default function SchedulePage() {
           </div>
         )}
       </Card>
+
+      {isManager && selectedScheduleId && scheduleLaborCost && (
+        <Card className="p-4 border border-emerald-200/80 bg-gradient-to-r from-emerald-50/50 via-teal-50/30 to-blue-50/30 shadow-xs">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-foreground">Grant &amp; Labor Tracking:</span>
+              <span className="text-xs font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+                ${scheduleLaborCost.projected_cost.toLocaleString()} / ${scheduleLaborCost.labor_budget.toLocaleString()} ({((scheduleLaborCost.projected_cost / (scheduleLaborCost.labor_budget || 1)) * 100).toFixed(1)}%)
+              </span>
+              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                (scheduleLaborCost.program_expense_ratio ?? 0) >= 75
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  : 'bg-amber-100 text-amber-800 border-amber-300'
+              }`}>
+                2 CFR 200 Ratio: {scheduleLaborCost.program_expense_ratio?.toFixed(1)}%
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs flex-wrap">
+              <span className="text-teal-800 font-semibold bg-teal-100/80 px-2.5 py-0.5 rounded-md border border-teal-200">
+                Volunteer Match: ${(scheduleLaborCost.volunteer_in_kind_value ?? 0).toLocaleString()} ({scheduleLaborCost.volunteer_in_kind_hours ?? 0}h)
+              </span>
+              <span className="text-indigo-800 font-semibold bg-indigo-100/80 px-2.5 py-0.5 rounded-md border border-indigo-200">
+                Total Payroll: ${(scheduleLaborCost.total_payroll_obligation ?? scheduleLaborCost.projected_cost).toLocaleString()}
+              </span>
+              {(scheduleLaborCost.high_burnout_count ?? 0) > 0 ? (
+                <span className="text-rose-800 font-bold bg-rose-100/90 px-2.5 py-0.5 rounded-md border border-rose-200 flex items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5" /> {scheduleLaborCost.high_burnout_count} High Burnout
+                </span>
+              ) : (
+                <span className="text-emerald-800 font-semibold bg-emerald-100/80 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                  ✓ Fatigue Optimal
+                </span>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {isManager && selectedScheduleId && (
         <Card className="space-y-4 border border-emerald-200/80 p-5 shadow-[0_8px_20px_rgba(13,148,136,0.06)]">

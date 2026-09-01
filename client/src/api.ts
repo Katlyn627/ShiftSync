@@ -324,6 +324,15 @@ export interface BurnoutRisk {
   rest_days_recommended: number;
 }
 
+export interface DepartmentLaborCost {
+  department: string;
+  cost: number;
+  hours: number;
+  employee_count: number;
+  avg_burnout_score: number;
+  is_direct: boolean;
+}
+
 export interface LaborCostSummary {
   schedule_id: number;
   week_start: string;
@@ -331,15 +340,21 @@ export interface LaborCostSummary {
   projected_cost: number;
   actual_cost: number;
   variance: number;
-  by_day: { date: string; cost: number }[];
-  by_role: { role: string; cost: number }[];
+  by_day: { date: string; cost: number; program_cost?: number; admin_cost?: number; volunteer_hours?: number }[];
+  by_role: { role: string; cost: number; hours?: number }[];
+  by_department?: DepartmentLaborCost[];
   program_direct_cost?: number;
   admin_indirect_cost?: number;
   program_expense_ratio?: number;
   fringe_benefits_cost?: number;
+  total_payroll_obligation?: number;
   volunteer_in_kind_hours?: number;
   volunteer_in_kind_value?: number;
+  total_program_value?: number;
+  remaining_grant_balance?: number;
   total_labor_hours?: number;
+  high_burnout_count?: number;
+  medium_burnout_count?: number;
 }
 
 export interface StaffingNeed {
