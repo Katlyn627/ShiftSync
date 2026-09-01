@@ -58,6 +58,15 @@ function shouldReseed(db: Database.Database): boolean {
   const giiSched = db.prepare("SELECT labor_budget FROM schedules s JOIN sites st ON s.site_id = st.id WHERE st.name = 'Global Impact Initiative' LIMIT 1").get() as any;
   if (!giiSched || giiSched.labor_budget < 20000) return true;
 
+  const openShiftCount = (db.prepare('SELECT COUNT(*) as c FROM open_shifts').get() as any).c;
+  if (openShiftCount < 5) return true;
+
+  const timeOffCount = (db.prepare('SELECT COUNT(*) as c FROM time_off_requests').get() as any).c;
+  if (timeOffCount < 5) return true;
+
+  const swapCount = (db.prepare('SELECT COUNT(*) as c FROM shift_swaps').get() as any).c;
+  if (swapCount < 4) return true;
+
   return false;
 }
 
@@ -642,10 +651,14 @@ export function seedDemoData(): void {
     };
     const dayWorkProbability = [0.62, 0.58, 0.64, 0.74, 0.84, 0.88, 0.72]; // Monday..Sunday
 
+    const currentScheduleBySite = new Map<number, number>();
     for (const weekStart of [lastMonday, thisMonday]) {
       for (const site of seededSites) {
         const scheduleLaborBudget = site.siteType === 'nonprofit' ? 24500 : 12500;
         const scheduleId = insertSchedule.run(weekStart, scheduleLaborBudget, site.id).lastInsertRowid as number;
+        if (weekStart === thisMonday) {
+          currentScheduleBySite.set(site.id, scheduleId);
+        }
         const siteEmployees = allEmployees.filter(e => e.site_id === site.id);
 
         for (let d = 0; d < 7; d++) {
@@ -810,6 +823,175 @@ export function seedDemoData(): void {
             insertAnswer.run(respId, q.id, Math.min(5, score));
           }
         }
+      }
+    }
+
+    // Seed Open Shifts, Offers, Shift Swaps & Time-Off Requests across sites
+    const insertOpenShift = db.prepare(`
+      INSERT INTO open_shifts (
+        schedule_id, site_id, date, start_time, end_time, role,
+        required_certifications, reason, status, deadline
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insertOpenShiftOffer = db.prepare(`
+      INSERT INTO open_shift_offers (
+        open_shift_id, employee_id, status, manager_notes
+      ) VALUES (?, ?, ?, ?)
+    `);
+    const insertSwap = db.prepare(`
+      INSERT INTO shift_swaps (
+        shift_id, requester_id, target_id, reason, status, manager_notes
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    const insertTimeOff = db.prepare(`
+      INSERT INTO time_off_requests (
+        employee_id, start_date, end_date, reason, status, manager_notes
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    // 1. Non-Profit / Humanitarian (Global Impact Initiative)
+    if (giiSite) {
+      const giiSchedId = currentScheduleBySite.get(giiSite.id);
+      const giiStaff = db.prepare('SELECT id, name, role, department FROM employees WHERE site_id = ?').all(giiSite.id) as any[];
+      const findEmp = (roleName: string) => giiStaff.find(e => e.role === roleName || e.department?.includes(roleName));
+      const kofi = findEmp('Field Coordinator') || giiStaff[0];
+      const nia = findEmp('Program Officer') || giiStaff[1];
+      const devon = giiStaff.find(e => e.name.toLowerCase().includes('devon')) || giiStaff[2];
+      const soraya = giiStaff.find(e => e.name.toLowerCase().includes('soraya')) || giiStaff[3];
+      const fatima = giiStaff.find(e => e.name.toLowerCase().includes('fatima')) || giiStaff[4];
+      const patrick = giiStaff.find(e => e.name.toLowerCase().includes('patrick')) || giiStaff[5];
+      const lucas = giiStaff.find(e => e.name.toLowerCase().includes('lucas')) || giiStaff[6];
+      const tariq = findEmp('International') || giiStaff[7];
+
+      if (giiSchedId) {
+        // Open Shifts
+        const os1 = insertOpenShift.run(
+          giiSchedId, giiSite.id, addDays(thisMonday, 5), '07:30', '15:30', 'Emergency Field Coordinator',
+          JSON.stringify(['CPR / BLS First Aid', 'Disaster Response (FEMA ICS-100/200)']),
+          'Emergency flood relief mobile triage surge coverage', 'open', addDays(thisMonday, 4)
+        ).lastInsertRowid as number;
+        if (devon) insertOpenShiftOffer.run(os1, devon.id, 'pending', null);
+        if (patrick) insertOpenShiftOffer.run(os1, patrick.id, 'pending', null);
+
+        const os2 = insertOpenShift.run(
+          giiSchedId, giiSite.id, addDays(thisMonday, 3), '11:00', '19:00', 'Child Development Specialist',
+          JSON.stringify(['Child Safeguarding & Protection', 'Mental Health First Aid (MHFA)']),
+          'Youth after-school psycho-social workshop expansion', 'open', addDays(thisMonday, 2)
+        ).lastInsertRowid as number;
+        if (soraya) insertOpenShiftOffer.run(os2, soraya.id, 'pending', null);
+
+        const os3 = insertOpenShift.run(
+          giiSchedId, giiSite.id, addDays(thisMonday, 4), '08:30', '16:30', 'Community Health Case Worker',
+          JSON.stringify(['HIPAA & Patient Privacy', 'Mental Health First Aid (MHFA)']),
+          'Mobile clinic community health intake surge', 'open', addDays(thisMonday, 3)
+        ).lastInsertRowid as number;
+        if (fatima) insertOpenShiftOffer.run(os3, fatima.id, 'pending', null);
+
+        const os4 = insertOpenShift.run(
+          giiSchedId, giiSite.id, addDays(thisMonday, 2), '09:00', '13:00', 'Volunteer',
+          JSON.stringify(['Volunteer Safety & Code of Conduct']),
+          'Emergency nutrition pantry packaging & sorting wave', 'open', addDays(thisMonday, 1)
+        ).lastInsertRowid as number;
+        if (lucas) insertOpenShiftOffer.run(os4, lucas.id, 'pending', null);
+        if (devon) insertOpenShiftOffer.run(os4, devon.id, 'pending', null);
+
+        const os5 = insertOpenShift.run(
+          giiSchedId, giiSite.id, addDays(thisMonday, 6), '13:00', '17:00', 'Volunteer',
+          JSON.stringify(['Volunteer Safety & Code of Conduct']),
+          'Displaced family welcome aid distribution', 'open', addDays(thisMonday, 5)
+        ).lastInsertRowid as number;
+        if (patrick) insertOpenShiftOffer.run(os5, patrick.id, 'pending', null);
+
+        // Shift Swaps
+        if (kofi) {
+          const kofiShift = db.prepare('SELECT id FROM shifts WHERE schedule_id = ? AND employee_id = ? LIMIT 1').get(giiSchedId, kofi.id) as any;
+          if (kofiShift) {
+            insertSwap.run(kofiShift.id, kofi.id, null, 'Attending UN Regional Disaster Coordination Inter-Agency Briefing', 'pending', null);
+          }
+        }
+
+        if (nia) {
+          const niaShift = db.prepare('SELECT id FROM shifts WHERE schedule_id = ? AND employee_id = ? LIMIT 1').get(giiSchedId, nia.id) as any;
+          if (niaShift) {
+            insertSwap.run(niaShift.id, nia.id, null, 'USAID Grant M&E Review & Field Site Inspection', 'pending', null);
+          }
+        }
+
+        if (soraya && lucas) {
+          const sorayaShift = db.prepare('SELECT id FROM shifts WHERE schedule_id = ? AND employee_id = ? LIMIT 1').get(giiSchedId, soraya.id) as any;
+          if (sorayaShift) {
+            insertSwap.run(sorayaShift.id, soraya.id, lucas.id, 'University exam schedule conflict — swapping for Thursday relief wave', 'approved', 'Approved — volunteer weekly hour limits verified.');
+          }
+        }
+
+        if (fatima && patrick) {
+          const fatimaShift = db.prepare('SELECT id FROM shifts WHERE schedule_id = ? AND employee_id = ? LIMIT 1').get(giiSchedId, fatima.id) as any;
+          if (fatimaShift) {
+            insertSwap.run(fatimaShift.id, fatima.id, patrick.id, 'Attending pediatric trauma clinical workshop', 'pending', null);
+          }
+        }
+      }
+
+      // Time-off requests
+      if (kofi) {
+        insertTimeOff.run(kofi.id, addDays(thisMonday, 10), addDays(thisMonday, 14), 'Post-deployment mental health decompression & mandatory rest window', 'pending', null);
+      }
+      if (nia) {
+        insertTimeOff.run(nia.id, addDays(thisMonday, 18), addDays(thisMonday, 20), 'USAID Youth Development Leadership Conference in Washington DC', 'pending', null);
+      }
+      if (devon) {
+        insertTimeOff.run(devon.id, addDays(thisMonday, 3), addDays(thisMonday, 6), 'Midterm examinations & university study leave', 'approved', 'Approved — thank you for your ongoing community service!');
+      }
+      if (tariq) {
+        insertTimeOff.run(tariq.id, addDays(thisMonday, 25), addDays(thisMonday, 29), 'Annual scheduled PTO & personal respite', 'pending', null);
+      }
+      if (fatima) {
+        insertTimeOff.run(fatima.id, addDays(thisMonday, 8), addDays(thisMonday, 9), 'Pediatric Trauma & Clinical First Aid Certification Course', 'approved', 'Approved — professional development credit applied.');
+      }
+    }
+
+    // 2. Hospitality / Restaurants (Bella Napoli & The Blue Door)
+    for (const site of seededSites) {
+      if (site.siteType !== 'restaurant') continue;
+      const schedId = currentScheduleBySite.get(site.id);
+      const staff = db.prepare('SELECT id, name, role FROM employees WHERE site_id = ?').all(site.id) as any[];
+      if (!schedId || staff.length === 0) continue;
+
+      const server = staff.find(e => e.role === 'Server') || staff[0];
+      const cook = staff.find(e => e.role === 'Line Cook') || staff[1];
+      const host = staff.find(e => e.role === 'Host') || staff[2];
+
+      // Open shifts
+      if (server) {
+        const osA = insertOpenShift.run(
+          schedId, site.id, addDays(thisMonday, 4), '16:00', '23:00', 'Server',
+          JSON.stringify(['ServSafe Food Handler', 'TIPS / Alcohol Service']),
+          'Weekend dinner rush dining room volume surge', 'open', addDays(thisMonday, 3)
+        ).lastInsertRowid as number;
+        if (host) insertOpenShiftOffer.run(osA, host.id, 'pending', null);
+      }
+      if (cook) {
+        insertOpenShift.run(
+          schedId, site.id, addDays(thisMonday, 5), '15:00', '23:00', 'Line Cook',
+          JSON.stringify(['ServSafe Manager / Kitchen']),
+          'Private banquet & catering event surge', 'open', addDays(thisMonday, 4)
+        );
+      }
+
+      // Swaps
+      if (server) {
+        const serverShift = db.prepare('SELECT id FROM shifts WHERE schedule_id = ? AND employee_id = ? LIMIT 1').get(schedId, server.id) as any;
+        if (serverShift) {
+          insertSwap.run(serverShift.id, server.id, null, 'Family celebration dinner conflict — dropping for open pickup', 'pending', null);
+        }
+      }
+
+      // Time-off
+      if (server) {
+        insertTimeOff.run(server.id, addDays(thisMonday, 12), addDays(thisMonday, 15), 'Family vacation and personal travel', 'pending', null);
+      }
+      if (cook) {
+        insertTimeOff.run(cook.id, addDays(thisMonday, 7), addDays(thisMonday, 8), 'Culinary Skills & ServSafe Master Workshop', 'approved', 'Approved — kitchen coverage scheduled.');
       }
     }
 
