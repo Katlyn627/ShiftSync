@@ -321,5 +321,6 @@ All demo accounts use the password **`password123`**.
 | `iris` | Manager | The Blue Door (Restaurant, Austin) |
 | `quinn` | Manager | Grand Pacific Hotel (Hotel, New York) |
 | `yara` | Manager | Seaside Suites & Spa (Hotel, Miami) |
+| `gii_ipm` | Manager | Global Impact Initiative (Humanitarian/Nonprofit, Washington DC) |
 
 For all 32 accounts see [docs/demo-data.md](demo-data.md).
