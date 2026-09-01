@@ -1,8 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getEmployees, getSites, createEmployee, updateEmployee, deleteEmployee, getPositions, importEmployees, Employee, Site, Position } from '../api';
+import {
+  getEmployees,
+  getSites,
+  createEmployee,
+  updateEmployee,
+  deleteEmployee,
+  getPositions,
+  importEmployees,
+  getEmployee,
+  Employee,
+  Site,
+  Position,
+  Availability,
+  ShiftWithEmployee,
+} from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS, PageHeader } from '../components/ui';
+import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS, PageHeader, Modal } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
+import { AlertTriangle, Phone, Mail, Calendar, ShieldCheck, Clock, Eye, Sparkles } from 'lucide-react';
 
 const FALLBACK_ROLES = ['Server', 'Kitchen', 'Bar', 'Bartender', 'Host', 'Manager', 'Front Desk', 'Housekeeping', 'F&B', 'Maintenance'];
 
@@ -78,6 +93,27 @@ export default function EmployeesPage() {
   const [showImportPanel, setShowImportPanel] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+  const [inspectingEmpId, setInspectingEmpId] = useState<number | null>(null);
+  const [employeeDetail, setEmployeeDetail] = useState<(Employee & { availability: Availability[]; shifts: ShiftWithEmployee[]; conflicts: Array<{ shift: any; reason: string }> }) | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const handleOpenDetail = async (empId: number) => {
+    setInspectingEmpId(empId);
+    setDetailLoading(true);
+    try {
+      const data = await getEmployee(empId);
+      setEmployeeDetail(data);
+    } catch (err) {
+      console.error('Failed to load employee details', err);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleCloseDetail = () => {
+    setInspectingEmpId(null);
+    setEmployeeDetail(null);
+  };
 
   const roleOptions = positions.filter(p => p.is_active).map(p => p.name);
   const roles = useMemo(() => {
@@ -439,7 +475,11 @@ export default function EmployeesPage() {
                 : (emp.skills || []);
 
               return (
-                <tr key={emp.id} className="transition-colors hover:bg-violet-50/40">
+                <tr key={emp.id} className="transition-colors hover:bg-violet-50/50 cursor-pointer" onClick={(e) => {
+                  // Don't open detail if user clicked on action buttons
+                  if ((e.target as HTMLElement).closest('button, a, input')) return;
+                  handleOpenDetail(emp.id);
+                }}>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
@@ -453,7 +493,7 @@ export default function EmployeesPage() {
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-medium text-foreground">{emp.name}</span>
+                          <span className="font-semibold text-foreground hover:text-violet-700">{emp.name}</span>
                           {emp.is_volunteer ? (
                             <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
                               Volunteer ({emp.volunteer_max_hours || 16}h)
@@ -462,7 +502,7 @@ export default function EmployeesPage() {
                         </div>
                         {emp.email && <div className="text-xs text-muted-foreground">{emp.email}</div>}
                         {emp.emergency_contact && (
-                          <div className="text-[11px] text-muted-foreground">📞 {emp.emergency_contact}</div>
+                          <div className="text-[11px] text-amber-800 font-medium">📞 {emp.emergency_contact}</div>
                         )}
                       </div>
                     </div>
@@ -511,6 +551,10 @@ export default function EmployeesPage() {
                   </td>
                   <td className="px-5 py-3 text-right text-muted-foreground">{emp.weekly_hours_max}h</td>
                   <td className="px-5 py-3 text-right">
+                    <Button variant="outline" size="sm" onClick={() => handleOpenDetail(emp.id)} className="mr-1 shadow-xs">
+                      <Eye className="w-3.5 h-3.5 mr-1 text-violet-600" />
+                      View
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => handleEdit(emp)} className="mr-1">
                       Edit
                     </Button>
@@ -535,6 +579,246 @@ export default function EmployeesPage() {
           </div>
         )}
       </Card>
+
+      {/* ── Employee Quick-Lookup & Availability Detail Modal ── */}
+      <Modal
+        open={inspectingEmpId !== null}
+        onClose={handleCloseDetail}
+        title={employeeDetail ? `${employeeDetail.name} — Profile & Availability` : 'Employee Details'}
+        className="max-w-2xl"
+        actions={
+          <div className="flex w-full items-center justify-between">
+            {employeeDetail && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const emp = employees.find(e => e.id === employeeDetail.id);
+                  if (emp) {
+                    handleCloseDetail();
+                    handleEdit(emp);
+                  }
+                }}
+              >
+                Edit Profile
+              </Button>
+            )}
+            <Button variant="default" size="sm" onClick={handleCloseDetail}>
+              Close
+            </Button>
+          </div>
+        }
+      >
+        {detailLoading ? (
+          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+            <svg className="w-5 h-5 animate-spin mr-2 text-violet-600" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+            Loading profile, scheduling, and availability data…
+          </div>
+        ) : employeeDetail ? (
+          <div className="space-y-4 py-1">
+            {/* Header / Avatar & Role */}
+            <div className="flex items-center gap-4 rounded-xl border border-violet-100 bg-violet-50/50 p-3.5">
+              <div className="w-13 h-13 rounded-full overflow-hidden shrink-0 shadow-sm border border-violet-200">
+                {employeeDetail.photo_url ? (
+                  <img src={employeeDetail.photo_url} alt={employeeDetail.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className={`w-full h-full flex items-center justify-center text-sm font-bold ${AVATAR_BG[employeeDetail.role] ?? 'bg-muted text-muted-foreground'}`}>
+                    {initials(employeeDetail.name)}
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-bold text-foreground">{employeeDetail.name}</h3>
+                  <Badge variant={roleVariant(employeeDetail.role)}>{normalizeRoleLabel(employeeDetail.role)}</Badge>
+                  {employeeDetail.is_volunteer ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      Volunteer ({employeeDetail.volunteer_max_hours || 16}h cap)
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold text-slate-700">
+                      ${employeeDetail.hourly_rate?.toFixed(2)}/hr · {employeeDetail.weekly_hours_max}h max/wk
+                    </span>
+                  )}
+                </div>
+                {employeeDetail.role_title && (
+                  <div className="text-xs font-medium text-muted-foreground mt-0.5">{employeeDetail.role_title}</div>
+                )}
+                {employeeDetail.department && (
+                  <div className="text-xs text-violet-700 font-semibold mt-0.5">{employeeDetail.department}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Contact & Emergency Call Bar */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              <div className="rounded-lg border border-border bg-card p-3 space-y-1.5">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Direct Contacts</span>
+                <div className="flex flex-col gap-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+                    {employeeDetail.phone ? (
+                      <a href={`tel:${employeeDetail.phone}`} className="font-semibold text-violet-700 hover:underline">
+                        {employeeDetail.phone}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">No phone registered</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                    {employeeDetail.email ? (
+                      <a href={`mailto:${employeeDetail.email}`} className="font-semibold text-violet-700 hover:underline">
+                        {employeeDetail.email}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">No email registered</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-amber-300 bg-amber-50/70 p-3 space-y-1.5">
+                <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wide flex items-center gap-1">
+                  🚨 Emergency Contact (Direct Call)
+                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-amber-950 truncate">
+                    {employeeDetail.emergency_contact || 'None registered'}
+                  </span>
+                  {employeeDetail.emergency_contact && (
+                    <a
+                      href={`tel:${employeeDetail.emergency_contact.replace(/[^0-9+]/g, '')}`}
+                      className="shrink-0 px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-xs"
+                    >
+                      Call Now
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Clearance & Qualifications */}
+            <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Clearance & Credentials</span>
+              <div className="flex flex-wrap gap-1.5 items-center">
+                {employeeDetail.background_check_status && employeeDetail.background_check_status !== 'pending' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    {employeeDetail.background_check_status.replace(/_/g, ' ')}
+                  </span>
+                )}
+                {(() => {
+                  const certs = typeof employeeDetail.certifications === 'string'
+                    ? JSON.parse(employeeDetail.certifications || '[]')
+                    : (employeeDetail.certifications || []);
+                  return Array.isArray(certs) && certs.map((c: string, idx: number) => (
+                    <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200">
+                      🛡️ {c.replace(/_/g, ' ')}
+                    </span>
+                  ));
+                })()}
+                {(() => {
+                  const skills = typeof employeeDetail.skills === 'string'
+                    ? JSON.parse(employeeDetail.skills || '[]')
+                    : (employeeDetail.skills || []);
+                  return Array.isArray(skills) && skills.map((s: string, idx: number) => (
+                    <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
+                      {s}
+                    </span>
+                  ));
+                })()}
+              </div>
+            </div>
+
+            {/* Live 7-Day Availability Grid */}
+            <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-violet-600" />
+                  Live Weekly Availability (Sunday – Saturday)
+                </span>
+                <span className="text-[10px] text-muted-foreground font-medium">Auto-synced from employee profile</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-1.5">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dayName, dayIdx) => {
+                  const avail = employeeDetail.availability?.find(a => a.day_of_week === dayIdx);
+                  const type = avail?.availability_type ?? 'specific';
+                  const isUnavail = type === 'unavailable';
+                  const isOpen = type === 'open';
+
+                  return (
+                    <div
+                      key={dayIdx}
+                      className={`rounded-md border p-2 text-center transition-all ${
+                        isUnavail
+                          ? 'border-rose-300 bg-rose-50/90 text-rose-900'
+                          : isOpen
+                          ? 'border-emerald-300 bg-emerald-50/80 text-emerald-900'
+                          : 'border-blue-200 bg-blue-50/60 text-blue-900'
+                      }`}
+                    >
+                      <div className="text-[11px] font-bold uppercase tracking-wider">{dayName}</div>
+                      <div className="mt-1 text-[10px] font-semibold">
+                        {isUnavail ? (
+                          <span className="text-rose-700">❌ Unavailable</span>
+                        ) : isOpen ? (
+                          <span className="text-emerald-700">✓ Open (All Day)</span>
+                        ) : (
+                          <span>{avail?.start_time || '08:00'} - {avail?.end_time || '23:59'}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Availability Conflicts Banner */}
+            {employeeDetail.conflicts && employeeDetail.conflicts.length > 0 && (
+              <div className="rounded-lg border border-rose-300 bg-rose-50 p-3 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-rose-900">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>Availability Conflicts Detected ({employeeDetail.conflicts.length})</span>
+                </div>
+                <div className="space-y-1">
+                  {employeeDetail.conflicts.map((c, i) => (
+                    <div key={i} className="text-xs text-rose-800 bg-white/80 rounded px-2 py-1 border border-rose-200">
+                      <span className="font-semibold">{c.shift?.date} ({c.shift?.start_time} - {c.shift?.end_time}):</span> {c.reason}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Upcoming Shift Assignments */}
+            <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-blue-600" />
+                Active Shift Assignments (Next 7-14 Days)
+              </span>
+              {employeeDetail.shifts && employeeDetail.shifts.length > 0 ? (
+                <div className="divide-y divide-border/60 max-h-36 overflow-y-auto">
+                  {employeeDetail.shifts.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between py-1.5 text-xs">
+                      <div>
+                        <span className="font-semibold text-foreground">{s.date}</span>
+                        <span className="text-muted-foreground ml-2">({s.start_time} - {s.end_time})</span>
+                      </div>
+                      <Badge variant={roleVariant(s.role)}>{s.role}</Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground py-1">No shifts scheduled for this employee.</p>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

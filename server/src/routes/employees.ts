@@ -338,6 +338,85 @@ router.put('/:id', requireAuth, (req: Request, res: Response) => {
   res.json(updated);
 });
 
+// Bulk availability — returns all employees' availability for the site (or all sites) in one query
+router.get('/availability', requireManager, (req: Request, res: Response) => {
+  const db = getDb();
+  const siteId = req.user?.siteId;
+  const rows = siteId
+    ? db.prepare(
+        'SELECT a.* FROM availability a JOIN employees e ON e.id = a.employee_id WHERE e.site_id = ? ORDER BY a.employee_id, a.day_of_week'
+      ).all(siteId)
+    : db.prepare(
+        'SELECT a.* FROM availability a ORDER BY a.employee_id, a.day_of_week'
+      ).all();
+  res.json(rows);
+});
+
+// GET /api/employees/:id - get single employee with full profile, 7-day availability, shifts, and conflicts
+router.get('/:id', requireAuth, (req: Request, res: Response) => {
+  const db = getDb();
+  const employeeId = parseInt(req.params.id);
+  if (isNaN(employeeId)) return res.status(400).json({ error: 'Invalid employee ID' });
+
+  const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(employeeId) as any;
+  if (!employee) return res.status(404).json({ error: 'Employee not found' });
+
+  const availability = db.prepare('SELECT * FROM availability WHERE employee_id = ? ORDER BY day_of_week').all(employeeId) as any[];
+  const shifts = db.prepare(`
+    SELECT s.*, e.name as employee_name, e.role as employee_role, e.department as employee_department, e.hourly_rate
+    FROM shifts s
+    JOIN employees e ON s.employee_id = e.id
+    WHERE s.employee_id = ? AND s.status != 'cancelled' AND s.date >= date('now', '-7 days')
+    ORDER BY s.date, s.start_time
+  `).all(employeeId) as any[];
+
+  // Compute active conflicts against availability
+  const availByDay = new Map(availability.map(a => [a.day_of_week, a]));
+  const conflicts: Array<{ shift: any; reason: string }> = [];
+
+  for (const sh of shifts) {
+    const [y, m, d] = sh.date.split('-').map(Number);
+    const dayOfWeek = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    const avail = availByDay.get(dayOfWeek);
+
+    if (!avail) continue;
+
+    if (avail.availability_type === 'unavailable') {
+      conflicts.push({
+        shift: sh,
+        reason: `Marked as unavailable on ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]}`,
+      });
+    } else if (avail.availability_type === 'specific') {
+      const [shH, shM] = sh.start_time.split(':').map(Number);
+      const [ehH, ehM] = sh.end_time.split(':').map(Number);
+      const [asH, asM] = avail.start_time.split(':').map(Number);
+      const [aeH, aeM] = avail.end_time.split(':').map(Number);
+
+      const shiftStart = shH * 60 + shM;
+      let shiftEnd = ehH * 60 + ehM;
+      if (shiftEnd <= shiftStart) shiftEnd += 24 * 60;
+
+      const availStart = asH * 60 + asM;
+      let availEnd = aeH * 60 + aeM;
+      if (availEnd <= availStart) availEnd += 24 * 60;
+
+      if (shiftStart < availStart || shiftEnd > availEnd) {
+        conflicts.push({
+          shift: sh,
+          reason: `Shift (${sh.start_time}-${sh.end_time}) is outside available window (${avail.start_time}-${avail.end_time})`,
+        });
+      }
+    }
+  }
+
+  res.json({
+    ...employee,
+    availability,
+    shifts,
+    conflicts,
+  });
+});
+
 // GET /api/employees/:id/conflicts - check if employee availability conflicts with upcoming shifts
 router.get('/:id/conflicts', requireAuth, (req: Request, res: Response) => {
   const employeeId = parseInt(req.params.id);
@@ -403,17 +482,6 @@ router.delete('/:id', requireManager, (req: Request, res: Response) => {
   const result = db.prepare('DELETE FROM employees WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Employee not found' });
   res.json({ success: true });
-});
-
-// Bulk availability — returns all employees' availability for the site in one query
-router.get('/availability', requireManager, (req: Request, res: Response) => {
-  const db = getDb();
-  const siteId = req.user?.siteId;
-  if (!siteId) return res.json([]);
-  const rows = db.prepare(
-    'SELECT a.* FROM availability a JOIN employees e ON e.id = a.employee_id WHERE e.site_id = ? ORDER BY a.employee_id, a.day_of_week'
-  ).all(siteId);
-  res.json(rows);
 });
 
 // Availability

@@ -49,6 +49,9 @@ function shouldReseed(db: Database.Database): boolean {
   const surveyTemplatesCount = (db.prepare('SELECT COUNT(*) as c FROM survey_templates').get() as any).c;
   if (surveyTemplatesCount === 0) return true;
 
+  const devonUser = db.prepare("SELECT id FROM users WHERE username = 'miller_d'").get();
+  if (!devonUser) return true;
+
   return false;
 }
 
@@ -614,44 +617,54 @@ export function seedDemoData(): void {
     }
 
     const insertUser = db.prepare(
-      'INSERT OR IGNORE INTO users (username, password_hash, employee_id, is_manager) VALUES (?, ?, ?, ?)' 
+      'INSERT OR IGNORE INTO users (username, password_hash, employee_id, is_manager) VALUES (?, ?, ?, ?)'
     );
-    const updateUserForEmployee = db.prepare(
-      'UPDATE users SET username = ?, password_hash = ?, is_manager = ? WHERE employee_id = ?'
-    );
-    const userByEmployee = db.prepare('SELECT id FROM users WHERE employee_id = ?');
-    const allSeeded = db.prepare('SELECT id, role, first_name FROM employees ORDER BY id').all() as any[];
+    const allSeeded = db.prepare('SELECT id, role, first_name, last_name, name FROM employees ORDER BY id').all() as any[];
     const usedUsernames = new Set<string>();
 
     for (const emp of allSeeded) {
-      const base = String(emp.first_name || 'user').toLowerCase();
-      let username = base;
-      let suffix = 2;
-      while (usedUsernames.has(username)) {
-        username = `${base}${suffix}`;
-        suffix += 1;
-      }
-      usedUsernames.add(username);
-      const hash = bcrypt.hashSync('password123', 4);
+      const first = String(emp.first_name || 'user').toLowerCase().trim();
+      const last = String(emp.last_name || '').toLowerCase().trim();
       const isManager = emp.role === 'Manager' ? 1 : 0;
-      insertUser.run(username, hash, emp.id, isManager);
+      const hash = bcrypt.hashSync('password123', 4);
+
+      // 1. Primary format: lastname_firstinitial (e.g. miller_d, achebe_k, vance_m)
+      if (last && first) {
+        const cleanLast = last.replace(/[^a-z0-9]/g, '');
+        const cleanFirstInit = first[0].toLowerCase();
+        let standardUser = `${cleanLast}_${cleanFirstInit}`;
+        let suffix = 2;
+        while (usedUsernames.has(standardUser)) {
+          standardUser = `${cleanLast}_${cleanFirstInit}${suffix}`;
+          suffix += 1;
+        }
+        usedUsernames.add(standardUser);
+        insertUser.run(standardUser, hash, emp.id, isManager);
+
+        // Also add full name: firstname_lastname (e.g. devon_miller, kofi_achebe)
+        const cleanFirst = first.replace(/[^a-z0-9]/g, '');
+        const fullNameUser = `${cleanFirst}_${cleanLast}`;
+        if (!usedUsernames.has(fullNameUser)) {
+          usedUsernames.add(fullNameUser);
+          insertUser.run(fullNameUser, hash, emp.id, isManager);
+        }
+      }
+
+      // 2. Simple first name if unique (e.g. alice, bob, devon)
+      if (first && !usedUsernames.has(first)) {
+        usedUsernames.add(first);
+        insertUser.run(first, hash, emp.id, isManager);
+      }
     }
 
+    // 3. Explicit forced role aliases (e.g. gii_ceo, gii_ipm, gii_fieldlead, gii_programofficer)
     for (const employee of allEmployees) {
       if (!employee.forcedUsername) continue;
-      let preferredUsername = employee.forcedUsername;
-      let suffix = 2;
-      while (usedUsernames.has(preferredUsername)) {
-        preferredUsername = `${employee.forcedUsername}${suffix}`;
-        suffix += 1;
-      }
-      usedUsernames.add(preferredUsername);
-      const hash = bcrypt.hashSync('password123', 4);
-      const isManager = employee.isManager ? 1 : 0;
-      const existing = userByEmployee.get(employee.id) as { id: number } | undefined;
-      if (existing) {
-        updateUserForEmployee.run(preferredUsername, hash, isManager, employee.id);
-      } else {
+      const preferredUsername = employee.forcedUsername.toLowerCase();
+      if (!usedUsernames.has(preferredUsername)) {
+        usedUsernames.add(preferredUsername);
+        const hash = bcrypt.hashSync('password123', 4);
+        const isManager = employee.isManager ? 1 : 0;
         insertUser.run(preferredUsername, hash, employee.id, isManager);
       }
     }

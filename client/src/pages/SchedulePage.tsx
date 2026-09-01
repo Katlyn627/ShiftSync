@@ -773,6 +773,43 @@ export default function SchedulePage() {
     return conflictSet;
   }, [shifts]);
 
+  // Identify shifts that violate the employee's current availability settings (e.g., employee marked unavailable)
+  const unavailableShiftMap = useMemo(() => {
+    const map = new Map<number, string>();
+    if (availability.length === 0) return map;
+
+    shifts.forEach((shift) => {
+      if (!shift.employee_id) return;
+      const [y, m, d] = shift.date.split('-').map(Number);
+      const dayOfWeek = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+      const avail = availability.find((a) => a.employee_id === shift.employee_id && a.day_of_week === dayOfWeek);
+      if (!avail) return;
+
+      if (avail.availability_type === 'unavailable') {
+        map.set(shift.id, 'Unavailable on this day');
+      } else if (avail.availability_type === 'specific') {
+        const [shH, shM] = shift.start_time.split(':').map(Number);
+        const [ehH, ehM] = shift.end_time.split(':').map(Number);
+        const [asH, asM] = (avail.start_time || '00:00').split(':').map(Number);
+        const [aeH, aeM] = (avail.end_time || '23:59').split(':').map(Number);
+
+        const shiftStart = shH * 60 + shM;
+        let shiftEnd = ehH * 60 + ehM;
+        if (shiftEnd <= shiftStart) shiftEnd += 24 * 60;
+
+        const availStart = asH * 60 + asM;
+        let availEnd = aeH * 60 + aeM;
+        if (availEnd <= availStart) availEnd += 24 * 60;
+
+        if (shiftStart < availStart || shiftEnd > availEnd) {
+          map.set(shift.id, `Outside availability (${avail.start_time}-${avail.end_time})`);
+        }
+      }
+    });
+
+    return map;
+  }, [availability, shifts]);
+
   const openShiftsByDate = useMemo(() => {
     const selectedDepartmentGroup = getDepartmentGroupLabel(normalizedDepartmentFilter);
     const scopedOpenShifts = isManager
@@ -1880,6 +1917,16 @@ export default function SchedulePage() {
                                 >
                                   <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
                                   <span>{quickReturnShiftMap.get(shift.id)?.restHours}h rest (clopen)</span>
+                                </div>
+                              )}
+
+                              {unavailableShiftMap.has(shift.id) && (
+                                <div
+                                  className="mt-1.5 flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 border border-rose-200"
+                                  title={`Availability Warning: ${unavailableShiftMap.get(shift.id)}`}
+                                >
+                                  <AlertTriangle className="h-3 w-3 shrink-0 text-rose-600" />
+                                  <span>{unavailableShiftMap.get(shift.id)}</span>
                                 </div>
                               )}
 

@@ -53,6 +53,8 @@ export const registerManager = (data: {
 
 // Employees
 export const getEmployees = () => request<Employee[]>('/employees');
+export const getEmployee = (id: number) =>
+  request<Employee & { availability: Availability[]; shifts: ShiftWithEmployee[]; conflicts: Array<{ shift: Shift; reason: string }> }>(`/employees/${id}`);
 export const createEmployee = (data: Omit<Employee, 'id' | 'created_at'>) =>
   request<Employee>('/employees', { method: 'POST', body: JSON.stringify(data) });
 export const updateEmployee = (id: number, data: Partial<Employee>) =>
