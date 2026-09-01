@@ -5,7 +5,7 @@ import {
   Employee, Availability, TimeOffRequest, Shift,
 } from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Card, Badge, Input, PageHeader } from '../components/ui';
+import { Button, Card, Badge, Input, PageHeader, CertificationBadge } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -574,12 +574,10 @@ export default function ProfilePage() {
                     : (myEmployee.certifications || []);
                   if (Array.isArray(certs) && certs.length > 0) {
                     return (
-                      <div className="mt-2 flex flex-wrap gap-1.5 items-center">
-                        <span className="text-xs font-semibold text-muted-foreground">Certs:</span>
+                      <div className="mt-2.5 flex flex-wrap gap-2 items-center">
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Verified Certifications:</span>
                         {certs.map((c: string, i: number) => (
-                          <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-950/30 dark:text-violet-300">
-                            🛡️ {c.replace(/_/g, ' ')}
-                          </span>
+                          <CertificationBadge key={i} cert={c} size="md" showDetails={true} />
                         ))}
                       </div>
                     );

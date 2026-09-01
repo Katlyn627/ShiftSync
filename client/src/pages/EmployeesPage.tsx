@@ -15,7 +15,7 @@ import {
   ShiftWithEmployee,
 } from '../api';
 import { useAuth } from '../AuthContext';
-import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS, PageHeader, Modal } from '../components/ui';
+import { Button, Card, Badge, Input, NATIVE_SELECT_CLASS, PageHeader, Modal, BusinessLogo, CertificationBadge } from '../components/ui';
 import type { BadgeVariant } from '../components/ui';
 import { AlertTriangle, Phone, Mail, Calendar, ShieldCheck, Clock, Eye, Sparkles } from 'lucide-react';
 
@@ -517,22 +517,21 @@ export default function EmployeesPage() {
                     )}
                   </td>
                   <td className="px-5 py-3 hidden md:table-cell">
-                    <div className="flex flex-wrap gap-1 max-w-xs">
+                    <div className="flex flex-wrap gap-1.5 max-w-sm">
                       {emp.background_check_status && emp.background_check_status !== 'pending' && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                          ✓ {emp.background_check_status.replace(/_/g, ' ')}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 shadow-2xs">
+                          <ShieldCheck className="w-3 h-3 text-blue-600" />
+                          {emp.background_check_status.replace(/_/g, ' ')}
                         </span>
                       )}
-                      {Array.isArray(certs) && certs.slice(0, 3).map((c: string, i: number) => (
-                        <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700 border border-violet-200">
-                          🛡️ {c.replace(/_/g, ' ')}
-                        </span>
+                      {Array.isArray(certs) && certs.slice(0, 2).map((c: string, i: number) => (
+                        <CertificationBadge key={i} cert={c} size="sm" />
                       ))}
-                      {Array.isArray(certs) && certs.length > 3 && (
-                        <span className="text-[10px] text-muted-foreground font-medium">+{certs.length - 3} more</span>
+                      {Array.isArray(certs) && certs.length > 2 && (
+                        <span className="text-[11px] text-muted-foreground font-semibold self-center">+{certs.length - 2} more</span>
                       )}
                       {Array.isArray(skills) && skills.slice(0, 2).map((s: string, i: number) => (
-                        <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">
+                        <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700">
                           {s}
                         </span>
                       ))}
@@ -702,12 +701,14 @@ export default function EmployeesPage() {
             </div>
 
             {/* Clearance & Qualifications */}
-            <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Clearance & Credentials</span>
-              <div className="flex flex-wrap gap-1.5 items-center">
+            <div className="rounded-xl border border-border bg-card p-4 space-y-2.5 shadow-2xs">
+              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                Clearance & Professional Credentials
+              </span>
+              <div className="flex flex-wrap gap-2 items-center">
                 {employeeDetail.background_check_status && employeeDetail.background_check_status !== 'pending' && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
-                    <ShieldCheck className="w-3.5 h-3.5" />
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-100 text-blue-900 border border-blue-300 shadow-2xs">
+                    <ShieldCheck className="w-4 h-4 text-blue-700" />
                     {employeeDetail.background_check_status.replace(/_/g, ' ')}
                   </span>
                 )}
@@ -716,9 +717,7 @@ export default function EmployeesPage() {
                     ? JSON.parse(employeeDetail.certifications || '[]')
                     : (employeeDetail.certifications || []);
                   return Array.isArray(certs) && certs.map((c: string, idx: number) => (
-                    <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200">
-                      🛡️ {c.replace(/_/g, ' ')}
-                    </span>
+                    <CertificationBadge key={idx} cert={c} size="md" showDetails={true} />
                   ));
                 })()}
                 {(() => {
@@ -726,7 +725,7 @@ export default function EmployeesPage() {
                     ? JSON.parse(employeeDetail.skills || '[]')
                     : (employeeDetail.skills || []);
                   return Array.isArray(skills) && skills.map((s: string, idx: number) => (
-                    <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
+                    <span key={idx} className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
                       {s}
                     </span>
                   ));

@@ -52,6 +52,9 @@ function shouldReseed(db: Database.Database): boolean {
   const devonUser = db.prepare("SELECT id FROM users WHERE username = 'miller_d'").get();
   if (!devonUser) return true;
 
+  const unsplashEmp = db.prepare("SELECT id FROM employees WHERE photo_url LIKE '%images.unsplash.com%'").get();
+  if (!unsplashEmp) return true;
+
   return false;
 }
 
@@ -389,9 +392,55 @@ function shiftWindowForRole(role: string, indexInRole: number): { start: string;
   return { start: '13:00', end: '21:00' }; // Expo fallback
 }
 
+const NAMED_PORTRAITS: Record<string, string> = {
+  'marcus-vance': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=256&h=256&fit=crop&crop=faces&q=80',
+  'tariq-al-mansoor': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=256&h=256&fit=crop&crop=faces&q=80',
+  'nia-kimani': 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=256&h=256&fit=crop&crop=faces&q=80',
+  'kofi-achebe': 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=256&h=256&fit=crop&crop=faces&q=80',
+  'devon-miller': 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=256&h=256&fit=crop&crop=faces&q=80',
+  'soraya-haddad': 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=256&h=256&fit=crop&crop=faces&q=80',
+  'lucas-becker': 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=256&h=256&fit=crop&crop=faces&q=80',
+  'fatima-zahra': 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=256&h=256&fit=crop&crop=faces&q=80',
+  'patrick-gallagher': 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=256&h=256&fit=crop&crop=faces&q=80',
+  'alice-johnson': 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=256&h=256&fit=crop&crop=faces&q=80',
+  'bob-smith': 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=256&h=256&fit=crop&crop=faces&q=80',
+};
+
+const DIVERSE_PORTRAITS: string[] = [
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1534751516642-a171ed2c2188?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1548142813-c348350df52b?w=256&h=256&fit=crop&crop=faces&q=80',
+  'https://images.unsplash.com/photo-1542909168-82c3e7fdca5c?w=256&h=256&fit=crop&crop=faces&q=80',
+];
+
 function seededPhotoUrl(firstName: string, lastName: string, role: string): string {
-  const seed = encodeURIComponent(`${firstName}-${lastName}-${role}`.toLowerCase());
-  return `https://api.dicebear.com/9.x/initials/svg?seed=${seed}&backgroundType=gradientLinear`;
+  const key = `${firstName}-${lastName}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+  if (NAMED_PORTRAITS[key]) {
+    return NAMED_PORTRAITS[key];
+  }
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash << 5) - hash + key.charCodeAt(i);
+    hash |= 0;
+  }
+  const idx = Math.abs(hash) % DIVERSE_PORTRAITS.length;
+  return DIVERSE_PORTRAITS[idx];
 }
 
 export function seedDemoData(): void {

@@ -140,7 +140,7 @@ const EDIT_INPUT_CLASS = 'w-full rounded-md border border-input bg-background px
 const TIME_OPTIONS = createTimeOptions();
 const DEFAULT_SCHEDULE_LABOR_BUDGET = 5000;
 const MIN_SCHEDULE_LABOR_BUDGET = 1;
-const WEEK_DAY_COLUMN_MIN_WIDTH = 220;
+const WEEK_DAY_COLUMN_MIN_WIDTH = 250;
 
 function getShiftDurationHours(startTime: string, endTime: string): number {
   const [startHour = 0, startMinute = 0] = startTime.split(':').map(Number);
@@ -1373,11 +1373,11 @@ export default function SchedulePage() {
             <p className="text-sm text-muted-foreground">No schedules available yet.</p>
           )
         ) : (
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Active Schedule</label>
+          <div className="flex flex-wrap items-end gap-4 p-1">
+            <div className="space-y-1.5 min-w-[190px]">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Schedule</label>
               <select
-                className={NATIVE_SELECT_CLASS}
+                className={`w-full ${NATIVE_SELECT_CLASS}`}
                 value={selectedScheduleId ?? ''}
                 onChange={(e) => setSelectedScheduleId(Number(e.target.value))}
               >
@@ -1391,29 +1391,29 @@ export default function SchedulePage() {
 
             {isManager && selectedSchedule && (
               <>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">View</label>
-                  <div className="flex rounded-lg border border-border bg-muted/50 p-1">
+                <div className="space-y-1.5 min-w-[110px]">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">View Mode</label>
+                  <div className="flex rounded-xl border border-border bg-muted/60 p-1">
                     <button
                       type="button"
-                      className={`rounded-md px-2 py-1 text-xs font-medium transition ${managerScheduleView === 'weekly' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                      className={`flex-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${managerScheduleView === 'weekly' ? 'bg-white text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
                       onClick={() => setManagerScheduleView('weekly')}
                     >
                       Weekly
                     </button>
                     <button
                       type="button"
-                      className={`rounded-md px-2 py-1 text-xs font-medium transition ${managerScheduleView === 'daily' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                      className={`flex-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${managerScheduleView === 'daily' ? 'bg-white text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
                       onClick={() => setManagerScheduleView('daily')}
                     >
                       Daily
                     </button>
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Department Filter</label>
+                <div className="space-y-1.5 min-w-[190px]">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department Filter</label>
                   <select
-                    className={NATIVE_SELECT_CLASS}
+                    className={`w-full ${NATIVE_SELECT_CLASS}`}
                     value={selectedDepartmentFilter}
                     onChange={(e) => setSelectedDepartmentFilter(e.target.value)}
                   >
@@ -1425,10 +1425,10 @@ export default function SchedulePage() {
                     ))}
                   </select>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Employee Filter</label>
+                <div className="space-y-1.5 min-w-[190px]">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Employee Filter</label>
                   <select
-                    className={NATIVE_SELECT_CLASS}
+                    className={`w-full ${NATIVE_SELECT_CLASS}`}
                     value={selectedEmployeeFilter}
                     onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
                   >
@@ -1438,18 +1438,20 @@ export default function SchedulePage() {
                     ))}
                   </select>
                 </div>
-                <Button variant="outline" onClick={handleTogglePublish}>
-                  {selectedSchedule.status === 'published' ? 'Unpublish' : 'Publish'}
-                </Button>
-                <Button variant="default" onClick={openNewScheduleModal} className="flex items-center gap-1.5 shadow-sm">
-                  <Plus className="h-4 w-4" />
-                  New / Copy Week
-                </Button>
-                <Button variant="outline" onClick={() => window.print()} className="flex items-center gap-1.5" title="Print Schedule">
-                  <Printer className="h-4 w-4" />
-                  Print
-                </Button>
-                <Button variant="destructive" onClick={handleDeleteSchedule}>Delete Schedule</Button>
+                <div className="flex items-center gap-2 pt-1 flex-wrap">
+                  <Button variant="outline" size="sm" onClick={handleTogglePublish} className="shadow-2xs">
+                    {selectedSchedule.status === 'published' ? 'Unpublish' : 'Publish'}
+                  </Button>
+                  <Button variant="default" size="sm" onClick={openNewScheduleModal} className="flex items-center gap-1.5 shadow-xs">
+                    <Plus className="h-4 w-4" />
+                    New / Copy Week
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => window.print()} className="flex items-center gap-1.5" title="Print Schedule">
+                    <Printer className="h-4 w-4" />
+                    Print
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={handleDeleteSchedule}>Delete</Button>
+                </div>
               </>
             )}
 
@@ -1483,38 +1485,42 @@ export default function SchedulePage() {
       </Card>
 
       {isManager && selectedScheduleId && (
-        <Card className="space-y-3 border border-emerald-200/70 p-4 shadow-[0_8px_20px_rgba(13,148,136,0.06)]">
-          <h2 className="font-semibold text-foreground">Quick Shift Creation</h2>
-          <p className="text-xs text-muted-foreground">Pick role/time once, then drag employees into the schedule grid.</p>
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+        <Card className="space-y-4 border border-emerald-200/80 p-5 shadow-[0_8px_20px_rgba(13,148,136,0.06)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-bold text-foreground text-sm tracking-tight">Quick Shift Creation</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Pick role/time once, then click Add or drag employees directly into the schedule grid.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3.5 items-end">
             <Input label="Date" type="date" value={newShift.date} onChange={(e) => setNewShift((prev) => ({ ...prev, date: e.target.value }))} />
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Start</label>
-              <select className={NATIVE_SELECT_CLASS} value={newShift.start_time} onChange={(e) => setNewShift((prev) => ({ ...prev, start_time: e.target.value }))}>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Start Time</label>
+              <select className={`w-full ${NATIVE_SELECT_CLASS}`} value={newShift.start_time} onChange={(e) => setNewShift((prev) => ({ ...prev, start_time: e.target.value }))}>
                 {TIME_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">End</label>
-              <select className={NATIVE_SELECT_CLASS} value={newShift.end_time} onChange={(e) => setNewShift((prev) => ({ ...prev, end_time: e.target.value }))}>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">End Time</label>
+              <select className={`w-full ${NATIVE_SELECT_CLASS}`} value={newShift.end_time} onChange={(e) => setNewShift((prev) => ({ ...prev, end_time: e.target.value }))}>
                 {TIME_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Role</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Role</label>
               <select
-                className={NATIVE_SELECT_CLASS}
+                className={`w-full ${NATIVE_SELECT_CLASS}`}
                 value={newShift.role}
                 onChange={(e) => setNewShift((prev) => ({ ...prev, role: e.target.value }))}
               >
                 {roleOptions.map((role) => <option key={role}>{role}</option>)}
               </select>
             </div>
-            <div className="space-y-1.5 md:col-span-2">
-              <label htmlFor="new-shift-employee" className="text-xs font-medium text-muted-foreground">Assign Employee (optional)</label>
+            <div className="space-y-1.5 sm:col-span-2 md:col-span-2">
+              <label htmlFor="new-shift-employee" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Assign Employee (optional)</label>
               <select
                 id="new-shift-employee"
-                className={NATIVE_SELECT_CLASS}
+                className={`w-full ${NATIVE_SELECT_CLASS}`}
                 value={newShift.employee_id}
                 onChange={(e) => setNewShift((prev) => ({ ...prev, employee_id: e.target.value }))}
               >
@@ -1525,13 +1531,15 @@ export default function SchedulePage() {
               </select>
             </div>
           </div>
-          <Button onClick={handleCreateShift} isLoading={creatingShift}>
-            {newShift.employee_id ? 'Add Shift' : 'Add Open Shift'}
-          </Button>
+          <div>
+            <Button onClick={handleCreateShift} isLoading={creatingShift} size="sm" className="shadow-xs">
+              {newShift.employee_id ? '+ Add Assigned Shift' : '+ Add Open Shift'}
+            </Button>
+          </div>
 
-          <div className="pt-2 border-t border-border space-y-2">
-            <h3 className="text-sm font-semibold text-foreground">Employee Roster (drag into a day)</h3>
-            <div className="flex flex-wrap gap-2">
+          <div className="pt-3 border-t border-border space-y-2.5">
+            <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Employee Roster (Drag into any day column)</h3>
+            <div className="flex flex-wrap gap-2.5">
               {employees.map((employee) => {
                 const employeeDepartment = employeeDepartmentLabel(employee);
                 const palette = getDepartmentPaletteClasses(employeeDepartment);
@@ -1546,12 +1554,12 @@ export default function SchedulePage() {
                     setDraggedEmployeeId(null);
                     setDropDate(null);
                   }}
-                  className={`rounded-md border px-2 py-1 text-left text-xs ${palette.tone}`}
+                  className={`rounded-xl border px-3 py-2 text-left text-xs transition-all shadow-2xs hover:shadow-xs cursor-grab active:cursor-grabbing ${palette.tone}`}
                   title={`Drag to create a shift for ${employee.name}`}
                 >
-                  <div className={`font-medium ${palette.accent}`}>{employee.name}</div>
-                  <div className="text-muted-foreground">{employee.role}</div>
-                  <div className={`text-[10px] font-semibold uppercase tracking-wide ${palette.accent}`}>{employeeDepartment}</div>
+                  <div className={`font-bold ${palette.accent}`}>{employee.name}</div>
+                  <div className="text-muted-foreground text-[11px]">{employee.role}</div>
+                  <div className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${palette.accent}`}>{employeeDepartment}</div>
                 </button>
                 );
               })}

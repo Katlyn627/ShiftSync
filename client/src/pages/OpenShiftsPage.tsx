@@ -5,7 +5,7 @@ import {
   getSchedules,
   OpenShift, Schedule,
 } from '../api';
-import { PageHeader, useToast } from '../components/ui';
+import { PageHeader, useToast, CertificationBadge } from '../components/ui';
 
 type OpenShiftApplicant = {
   employee_id: number;
@@ -367,7 +367,12 @@ export default function OpenShiftsPage() {
                   <div className="text-xs text-gray-500 mt-0.5">{shift.offer_count} offer{shift.offer_count !== 1 ? 's' : ''} pending</div>
                 )}
                 {certs.length > 0 && (
-                  <div className="text-xs text-purple-700 mt-0.5">Requires: {certs.join(', ')}</div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Requires:</span>
+                    {certs.map((c, i) => (
+                      <CertificationBadge key={i} cert={c} size="sm" />
+                    ))}
+                  </div>
                 )}
 
                 {user?.isManager && shift.status === 'open' && (

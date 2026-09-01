@@ -32,6 +32,11 @@ export { PageHeader } from './PageHeader';
 export type { PageHeaderProps } from './PageHeader';
 
 export { Logo } from './Logo';
+export { BusinessLogo } from './BusinessLogo';
+export type { BusinessLogoProps } from './BusinessLogo';
+
+export { CertificationBadge, CERT_DEFINITIONS } from './CertificationBadge';
+export type { CertificationBadgeProps, CertDefinition } from './CertificationBadge';
 
 export { cn, NATIVE_SELECT_CLASS } from './utils';
 
